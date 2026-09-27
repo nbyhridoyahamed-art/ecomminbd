@@ -16,7 +16,8 @@ export type StockMovementType =
   | "transfer_in"
   | "transfer_out"
   | "purchase_receipt"
-  | "sale";
+  | "sale"
+  | "return";
 
 export interface StockMovement {
   id: number;

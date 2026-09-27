@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReceiptController;
+use App\Http\Controllers\Api\V1\ReturnController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\ShipmentController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
@@ -109,5 +110,13 @@ Route::prefix('v1')->group(function () {
         Route::get('cod-settlements', [CodSettlementController::class, 'index']);
         Route::post('cod-settlements', [CodSettlementController::class, 'store']);
         Route::get('cod-settlements/{codSettlement}', [CodSettlementController::class, 'show']);
+
+        Route::post('orders/{order}/returns', [ReturnController::class, 'store']);
+        Route::get('returns', [ReturnController::class, 'index']);
+        Route::get('returns/{orderReturn}', [ReturnController::class, 'show']);
+        Route::post('returns/{orderReturn}/approve', [ReturnController::class, 'approve']);
+        Route::post('returns/{orderReturn}/reject', [ReturnController::class, 'reject']);
+        Route::post('returns/{orderReturn}/receive', [ReturnController::class, 'receive']);
+        Route::post('returns/{orderReturn}/refund', [ReturnController::class, 'refund']);
     });
 });

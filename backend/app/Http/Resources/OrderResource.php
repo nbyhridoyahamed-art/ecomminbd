@@ -67,6 +67,12 @@ class OrderResource extends JsonResource
                 'status' => $this->shipment->status,
                 'courier_name' => $this->shipment->courier?->name,
             ] : null),
+            'returns' => $this->whenLoaded('returns', fn () => $this->returns->map(fn ($return) => [
+                'id' => $return->id,
+                'return_number' => $return->return_number,
+                'status' => $return->status,
+                'refund_amount' => $return->refund_amount === null ? null : (new Money($return->refund_amount, $this->currency_code))->toDecimal(),
+            ])),
             'created_by' => $this->creator?->name,
             'created_at' => $this->created_at,
         ];

@@ -411,6 +411,70 @@ below). Once an order has a shipment, `OrderController::deliver()` refuses
 to mark it delivered directly — the shipment's own `delivered` action is
 the only path, so the two can never disagree about the order's status.
 
+## 1g. Returns Schema (Phase 10 Wave 1)
+
+```
+returns
+  id, uuid, store_id (FK→stores, cascade),
+  order_id (FK→orders, cascade — not unique; an order can have several
+    returns, e.g. one per defective item discovered at different times),
+  return_number (e.g. RET-20260927-AB12CD — same date+random-suffix scheme
+    as stock_transfers.transfer_number/cod_settlements.settlement_number),
+  status (varchar: requested/approved/rejected/received/refunded — see the
+    state machine below), reason (nullable text),
+  refund_amount (bigint minor units, nullable — set only once status
+    becomes refunded), refunded_at (nullable timestamp),
+  note (nullable text), created_by (FK→users, nullOnDelete), timestamps
+  unique(store_id, return_number), index(store_id, status), index(order_id)
+  — the model is named `OrderReturn` (PHP reserves `return` as a class
+    name) with an explicit `$table = 'returns'` override; the table/API/
+    frontend all still just say "returns".
+
+return_items
+  id, return_id (FK→returns, cascade),
+  order_item_id (FK→order_items, cascade),
+  quantity (unsigned int), restock (bool, default true — the staff's
+    restock decision, revisited/overridable at receive() time rather than
+    fixed at request time, since a returned item's condition is only
+    knowable once it's physically back), timestamps
+
+return_status_history
+  id, return_id (FK→returns, cascade), from_status (nullable),
+  to_status, note (nullable), created_by (FK→users, nullOnDelete), timestamps
+  index(return_id)
+  — same append-only audit-ledger pattern as order_status_history/
+    shipment_status_history/stock_movements.
+```
+
+**Status state machine:** `requested` (created against a `delivered` order
+only; each item's quantity is validated against what remains eligible —
+ordered quantity minus whatever's already covered by that order item's
+other non-`rejected` returns, so a competing open return reserves its
+quantity and a `rejected` one frees it back up) → `approved`/`rejected`
+(rejection is reachable from `requested` or `approved`, never after) →
+`received` (the state that actually moves stock: for each `return_item`
+whose effective `restock` flag is true — the request-time default,
+optionally overridden per item in this same call — the item's quantity is
+added back to `stock_levels` at the order's warehouse and a `return`-type
+`stock_movements` row records it, the same reserved column value Phase 6
+left for this) → `refunded` (an amount defaulting to the sum of the
+return's items' `quantity × order_item.unit_price_amount`, staff-
+overridable — same "computed default, staff-overridable" pattern as
+`ShipmentController::delivered()`'s COD amount and
+`CodSettlementController`'s `amount_received`). A refund flips
+`orders.payment_status` to `refunded` only when, summed across *all* of
+that order's `refunded` returns, every order item's return-covered
+quantity reaches its full ordered quantity — a deliberately conservative
+reconciliation that never guesses at partial-refund semantics (see
+`DEVELOPMENT_ROADMAP.md`'s Phase 10 scope note).
+
+Also closed in this phase, not a new table: `ShipmentController::returned()`
+(section 1f) now performs the identical restock-plus-`return`-movement
+sequence when a `failed_delivery` shipment is marked `returned_to_seller`,
+since `Order.ship()` had already decremented on-hand quantity before any
+shipment existed and nothing was reversing it — this was the Delivery
+Wave 2 gap Phase 9 flagged.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -428,16 +492,15 @@ compatible with them.
   section 1b). `products`, `categories`, `brands`, `product_images` are
   built — see section 1b.
 - **Inventory Wave 2:** `product_variant_id` on `stock_levels`/
-  `stock_movements` (needs Phase 5 Wave 2 variants), automatic movements
-  from order *returns* (needs Phase 10 — cancellation and fulfillment
-  movements are built, see section 1e), a pending/in-transit/received
-  transfer approval workflow, and a `stock_adjustments` header table for
-  grouping a stocktake's many per-product adjustments under one
+  `stock_movements` (needs Phase 5 Wave 2 variants), a pending/in-transit/
+  received transfer approval workflow, and a `stock_adjustments` header
+  table for grouping a stocktake's many per-product adjustments under one
   reference (today each adjustment is its own `stock_movements` row —
   see section 1c). `stock_levels` (incl. `quantity_reserved`),
   `stock_movements`, `stock_transfers`, `stock_transfer_items` are built
-  — see section 1c. Movements driven by purchase receipts and by order
-  reservation/shipment are also built — see sections 1d/1e.
+  — see section 1c. Movements driven by purchase receipts, order
+  reservation/shipment, and returns are also built — see sections
+  1d/1e/1g.
 - **Purchasing Wave 2:** `purchase_returns` (returning received goods to
   a supplier — needs a real trigger from actual usage before its
   workflow can be designed with confidence), supplier payment
@@ -451,9 +514,9 @@ compatible with them.
   now set by the Phase 9 shipment-delivered flow, but `bkash`/`nagad`/
   `rocket`/`card`/`bank_transfer` have no producer yet), `coupons`/
   `coupon_usages` (no discount-code concept yet — Wave 1's
-  `discount_amount` is a plain manual entry), order returns/exchanges
-  (needs Phase 10), and an order-edit UI for editing a pending order's
-  items after creation (the `PUT` endpoint exists and is tested — see
+  `discount_amount` is a plain manual entry), and an order-edit UI for
+  editing a pending order's items after creation (the `PUT` endpoint
+  exists and is tested — see
   `API_DESIGN.md` — but no page consumes it yet, matching how
   purchase-order editing has no dedicated UI either). `customers`,
   `customer_addresses`, `orders`, `order_items`, `order_status_history`
@@ -461,13 +524,19 @@ compatible with them.
 - **Delivery Wave 2:** `delivery_zones`/`delivery_zone_rates` (no
   automatic shipping-rate-calculation consumer yet — `orders.shipping_amount`
   is still a plain manual entry, same reasoning as Catalog/Purchasing/Orders
-  Wave 2 items above), multi-shipment orders (re-dispatching after a failed
-  delivery currently has nowhere to go — `shipments.order_id` is unique),
-  and automatic stock-reversal movements when a `returned_to_seller`
-  shipment should put stock back (needs Phase 10 returns to define the
-  workflow). `couriers`, `shipments`, `shipment_status_history`,
-  `cod_settlements`, `cod_settlement_shipments` are built — see section 1f.
-- **Returns:** `returns`, `return_items`, `refunds`, `exchanges`.
+  Wave 2 items above), and multi-shipment orders (re-dispatching after a
+  failed delivery currently has nowhere to go — `shipments.order_id` is
+  unique). The stock-reversal-on-return item this bullet used to list is
+  no longer deferred — Phase 10 built it, see section 1g. `couriers`,
+  `shipments`, `shipment_status_history`, `cod_settlements`,
+  `cod_settlement_shipments` are built — see section 1f.
+- **Returns Wave 2:** `exchanges` (swap for a different product/variant
+  — no variant system yet, needs Phase 5 Wave 2), store credit as a
+  refund method (no wallet/ledger concept exists), and reconciling
+  `orders.payment_status` across *partial* refunds spread over multiple
+  separate return records (today only a full-coverage refund reconciles
+  it — see section 1g). `returns`, `return_items`, `return_status_history`
+  are built — see section 1g.
 - **CMS/Builder:** `pages`, `page_versions`, `navigation_menus`,
   `navigation_items`, `media`, `homepage_blocks` (ordered, `type` +
   `settings` JSON per the block registry pattern), `saved_sections`.

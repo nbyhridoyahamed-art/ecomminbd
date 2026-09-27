@@ -90,8 +90,8 @@ List endpoints accept:
 `payments`, `pages`, `blog`, `media`, `seo`, `reports`, `settings` —
 each gets its own controller/request/resource set when its phase lands;
 none are stubbed early to avoid dead routes (spec rule 178: no fake
-functionality). `orders`, `customers`, `couriers`, `shipments`, and
-`cod-settlements` are implemented — see section 9.
+functionality). `orders`, `customers`, `couriers`, `shipments`,
+`cod-settlements`, and `returns` are implemented — see section 9.
 
 ## 7. Webhooks (future phases)
 
@@ -182,9 +182,13 @@ order's total for a `cod` order when none is given, and — if the order
 isn't already `delivered` — transitions it too, setting `payment_status`
 to `paid` for COD; this is the only path to deliver an order that has a
 shipment, since `POST /orders/{id}/deliver` now rejects one that does),
-`.../failed`, and `.../returned` (failed → returned-to-seller; neither
-touches order status or stock). `shipments.*` uses a standard policy
-(`view`/`create`/`update` — the five status actions all check `update`).
+`.../failed`, and `.../returned` (failed → returned-to-seller; doesn't
+touch order status, but — since Phase 10 — does restock the order's
+items back into `stock_levels` and writes a `return`-type
+`stock_movements` row for each, reversing the decrement `Order.ship()`
+made before this shipment ever existed). `shipments.*` uses a standard
+policy (`view`/`create`/`update` — the five status actions all check
+`update`).
 `GET/POST /cod-settlements` + `GET .../{id}` records a courier
 settlement batch covering a set of delivered, unsettled `cod` shipments
 — `amount_expected` is computed server-side from those shipments'
@@ -195,5 +199,21 @@ can't both succeed), and are marked `cod_settled` atomically with the
 settlement's creation. `cod_settlements.*` uses `view`/`create` only —
 no update/destroy endpoint, matching the immutable-ledger pattern of
 `stock_movements`/`order_status_history`.
+
+Returns (Phase 10 Wave 1): `POST /orders/{id}/returns` (requests a
+return against a `delivered` order; rejects a quantity exceeding what
+remains eligible per order item — see `DATABASE_DESIGN.md` section 1g),
+`GET /returns` + `GET .../{id}`, and the status-transition actions
+`POST .../{id}/approve`, `.../reject` (reachable from `requested` or
+`approved`), `.../receive` (approved → received — accepts an optional
+per-item `items[].restock` override; for each item whose effective
+restock flag is true, adds its quantity back to `stock_levels` and
+writes a `return`-type `stock_movements` row, inside a locked
+transaction), and `.../refund` (received → refunded — accepts an
+optional `refund_amount`, defaulting to the sum of the return's items'
+line totals; flips `orders.payment_status` to `refunded` only once every
+order item's ordered quantity is fully covered by the order's `refunded`
+returns combined). `returns.*` uses a standard policy (`view`/`create`/
+`update` — the four status actions all check `update`).
 
 Section 7 (webhooks) remains documented intent for future phases.

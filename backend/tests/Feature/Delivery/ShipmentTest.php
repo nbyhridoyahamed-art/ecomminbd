@@ -6,6 +6,8 @@ use App\Models\Courier;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Shipment;
+use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -178,6 +180,12 @@ class ShipmentTest extends TestCase
         $order = $this->shippedOrder($store);
         $courier = Courier::factory()->for($store)->create();
 
+        // Simulate the on-hand quantity Order.ship() already decremented
+        // before this shipment ever existed (the order has 2 units of its
+        // one item — see shippedOrder()).
+        $product = $order->items->first()->product;
+        StockLevel::factory()->for($product)->for($order->warehouse)->create(['quantity' => 8]);
+
         $shipmentId = $this->actingAs($admin, 'sanctum')
             ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-6'])
             ->assertCreated()->json('data.id');
@@ -195,6 +203,18 @@ class ShipmentTest extends TestCase
             ->assertJsonPath('data.status', 'returned_to_seller');
 
         $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'shipped']);
+
+        // The 2 units never reached the customer and are physically back —
+        // on-hand quantity must be restored, with a real 'return' movement
+        // recording it (this is the Phase 9 gap Phase 10 closes).
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 10,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id, 'type' => 'return', 'quantity' => 2,
+            'quantity_before' => 8, 'quantity_after' => 10,
+            'reference_type' => Shipment::class, 'reference_id' => $shipmentId,
+        ]);
     }
 
     public function test_invalid_status_transitions_are_rejected(): void

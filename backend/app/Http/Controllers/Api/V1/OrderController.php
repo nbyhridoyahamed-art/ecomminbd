@@ -27,7 +27,7 @@ class OrderController extends Controller
     private const RELATIONS = [
         'customer', 'warehouse', 'items.product', 'creator',
         'shippingDivision', 'shippingDistrict', 'shippingUpazila', 'statusHistory.creator',
-        'shipment.courier',
+        'shipment.courier', 'returns',
     ];
 
     public function index(Request $request): JsonResponse

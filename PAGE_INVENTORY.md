@@ -36,7 +36,7 @@ their backing functionality — no dead pages).
 | `/orders` | ✅ | 8 (redirects to Orders) |
 | `/orders/orders` | ✅ | 8 (status/customer filters, total shown per order) |
 | `/orders/orders/new` | ✅ | 8 (customer/warehouse/payment method + saved-or-manual shipping address + line-item builder) |
-| `/orders/orders/[id]` | ✅ | 8 (items, shipping address, status badge, Process/Ship/Deliver/Cancel actions gated by status+permission, status history timeline — ship drives real `stock_movements`) |
+| `/orders/orders/[id]` | ✅ | 8/9/10 (items, shipping address, status badge, Process/Ship/Deliver/Cancel actions gated by status+permission, status history timeline — ship drives real `stock_movements`; courier-assignment + shipment status card from Phase 9; Returns list + "Request a return" form, shown once `delivered`, from Phase 10) |
 | `/orders/customers` | ✅ | 8 (list, search, pagination) |
 | `/orders/customers/new` | ✅ | 8 |
 | `/orders/customers/[id]` | ✅ | 8 (edit customer + inline saved-address manager, no separate address pages) |
@@ -49,8 +49,10 @@ their backing functionality — no dead pages).
 | `/delivery/cod-settlements` | ✅ | 9 (filter by courier) |
 | `/delivery/cod-settlements/new` | ✅ | 9 (pick courier, select unsettled COD shipments, enter amount received) |
 | `/delivery/cod-settlements/[id]` | ✅ | 9 (expected vs. received, discrepancy, covered shipments) |
-| `/delivery` (delivery zones/rates, multi-shipment orders, automatic return-driven stock reversal) | ⏳ | 9 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
-| `/returns` | ⏳ | 10 |
+| `/delivery` (delivery zones/rates, multi-shipment orders) | ⏳ | 9 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
+| `/orders/returns` | ✅ | 10 (status filter, tab under Orders alongside Orders/Customers) |
+| `/orders/returns/[id]` | ✅ | 10 (status card w/ Approve/Reject/Receive/Refund actions — receive has a per-item restock checklist, refund has a suggested-amount-prefilled input — items table, order summary, status history timeline) |
+| `/orders` (exchanges, store credit, cross-return partial-refund reconciliation) | ⏳ | 10 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/website/homepage` | ⏳ | 13 |
 | `/website/pages` | ⏳ | 12 |
 | `/website/navigation` | ⏳ | 12 |
@@ -124,9 +126,11 @@ their backing functionality — no dead pages).
 | `POST /api/v1/orders/{id}/process`, `.../ship` (drives `stock_movements`/`stock_levels`), `.../deliver`, `.../cancel` | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/couriers` | ✅ |
 | `POST /api/v1/orders/{id}/shipments`, `GET /api/v1/shipments`, `GET .../{id}` | ✅ |
-| `POST /api/v1/shipments/{id}/picked-up`, `.../in-transit`, `.../delivered` (drives `stock_movements`-adjacent `orders.status`/`payment_status` for COD), `.../failed`, `.../returned` | ✅ |
+| `POST /api/v1/shipments/{id}/picked-up`, `.../in-transit`, `.../delivered` (drives `stock_movements`-adjacent `orders.status`/`payment_status` for COD), `.../failed`, `.../returned` (drives `stock_movements`/`stock_levels` since Phase 10) | ✅ |
 | `GET/POST /api/v1/cod-settlements`, `GET .../{id}` | ✅ |
-| Everything under returns/etc. | ⏳ — added phase by phase |
+| `POST /api/v1/orders/{id}/returns`, `GET /api/v1/returns`, `GET .../{id}` | ✅ |
+| `POST /api/v1/returns/{id}/approve`, `.../reject`, `.../receive` (drives `stock_movements`/`stock_levels`), `.../refund` | ✅ |
+| Everything under CMS/blog/SEO/reports/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

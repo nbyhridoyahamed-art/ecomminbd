@@ -38,7 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Orders",
     href: "/orders/orders",
     icon: ShoppingCart,
-    anyPermission: ["orders.view", "customers.view"],
+    anyPermission: ["orders.view", "customers.view", "returns.view"],
   },
   {
     label: "Delivery",

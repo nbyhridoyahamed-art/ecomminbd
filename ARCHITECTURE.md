@@ -154,29 +154,37 @@ later phases implement against an agreed shape.
   a `Money` value object — never floats (spec rule 27/182).
 - Every stock change writes an immutable `stock_movements` ledger row
   (`type`: `adjustment_increase`/`adjustment_decrease`/`transfer_in`/
-  `transfer_out`/`purchase_receipt`/`sale` today; `return` joins once
-  Returns exists) recording a before/after quantity snapshot.
-  `stock_levels.quantity` is a materialized cache of "current stock,"
-  not derived by summing the ledger on every read — but it is only ever
-  written inside the same DB transaction as the movement row that
-  explains the change, with `lockForUpdate()` held on it throughout, so
-  the two can never drift (spec section 18–19). Landed in Phase 6;
-  Phase 7 added `purchase_receipt` and Phase 8 added `sale` as real
-  non-manual producers. Inventory *reservation* (`stock_levels.quantity_reserved`,
+  `transfer_out`/`purchase_receipt`/`sale`/`return`) recording a
+  before/after quantity snapshot. `stock_levels.quantity` is a
+  materialized cache of "current stock," not derived by summing the
+  ledger on every read — but it is only ever written inside the same DB
+  transaction as the movement row that explains the change, with
+  `lockForUpdate()` held on it throughout, so the two can never drift
+  (spec section 18–19). Landed in Phase 6; Phase 7 added
+  `purchase_receipt`, Phase 8 added `sale`, and Phase 10 added `return`
+  (with two real producers: a received customer return, and a
+  `returned_to_seller` shipment — see below) as real non-manual
+  producers. Inventory *reservation* (`stock_levels.quantity_reserved`,
   distinct from on-hand `quantity`) also landed in Phase 8 — see
-  `DATABASE_DESIGN.md` section 1e. Phase 9's `shipments`/`shipment_status_history`
-  and `cod_settlements`/`cod_settlement_shipments` are their own
+  `DATABASE_DESIGN.md` section 1e. Phase 9's `shipments`/`shipment_status_history`,
+  `cod_settlements`/`cod_settlement_shipments`, and Phase 10's
+  `returns`/`return_items`/`return_status_history` are their own
   append-only ledgers of the same shape, layered on top rather than
-  touching `stock_movements` directly — a shipment reaching `delivered`
-  doesn't write a new stock movement (the `sale` movement already
-  happened at `Order.ship()`); it only updates the order's
-  status/`payment_status` and records the COD amount collected.
+  always touching `stock_movements` directly — a shipment reaching
+  `delivered` doesn't write a new stock movement (the `sale` movement
+  already happened at `Order.ship()`); it only updates the order's
+  status/`payment_status` and records the COD amount collected. A
+  shipment reaching `returned_to_seller`, and a return reaching
+  `received`, are the exception: both *do* write a real `return`
+  movement, since goods are physically coming back and the earlier
+  `sale` decrement needs reversing.
 - Order creation, payment capture, inventory reservation, purchase
   receiving, and returns/refunds all run inside DB transactions (spec
   rule 180/114). Purchase receiving (Phase 7), order reservation/shipment
-  (Phase 8), and shipment status transitions plus COD settlement
-  (Phase 9) are built — see
-  `PurchaseReceiptController`/`OrderController`/`ShipmentController`/`CodSettlementController`.
+  (Phase 8), shipment status transitions plus COD settlement (Phase 9),
+  and the return lifecycle plus its refund/payment-status reconciliation
+  (Phase 10) are built — see
+  `PurchaseReceiptController`/`OrderController`/`ShipmentController`/`CodSettlementController`/`ReturnController`.
 
 ## 8. Caching & Queues
 
@@ -221,14 +229,23 @@ with their own pending_pickup/picked_up/in_transit/delivered/
 failed_delivery/returned_to_seller state machine layered additively on
 top of `Order.ship()`/`deliver()`, plus COD settlement batches that
 reconcile a courier's remittance against delivered COD shipments — the
-first real consumer of the COD half of Orders Wave 2's payments gap).
-Returns, CMS/builder, blog, SEO, storefront, customer account,
-reporting, the adapter implementations described in section 6, Catalog
-Wave 2 (variants/attributes, bundles, bulk import/export, a reusable
-media library), Inventory Wave 2 (order-*return* movements,
-variant-level stock), Purchasing Wave 2 (purchase returns, supplier
-ledger, PO approval workflow), Orders Wave 2 (a non-COD gateway-payments
-ledger, coupons, order returns/exchanges), and Delivery Wave 2 (delivery
-zones/rates, multi-shipment orders, return-driven stock reversal — see
-`DATABASE_DESIGN.md` section 2) are designed here but built in later
+first real consumer of the COD half of Orders Wave 2's payments gap),
+and Phase 10 Wave 1 returns (return requests against a `delivered` order
+with a requested/approved/rejected/received/refunded state machine —
+the first real producer, alongside a fix to Phase 9's
+`returned_to_seller` shipment action, of Inventory Wave 2's `return`
+stock-movement gap; a refund reconciles `orders.payment_status` once
+every order item's ordered quantity is covered by that order's refunded
+returns combined).
+CMS/builder, blog, SEO, storefront, customer account, reporting, the
+adapter implementations described in section 6, Catalog Wave 2
+(variants/attributes, bundles, bulk import/export, a reusable media
+library), Inventory Wave 2 (variant-level stock — the order-*return*
+movement gap this used to list is closed, see above), Purchasing Wave 2
+(purchase returns, supplier ledger, PO approval workflow), Orders Wave 2
+(a non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery
+zones/rates, multi-shipment orders — the return-driven stock reversal
+gap this used to list is closed, see above), and Returns Wave 2
+(exchanges, store credit, cross-return partial-refund reconciliation —
+see `DATABASE_DESIGN.md` section 2) are designed here but built in later
 phases per `DEVELOPMENT_ROADMAP.md`.

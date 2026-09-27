@@ -19,7 +19,6 @@ import { useCurrentUser } from "@/hooks/use-auth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
-import { EmptyState } from "@/components/ui/empty-state";
 
 /** Fetches just enough of a list endpoint to read its total count. */
 function useTotal(path: string) {
@@ -82,6 +81,16 @@ export default function DashboardPage() {
     },
     enabled: Boolean(user?.current_store_id),
   });
+  const pendingReturns = useQuery<number>({
+    queryKey: ["total", "/returns", "requested", user?.current_store_id],
+    queryFn: async () => {
+      const { meta } = await api.getWithMeta<unknown[]>(
+        `/returns?store_id=${user?.current_store_id}&status=requested&per_page=1`,
+      );
+      return meta?.total ?? 0;
+    },
+    enabled: Boolean(user?.current_store_id),
+  });
 
   const loading =
     stores.isLoading ||
@@ -92,7 +101,8 @@ export default function DashboardPage() {
     lowStock.isLoading ||
     openPurchaseOrders.isLoading ||
     pendingOrders.isLoading ||
-    shipmentsInTransit.isLoading;
+    shipmentsInTransit.isLoading ||
+    pendingReturns.isLoading;
 
   return (
     <div className="space-y-6">
@@ -106,13 +116,13 @@ export default function DashboardPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-9">
-          {Array.from({ length: 9 }).map((_, i) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-10">
+          {Array.from({ length: 10 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-9">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-10">
           <StatCard label="Products" value={products.data ?? 0} icon={<Package />} />
           <StatCard
             label="Low stock alerts"
@@ -123,18 +133,13 @@ export default function DashboardPage() {
           <StatCard label="Open purchase orders" value={openPurchaseOrders.data ?? 0} icon={<ClipboardList />} />
           <StatCard label="Pending orders" value={pendingOrders.data ?? 0} icon={<ShoppingCart />} />
           <StatCard label="Shipments in transit" value={shipmentsInTransit.data ?? 0} icon={<Truck />} />
+          <StatCard label="Pending returns" value={pendingReturns.data ?? 0} icon={<Undo2 />} />
           <StatCard label="Stores" value={stores.data ?? 0} icon={<StoreIcon />} />
           <StatCard label="Warehouses" value={warehouses.data ?? 0} icon={<WarehouseIcon />} />
           <StatCard label="Staff users" value={users.data ?? 0} icon={<Users />} />
           <StatCard label="Roles" value={roles.data ?? 0} icon={<ShieldCheck />} />
         </div>
       )}
-
-      <EmptyState
-        icon={<Undo2 />}
-        title="Returns aren't enabled yet"
-        description="Phase 10 (Returns) hasn't shipped in this build. Once it does, this dashboard will show return/refund KPIs here — see DEVELOPMENT_ROADMAP.md for the plan."
-      />
 
       {user && user.permissions.length === 0 ? (
         <Alert variant="warning">

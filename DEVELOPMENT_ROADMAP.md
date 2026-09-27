@@ -15,8 +15,8 @@ in place and the app still builds/runs.
 | 6 | Inventory | ✅ Wave 1 done (order reservations/variant-level stock deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Wave 1 done (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
 | 8 | Orders | ✅ Wave 1 done (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
-| 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders, return-driven stock reversal deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
-| 10 | Returns | ⏳ Not started | No |
+| 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
+| 10 | Returns | ✅ Wave 1 done (exchanges/store-credit, cross-return refund reconciliation deferred — see note) | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
 | 11 | Admin Dashboard (full KPIs/charts) | 🟡 Shell only | Yes (shell) |
 | 12 | CMS | ⏳ Not started | No |
 | 13 | Homepage Builder | ⏳ Not started | No |
@@ -169,24 +169,49 @@ shipping division/district/upazila names were silently always `null`
 Phase 8 bug caught while wiring the shipment relation onto the same
 resource. Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md`
 section 2): delivery zones/rates (no automatic shipping-rate-calculation
-consumer yet — `orders.shipping_amount` is still a plain manual entry),
-multi-shipment orders (`shipments.order_id` is unique — re-dispatching
-after a failed delivery has nowhere to go yet), and automatic
-stock-reversal movements on a return (needs Phase 10 to define the
-workflow).
+consumer yet — `orders.shipping_amount` is still a plain manual entry)
+and multi-shipment orders (`shipments.order_id` is unique — re-dispatching
+after a failed delivery has nowhere to go yet). The remaining Wave 2 item
+this note used to list — automatic stock-reversal movements on a
+`returned_to_seller` shipment — is no longer deferred: Phase 10 closed it
+(see its scope note below).
+
+**Phase 10 scope note:** Wave 1 ships return requests against a
+`delivered` order with a real state machine: `requested` (per-item
+quantity, guarded against exceeding what remains eligible — a competing
+open return reserves its quantity, but a `rejected` one frees it back
+up) → `approved`/`rejected` → `received` (the first real producer,
+alongside the Phase 9 fix below, of the `return` stock-movement type
+Phase 6 reserved since; a per-item `restock` flag can be overridden here,
+since a returned item's condition is only knowable once it's physically
+back — not at request time) → `refunded` (an amount defaulting to the
+sum of the returned items' line totals, staff-overridable, same pattern
+as `ShipmentController::delivered()`'s COD amount). A refund only flips
+`orders.payment_status` to `refunded` once every order item's full
+ordered quantity is covered by that order's `refunded` returns combined
+— a deliberately conservative reconciliation that avoids guessing at
+partial-refund semantics. Also closed along the way: the exact gap
+Phase 9's own scope note flagged — `ShipmentController::returned()` now
+restocks on-hand quantity and writes a real `return` movement when a
+failed delivery is marked back to the seller, since `Order.ship()` had
+already decremented it before any shipment existed. Deliberately
+deferred to a Wave 2 (see `DATABASE_DESIGN.md` section 2): exchanges
+(swap for a different product/variant — no variant system yet, Phase 5
+Wave 2), store credit as a refund method (no wallet/ledger concept
+exists), and reconciling `payment_status` across *partial* refunds spread
+over multiple separate return records (today only a full-coverage refund
+reconciles it — see above).
 
 ## Next Session Should Start With
 
-Phase 10: Returns (return requests, return items, refunds, exchanges)
-— the natural next unblock, since it closes the last stock-movement gap
-(`return`, reserved since Phase 6) and the Wave 2 deferrals both
-Purchasing and Delivery left open (reversing stock on a returned
-shipment). Phase 5 Wave 2 (variants/attributes, bundles, bulk
-import/export, media library) is the other reasonable starting point —
-see its scope note above. Follow the phase order above; do not skip
-ahead to CMS/SEO/Storefront before Returns exists, since those phases
-both link to and depend on catalog + inventory + order + delivery +
-returns data.
+Phase 11: Admin Dashboard (full KPIs/charts) — the natural next unblock,
+since every phase through Returns now has real data for it to surface
+and today's dashboard is still shell-only stat cards with no charts or
+trends. Phase 5 Wave 2 (variants/attributes, bundles, bulk import/export,
+media library) is the other reasonable starting point — see its scope
+note above. Follow the phase order above; do not skip ahead to CMS/SEO/
+Storefront before both exist, since those phases link to and depend on
+catalog + inventory + order + delivery + returns data.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

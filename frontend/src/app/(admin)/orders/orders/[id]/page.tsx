@@ -7,11 +7,13 @@ import Link from "next/link";
 import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useCancelOrder, useDeliverOrder, useOrder, useProcessOrder, useShipOrder } from "@/hooks/use-orders";
+import { useCreateReturn } from "@/hooks/use-returns";
 import { useCreateShipment, useShipment } from "@/hooks/use-shipments";
 import { formatMoney } from "@/lib/money";
 import { PermissionDenied } from "@/components/permission-denied";
 import { ShipmentAssignForm } from "@/components/delivery/shipment-assign-form";
 import { ShipmentStatusCard } from "@/components/delivery/shipment-status-card";
+import { ReturnRequestForm } from "@/components/returns/return-request-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/types/api";
 import type { OrderStatus } from "@/types/order";
+import type { ReturnStatus } from "@/types/return";
 
 type BadgeVariant = BadgeProps["variant"];
 
@@ -46,6 +49,22 @@ const STATUS_VARIANTS: Record<OrderStatus, BadgeVariant> = {
   cancelled: "danger",
 };
 
+const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {
+  requested: "Requested",
+  approved: "Approved",
+  rejected: "Rejected",
+  received: "Received",
+  refunded: "Refunded",
+};
+
+const RETURN_STATUS_VARIANTS: Record<ReturnStatus, BadgeVariant> = {
+  requested: "neutral",
+  approved: "info",
+  rejected: "danger",
+  received: "warning",
+  refunded: "success",
+};
+
 export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]">) {
   const { id } = use(params);
   const orderId = Number(id);
@@ -58,6 +77,7 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
   const cancelOrder = useCancelOrder(orderId);
   const createShipment = useCreateShipment(orderId);
   const { data: shipment } = useShipment(order?.shipment?.id);
+  const createReturn = useCreateReturn(orderId);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   if (currentUser && !can(currentUser, "orders.view")) {
@@ -219,6 +239,52 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
       ) : null}
 
       {shipment ? <ShipmentStatusCard shipment={shipment} canUpdate={can(currentUser, "shipments.update")} /> : null}
+
+      {order.returns.length > 0 && can(currentUser, "returns.view") ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Returns</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {order.returns.map((orderReturn) => (
+                <li key={orderReturn.id} className="flex items-center justify-between">
+                  <Link
+                    href={`/orders/returns/${orderReturn.id}`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {orderReturn.return_number}
+                  </Link>
+                  <div className="flex items-center gap-3">
+                    {orderReturn.refund_amount !== null ? (
+                      <span className="text-text-secondary">{formatMoney(orderReturn.refund_amount, order.currency_code)}</span>
+                    ) : null}
+                    <Badge variant={RETURN_STATUS_VARIANTS[orderReturn.status as ReturnStatus]}>
+                      {RETURN_STATUS_LABELS[orderReturn.status as ReturnStatus]}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {order.status === "delivered" && can(currentUser, "returns.create") ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Request a return</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ReturnRequestForm
+              items={order.items}
+              isPending={createReturn.isPending}
+              serverError={createReturn.error instanceof ApiError ? createReturn.error.message : null}
+              onSubmit={(values) => createReturn.mutate(values)}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

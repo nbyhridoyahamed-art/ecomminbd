@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/hooks/use-auth";
 const TABS = [
   { label: "Orders", href: "/orders/orders", permission: "orders.view" },
   { label: "Customers", href: "/orders/customers", permission: "customers.view" },
+  { label: "Returns", href: "/orders/returns", permission: "returns.view" },
 ];
 
 export default function OrdersLayout({ children }: { children: React.ReactNode }) {

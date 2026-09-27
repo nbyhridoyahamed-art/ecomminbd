@@ -8,6 +8,8 @@ use App\Http\Requests\Delivery\ShipmentRequest;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Order;
 use App\Models\Shipment;
+use App\Models\StockLevel;
+use App\Models\StockMovement;
 use App\Support\ApiResponse;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
@@ -196,7 +198,54 @@ class ShipmentController extends Controller
             return ApiResponse::error('Only a failed delivery can be marked returned to seller.', [], 422);
         }
 
-        $this->transition($shipment, 'returned_to_seller', $request->input('note'));
+        DB::transaction(function () use ($request, $shipment) {
+            $order = $shipment->order()->with('items')->first();
+
+            // Order.ship() already converted the reservation into a real
+            // `sale` movement and decremented on-hand quantity before this
+            // shipment ever existed — since the goods never reached the
+            // customer and are physically back, that decrement needs
+            // reversing. (Reopening the order's own status, e.g. back to
+            // pending/processing or to cancelled, is a Wave 2 problem —
+            // Wave 1 only guarantees the stock side is correct.)
+            foreach ($order->items as $item) {
+                $level = StockLevel::query()
+                    ->where('product_id', $item->product_id)
+                    ->where('warehouse_id', $order->warehouse_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                $before = $level?->quantity ?? 0;
+                $after = $before + $item->quantity;
+
+                $level
+                    ? $level->update(['quantity' => $after])
+                    : StockLevel::create(['product_id' => $item->product_id, 'warehouse_id' => $order->warehouse_id, 'quantity' => $after]);
+
+                StockMovement::create([
+                    'store_id' => $shipment->store_id,
+                    'product_id' => $item->product_id,
+                    'warehouse_id' => $order->warehouse_id,
+                    'type' => 'return',
+                    'quantity' => $item->quantity,
+                    'quantity_before' => $before,
+                    'quantity_after' => $after,
+                    'reference_type' => Shipment::class,
+                    'reference_id' => $shipment->id,
+                    'created_by' => $request->user()->id,
+                ]);
+            }
+
+            $fromStatus = $shipment->status;
+            $shipment->update(['status' => 'returned_to_seller']);
+
+            $shipment->statusHistory()->create([
+                'from_status' => $fromStatus,
+                'to_status' => 'returned_to_seller',
+                'note' => $request->input('note'),
+                'created_by' => $request->user()->id,
+            ]);
+        });
 
         return ApiResponse::success(new ShipmentResource($shipment->load(self::RELATIONS)), 'Shipment marked returned to seller.');
     }
