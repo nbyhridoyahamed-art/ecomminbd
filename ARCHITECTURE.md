@@ -185,11 +185,14 @@ later phases implement against an agreed shape.
 ## 10. What This Session Implements vs. Defers
 
 This document describes the **target architecture for the whole
-platform**. This session implements the foundation layer only:
-organizations/stores/users/roles/permissions/warehouses/settings/BD
-localization on the backend, and the design system + auth + dashboard
-shell on the frontend. Catalog, inventory ledger, orders, purchasing,
-delivery/COD, returns, CMS/builder, blog, SEO, storefront, customer
-account, reporting, and the adapter implementations described in
-section 6 are designed here but built in later phases per
+platform**. Sessions so far implement the foundation layer
+(organizations/stores/users/roles/permissions/warehouses/settings/BD
+localization on the backend, design system + auth + dashboard shell on
+the frontend) plus Phase 5 Wave 1 catalog (categories, brands, simple
+products with pricing/SEO/images). Inventory ledger, orders,
+purchasing, delivery/COD, returns, CMS/builder, blog, SEO, storefront,
+customer account, reporting, the adapter implementations described in
+section 6, and Catalog Wave 2 (variants/attributes, bundles, bulk
+import/export, a reusable media library — see `DATABASE_DESIGN.md`
+section 2) are designed here but built in later phases per
 `DEVELOPMENT_ROADMAP.md`.

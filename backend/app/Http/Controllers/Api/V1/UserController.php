@@ -42,6 +42,13 @@ class UserController extends Controller
         $this->authorize('create', User::class);
 
         $data = $request->validated();
+        // Set explicitly rather than leaning on the migration's column
+        // default: create() returns the in-memory model, not a fresh
+        // SELECT, so a field left for the DB default would come back
+        // null in this response even though the row has the real value.
+        $data['status'] ??= 'active';
+        $data['locale'] ??= 'en';
+        $data['timezone'] ??= 'Asia/Dhaka';
 
         $user = User::create([
             ...collect($data)->except(['password', 'roles'])->all(),

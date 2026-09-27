@@ -9,10 +9,15 @@ their backing functionality — no dead pages).
 | Route | Status | Phase |
 |---|---|---|
 | `/login` | ✅ | 3 (Auth) |
-| `/dashboard` | ✅ (shell + real KPI wiring, sparse data expected pre-catalog) | 3/11 |
-| `/catalog/products` | ⏳ | 5 |
-| `/catalog/categories` | ⏳ | 5 |
-| `/catalog/brands` | ⏳ | 5 |
+| `/dashboard` | ✅ (shell + real KPI wiring, incl. product count) | 3/11 |
+| `/catalog/products` | ✅ | 5 (search, filter by category/brand/status, pagination) |
+| `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5 (tabbed form: General/Pricing/Media/SEO; multi-image upload with primary selection) |
+| `/catalog/categories` | ✅ | 5 (hierarchical list, unlimited nesting, cycle-safe) |
+| `/catalog/categories/new`, `/catalog/categories/[id]` | ✅ | 5 |
+| `/catalog/brands` | ✅ | 5 (list, search, pagination) |
+| `/catalog/brands/new`, `/catalog/brands/[id]` | ✅ | 5 |
+| `/catalog/products` (variable/bundle/combo types, attributes, variant generator) | ⏳ | 5 Wave 2 — schema reserves `type` for this; only `simple` is functional |
+| `/catalog/media` (reusable, browsable media library) | ⏳ | 5 Wave 2 — product/category/brand images upload directly today, no shared library yet |
 | `/inventory` | ⏳ | 6 |
 | `/inventory/warehouses` | ⏳ | 6 (backend model exists; admin UI is Phase 6) |
 | `/inventory/transfers` | ⏳ | 6 |
@@ -81,7 +86,12 @@ their backing functionality — no dead pages).
 | `GET/POST/PUT/DELETE /api/v1/users` | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/roles`, `GET /api/v1/permissions` | ✅ |
 | `GET /api/v1/currencies` | ✅ |
-| Everything under products/orders/inventory/etc. | ⏳ — added phase by phase |
+| `GET/POST/PUT/DELETE /api/v1/categories` | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/brands` | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/products` | ✅ |
+| `POST /api/v1/products/{id}/images`, `DELETE .../images/{id}`, `POST .../images/{id}/primary` | ✅ |
+| `POST /api/v1/uploads` (generic category/brand image upload) | ✅ |
+| Everything under orders/inventory/purchasing/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

@@ -111,6 +111,8 @@ credential-stuffing/brute force per spec section 107.
 
 Sections 2–5 (envelope, Sanctum auth endpoints, `auth:sanctum` +
 `can:` middleware wiring) plus full CRUD for `stores`, `warehouses`,
-`users`, `roles` (+ `permissions` listing), and a read-only
-`currencies` listing. Section 6 (catalog/orders/etc.) and section 7
-(webhooks) are documented intent for future phases.
+`users`, `roles` (+ `permissions` listing), `categories`, `brands`,
+`products` (+ image sub-resource endpoints), and read-only listings for
+`currencies` and BD `locations`. A generic `POST /uploads` endpoint
+handles category/brand image uploads. Section 6 (orders/inventory/etc.)
+and section 7 (webhooks) remain documented intent for future phases.

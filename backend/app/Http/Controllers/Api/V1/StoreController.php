@@ -40,7 +40,14 @@ class StoreController extends Controller
     {
         $this->authorize('create', Store::class);
 
-        $store = Store::create($request->validated());
+        // Set explicitly rather than leaning on the migration's column
+        // default: create() returns the in-memory model, not a fresh
+        // SELECT, so a field left for the DB default would come back
+        // null in this response even though the row has the real value.
+        $data = $request->validated();
+        $data['status'] ??= 'active';
+
+        $store = Store::create($data);
 
         return ApiResponse::success(new StoreResource($store->load('currency')), 'Store created successfully.', status: 201);
     }

@@ -43,7 +43,12 @@ class WarehouseController extends Controller
     {
         $this->authorize('create', Warehouse::class);
 
-        $warehouse = Warehouse::create($request->validated());
+        // See StoreController::store for why this is set explicitly
+        // rather than left to the migration's column default.
+        $data = $request->validated();
+        $data['status'] ??= 'active';
+
+        $warehouse = Warehouse::create($data);
 
         return ApiResponse::success(new WarehouseResource($warehouse->load(self::RELATIONS)), 'Warehouse created successfully.', status: 201);
     }

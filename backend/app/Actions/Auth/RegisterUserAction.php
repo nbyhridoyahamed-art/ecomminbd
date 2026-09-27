@@ -19,6 +19,12 @@ class RegisterUserAction
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
             'password' => Hash::make($data['password']),
+            // Set explicitly rather than leaning on the migration's column
+            // defaults: create() returns the in-memory model, not a fresh
+            // SELECT, so these would come back null in the response.
+            'status' => 'active',
+            'locale' => 'en',
+            'timezone' => 'Asia/Dhaka',
         ]);
     }
 }

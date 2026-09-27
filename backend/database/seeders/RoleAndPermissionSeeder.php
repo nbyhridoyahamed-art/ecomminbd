@@ -25,8 +25,10 @@ class RoleAndPermissionSeeder extends Seeder
         'roles.view', 'roles.create', 'roles.update', 'roles.delete', 'roles.assign',
         'settings.manage',
 
-        // Catalog / inventory / orders / customers (spec section 6 examples — latent until their phases ship)
+        // Catalog (enforced today) / inventory / orders / customers (spec section 6 examples — latent until their phases ship)
         'products.view', 'products.create', 'products.update', 'products.delete',
+        'categories.view', 'categories.create', 'categories.update', 'categories.delete',
+        'brands.view', 'brands.create', 'brands.update', 'brands.delete',
         'inventory.view', 'inventory.adjust', 'inventory.transfer',
         'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
         'customers.view', 'customers.update',
@@ -45,13 +47,16 @@ class RoleAndPermissionSeeder extends Seeder
             'stores.view', 'stores.update', 'warehouses.view', 'warehouses.create', 'warehouses.update',
             'users.view', 'users.create', 'users.update', 'roles.view', 'roles.assign', 'settings.manage',
             'products.view', 'products.create', 'products.update', 'products.delete',
+            'categories.view', 'categories.create', 'categories.update', 'categories.delete',
+            'brands.view', 'brands.create', 'brands.update', 'brands.delete',
             'inventory.view', 'inventory.adjust', 'inventory.transfer',
             'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
             'customers.view', 'customers.update', 'reports.view',
         ],
         'Inventory Manager' => [
             'warehouses.view', 'warehouses.create', 'warehouses.update',
-            'inventory.view', 'inventory.adjust', 'inventory.transfer', 'products.view', 'reports.view',
+            'inventory.view', 'inventory.adjust', 'inventory.transfer',
+            'products.view', 'categories.view', 'brands.view', 'reports.view',
         ],
         'Order Manager' => [
             'orders.view', 'orders.create', 'orders.update', 'orders.cancel', 'customers.view', 'reports.view',
@@ -63,13 +68,14 @@ class RoleAndPermissionSeeder extends Seeder
             'warehouses.view', 'inventory.view', 'inventory.adjust',
         ],
         'Purchase Manager' => [
-            'products.view', 'inventory.view', 'inventory.adjust', 'reports.view',
+            'products.view', 'categories.view', 'brands.view', 'inventory.view', 'inventory.adjust', 'reports.view',
         ],
         'Accountant' => [
             'orders.view', 'reports.view', 'settings.manage',
         ],
         'Marketing Manager' => [
-            'products.view', 'blog.manage', 'reports.view', 'builder.view', 'builder.edit',
+            'products.view', 'categories.view', 'categories.update', 'brands.view', 'brands.update',
+            'blog.manage', 'reports.view', 'builder.view', 'builder.edit',
         ],
         'SEO Manager' => [
             'seo.manage', 'pages.manage', 'blog.manage', 'reports.view',
@@ -84,8 +90,8 @@ class RoleAndPermissionSeeder extends Seeder
             'orders.view', 'orders.update', 'reports.view',
         ],
         'Viewer' => [
-            'stores.view', 'warehouses.view', 'products.view', 'inventory.view',
-            'orders.view', 'customers.view', 'reports.view',
+            'stores.view', 'warehouses.view', 'products.view', 'categories.view', 'brands.view',
+            'inventory.view', 'orders.view', 'customers.view', 'reports.view',
         ],
     ];
 

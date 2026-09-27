@@ -1,10 +1,15 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\BrandController;
+use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\LocationController;
+use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\WarehouseController;
 use Illuminate\Support\Facades\Route;
@@ -40,5 +45,15 @@ Route::prefix('v1')->group(function () {
             Route::get('districts', [LocationController::class, 'districts']);
             Route::get('upazilas', [LocationController::class, 'upazilas']);
         });
+
+        Route::post('uploads', [UploadController::class, 'store']);
+
+        Route::apiResource('categories', CategoryController::class);
+        Route::apiResource('brands', BrandController::class);
+        Route::apiResource('products', ProductController::class);
+
+        Route::post('products/{product}/images', [ProductImageController::class, 'store']);
+        Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
+        Route::post('products/{product}/images/{image}/primary', [ProductImageController::class, 'markPrimary']);
     });
 });

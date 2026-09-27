@@ -11,7 +11,7 @@ in place and the app still builds/runs.
 | 2 | Design System | ✅ Done | Yes — tokens, theme, first primitives |
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
-| 5 | Catalog | ⏳ Not started | No |
+| 5 | Catalog | ✅ Wave 1 done (variants/attributes/bundles/reviews/bulk import-export/media library deferred — see note) | Yes — categories (hierarchy), brands, simple products w/ pricing/SEO/images, full admin UI |
 | 6 | Inventory | ⏳ Not started | No |
 | 7 | Purchasing | ⏳ Not started | No |
 | 8 | Orders | ⏳ Not started | No |
@@ -51,11 +51,11 @@ pass would violate the spec's own explicit rules:
   architecture docs and starting **Phase 1 — Foundation**, not
   everything at once.
 
-So this project delivers Phases 0–4 completely (foundation, design
-system, auth, RBAC, multi-store data model, BD localization, admin
-shell, and full Settings UI) as real, tested, runnable code — a solid
-base every later phase builds directly on top of, with zero
-placeholder/fake screens.
+So this project delivers Phases 0–5 (Wave 1) completely (foundation,
+design system, auth, RBAC, multi-store data model, BD localization,
+admin shell, full Settings UI, and a working catalog) as real, tested,
+runnable code — a solid base every later phase builds directly on top
+of, with zero placeholder/fake screens.
 
 **Phase 4 scope note:** the one deliberately deferred piece is a UI for
 *editing* the BD divisions/districts/upazilas reference data — the
@@ -67,14 +67,29 @@ storefront's address forms need to consume it. Building that
 management screen now, with nothing yet driven by it, would be exactly
 the "fake functionality ahead of its consumer" spec rule 178 forbids.
 
+**Phase 5 scope note:** Wave 1 ships everything a simple product needs
+end-to-end (categories with unlimited-depth hierarchy, brands, simple
+products with real pricing/SEO fields, multi-image upload with primary
+selection) with full CRUD, RBAC, and tests. Deliberately deferred to a
+Wave 2 (see `DATABASE_DESIGN.md` section 2 and `PAGE_INVENTORY.md`):
+variable products/attributes/variant generation, bundles/combos,
+customer reviews (needs Phase 8's orders for "verified purchase"),
+CSV bulk import/export, and a reusable cross-entity media library
+(today images upload directly against their owning record — see
+`DATABASE_DESIGN.md` section 1b). Each is a substantial subsystem in
+its own right and every one currently has no real consumer to justify
+shipping it early — spec rule 178.
+
 ## Next Session Should Start With
 
-Phase 5: Catalog (products, categories, brands, attributes, variants,
-media library, bulk import/export) — the biggest unblocking phase,
-since Inventory (6), Orders (8), and Storefront (16) all depend on
-products existing. Follow the phase order above; do not skip ahead to
-CMS/SEO/Storefront before Orders/Inventory exist, since those phases
-both link to and depend on catalog + order data.
+Phase 6: Inventory (stock levels per warehouse, stock movements ledger,
+transfers, adjustments) — now unblocked by Phase 5's products existing.
+Phase 5 Wave 2 (variants/attributes, bundles, bulk import/export, media
+library) is the other reasonable starting point once Inventory or
+Orders creates real demand for it — see the Phase 5 scope note above.
+Follow the phase order above; do not skip ahead to CMS/SEO/Storefront
+before Orders/Inventory exist, since those phases both link to and
+depend on catalog + order data.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

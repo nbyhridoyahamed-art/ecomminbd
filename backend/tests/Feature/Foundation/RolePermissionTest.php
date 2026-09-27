@@ -87,7 +87,13 @@ class RolePermissionTest extends TestCase
             'slug' => 'second-store',
         ]);
 
-        $response->assertCreated()->assertJsonPath('data.slug', 'second-store');
+        // Regression test: status relies on a migration column default, and
+        // create() returns the in-memory model rather than a fresh SELECT
+        // — a field left for the DB default to fill in comes back null
+        // here unless the controller sets it explicitly.
+        $response->assertCreated()
+            ->assertJsonPath('data.slug', 'second-store')
+            ->assertJsonPath('data.status', 'active');
 
         $storeId = $response->json('data.id');
 
@@ -149,5 +155,26 @@ class RolePermissionTest extends TestCase
             ->assertJsonPath('data.roles.0', 'Inventory Manager');
 
         $this->assertTrue($target->fresh()->hasRole('Inventory Manager'));
+    }
+
+    public function test_a_user_can_be_suspended(): void
+    {
+        // Regression test: `status` was missing from User's #[Fillable]
+        // list, so this update silently did nothing — the API returned
+        // 200 but the user stayed active.
+        $admin = User::factory()->create();
+        $admin->assignRole('Super Admin');
+        $target = User::factory()->create(['status' => 'active']);
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/v1/users/{$target->id}", [
+                'name' => $target->name,
+                'email' => $target->email,
+                'status' => 'suspended',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'suspended');
+
+        $this->assertSame('suspended', $target->fresh()->status);
     }
 }

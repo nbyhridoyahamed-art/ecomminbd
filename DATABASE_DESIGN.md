@@ -10,7 +10,7 @@ used only for genuinely flexible/unstructured data (e.g. block
 `settings` in the page builder, gateway `metadata`), never as a
 substitute for relational design.
 
-## 1. Schema Built This Session (Phase 1–4 Foundation)
+## 1. Foundation Schema (Phase 1–4)
 
 ```
 organizations
@@ -80,6 +80,56 @@ activity_logs
   index(entity_type, entity_id), index(store_id, created_at)
 ```
 
+## 1b. Catalog Schema (Phase 5 Wave 1)
+
+```
+categories
+  id, uuid, store_id (FK→stores, cascade),
+  parent_id (FK→categories, nullOnDelete — self-referencing, unlimited depth),
+  name, slug, description (nullable), image_path (nullable),
+  sort_order (default 0), status, timestamps, deleted_at
+  unique(store_id, slug)
+
+brands
+  id, uuid, store_id (FK→stores, cascade), name, slug,
+  description (nullable), logo_path (nullable), status, timestamps, deleted_at
+  unique(store_id, slug)
+
+products
+  id, uuid, store_id (FK→stores, cascade),
+  category_id (FK→categories, nullOnDelete), brand_id (FK→brands, nullOnDelete),
+  name, slug, sku, barcode (nullable),
+  type (varchar, default 'simple' — variable/digital/service/bundle/combo
+    are reserved column values, not yet implemented; see section 2),
+  description (nullable), short_description (nullable),
+  currency_code (char(3), default 'BDT'),
+  price_amount, sale_price_amount (nullable), cost_price_amount (nullable),
+  compare_at_price_amount (nullable) — all bigint minor units,
+  weight (decimal, nullable), weight_unit (nullable),
+  track_stock (bool, default true), low_stock_threshold (nullable — the
+    setting only; actual on-hand stock is Phase 6's stock_levels table),
+  status (draft/active/archived), featured (bool),
+  seo_title, seo_description, focus_keyword (all nullable),
+  published_at (nullable, set the first time status becomes 'active'),
+  created_by, updated_by (FK→users, nullOnDelete),
+  timestamps, deleted_at
+  unique(store_id, slug), unique(store_id, sku)
+  index(store_id, status), index(category_id), index(brand_id)
+
+product_images
+  id, product_id (FK→products, cascade), path, alt_text (nullable),
+  sort_order (default 0), is_primary (bool, default false), timestamps
+  index(product_id, sort_order)
+```
+
+Uploaded files (product images, category images, brand logos) are stored
+on the `public` disk (`storage/app/public`, symlinked to
+`public/storage`) — fine for local/single-server deployment; a future
+phase swaps the disk to S3-compatible storage via the `filesystems.php`
+config without touching any controller (the abstraction already exists
+in Laravel's `Storage` facade, which is all every catalog controller
+uses).
+
 ### Indexing notes
 - `stores.slug`, `stores.domain`: unique — storefront routing depends on these.
 - `users.email` unique; `users.phone` unique-but-nullable (normalized
@@ -98,10 +148,14 @@ shape, and so the foundation tables above (store_id placement, soft
 deletes, currency as a table not a hardcoded symbol) are already
 compatible with them.
 
-- **Catalog:** `products`, `product_variants`, `product_attributes`,
-  `product_attribute_values`, `categories` (nested set or parent_id +
-  materialized path), `brands`, `product_images`, `product_media`,
-  `reviews`.
+- **Catalog Wave 2:** `product_variants`, `product_attributes`,
+  `product_attribute_values` (variable products — `products.type` already
+  reserves the column value, schema not yet built), `reviews` (needs
+  Phase 8 customers/orders for "verified purchase"), a reusable/browsable
+  `media` library with folders and cross-entity reuse (today, product/
+  category/brand images upload directly against their own record — see
+  section 1b). `products`, `categories`, `brands`, `product_images` are
+  built — see section 1b.
 - **Inventory:** `stock_levels` (product_variant_id, warehouse_id,
   available/reserved/incoming/damaged), `stock_movements` (append-only
   ledger: type enum, quantity delta, reference_type/reference_id,
@@ -134,8 +188,10 @@ columns on a shared table.
 
 ## 3. Money Representation
 
-`amount_minor` (bigint, paisa) + `currency_code` (char(3)) on every
-financial column. A `Money` PHP value object (backend `Support/`) and a
-`formatMoney()` TS helper (frontend `lib/`) are the *only* places that
-convert to/from display strings — no component or controller formats
-currency manually.
+`*_amount` (bigint, paisa) + `currency_code` (char(3)) on every
+financial column. `App\Support\Money` (backend) and `formatMoney()`
+(`frontend/src/lib/money.ts`) are the *only* places that convert
+between minor units and display strings — every controller and
+component goes through one of these rather than doing `* 100` or
+interpolating a currency symbol itself. Both are implemented and in use
+by the product pricing fields (Phase 5).

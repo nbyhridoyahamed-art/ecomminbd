@@ -44,10 +44,11 @@ per experience.
 
 ## 3. Global Search / Command Palette (future phase)
 
-`⌘K` / `/` opens a command palette (spec section 44). Deferred until at
-least one searchable resource (products/orders/customers) exists —
-building the palette against zero real data would be exactly the "fake
-functionality" spec rule 178 forbids.
+`⌘K` / `/` opens a command palette (spec section 44). `products` is now
+a searchable resource (Phase 5), but the palette itself is still
+unbuilt — a natural next pickup. Still deferred for orders/customers
+until those phases ship; building it against zero real data would be
+exactly the "fake functionality" spec rule 178 forbids.
 
 ## 4. Storefront Shell (future phase)
 
@@ -65,8 +66,9 @@ sugar, backend is authoritative (spec rule 135/182).
 
 A single reusable `DataTable` component (`components/ui/data-table.tsx`)
 handles server-driven pagination, loading skeletons, and empty states,
-reused by every list screen (Users, Roles today; Phase 5+ resources as
-they ship). It's a small dependency-free implementation rather than
+reused by every list screen (Users, Roles, Categories, Brands, Products
+today; later phases' resources as they ship). It's a small
+dependency-free implementation rather than
 built on TanStack Table — the version available at build time (v9) ships
 a materially different API from what's documented/commonly known, so
 writing the ~100 lines directly was safer than guessing at an
