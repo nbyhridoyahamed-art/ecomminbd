@@ -41,10 +41,15 @@ their backing functionality — no dead pages).
 | `/orders/customers/new` | ✅ | 8 |
 | `/orders/customers/[id]` | ✅ | 8 (edit customer + inline saved-address manager, no separate address pages) |
 | `/orders` (payments/refunds, order edit-while-pending UI, guest checkout) | ⏳ | 8 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
-| `/delivery/couriers` | ⏳ | 9 |
-| `/delivery/shipments` | ⏳ | 9 |
-| `/delivery/zones` | ⏳ | 9 |
-| `/delivery/cod-settlement` | ⏳ | 9 |
+| `/delivery` | ✅ | 9 (redirects to Shipments) |
+| `/delivery/shipments` | ✅ | 9 (status/courier filters) |
+| `/delivery/shipments/[id]` | ✅ | 9 (status card w/ Picked up/In transit/Delivered/Failed/Returned actions, COD capture dialog, order summary, status history timeline) |
+| `/delivery/couriers` | ✅ | 9 (list, search, pagination) |
+| `/delivery/couriers/new`, `/delivery/couriers/[id]` | ✅ | 9 |
+| `/delivery/cod-settlements` | ✅ | 9 (filter by courier) |
+| `/delivery/cod-settlements/new` | ✅ | 9 (pick courier, select unsettled COD shipments, enter amount received) |
+| `/delivery/cod-settlements/[id]` | ✅ | 9 (expected vs. received, discrepancy, covered shipments) |
+| `/delivery` (delivery zones/rates, multi-shipment orders, automatic return-driven stock reversal) | ⏳ | 9 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/returns` | ⏳ | 10 |
 | `/website/homepage` | ⏳ | 13 |
 | `/website/pages` | ⏳ | 12 |
@@ -117,7 +122,11 @@ their backing functionality — no dead pages).
 | `POST/PUT/DELETE /api/v1/customers/{id}/addresses(/{address})` | ✅ |
 | `GET/POST/PUT /api/v1/orders`, `GET .../{id}` | ✅ |
 | `POST /api/v1/orders/{id}/process`, `.../ship` (drives `stock_movements`/`stock_levels`), `.../deliver`, `.../cancel` | ✅ |
-| Everything under delivery/returns/etc. | ⏳ — added phase by phase |
+| `GET/POST/PUT/DELETE /api/v1/couriers` | ✅ |
+| `POST /api/v1/orders/{id}/shipments`, `GET /api/v1/shipments`, `GET .../{id}` | ✅ |
+| `POST /api/v1/shipments/{id}/picked-up`, `.../in-transit`, `.../delivered` (drives `stock_movements`-adjacent `orders.status`/`payment_status` for COD), `.../failed`, `.../returned` | ✅ |
+| `GET/POST /api/v1/cod-settlements`, `GET .../{id}` | ✅ |
+| Everything under returns/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

@@ -15,7 +15,7 @@ in place and the app still builds/runs.
 | 6 | Inventory | ✅ Wave 1 done (order reservations/variant-level stock deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Wave 1 done (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
 | 8 | Orders | ✅ Wave 1 done (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
-| 9 | Delivery | ⏳ Not started | No |
+| 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders, return-driven stock reversal deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
 | 10 | Returns | ⏳ Not started | No |
 | 11 | Admin Dashboard (full KPIs/charts) | 🟡 Shell only | Yes (shell) |
 | 12 | CMS | ⏳ Not started | No |
@@ -138,22 +138,55 @@ now compares against *available* (on-hand minus reserved) quantity, and
 `StockAdjustmentController`/`StockTransferController` both reject a
 change that would take on-hand stock below what's already reserved.
 Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md` section 2):
-a real payments/COD-reconciliation ledger, coupons/discount codes
+a real gateway-payments ledger for non-COD methods (Phase 9 closed the
+COD half of this gap — see its scope note below), coupons/discount codes
 (`discount_amount` is a plain manual entry in Wave 1), order
 returns/exchanges (needs Phase 10), and a dedicated order-edit-while-
 pending UI (the endpoint exists and is tested, but no page consumes it
 yet — same as purchase-order editing).
 
+**Phase 9 scope note:** Wave 1 ships couriers (full CRUD) and shipments
+with a real state machine: `pending_pickup` (created by assigning a
+courier + tracking number to an already-`shipped` order — additive on
+top of `Order.ship()`/`deliver()`, not a replacement: an order can still
+be marked delivered directly with no shipment at all, e.g. store pickup
+or self-delivery) → `picked_up` → `in_transit` → `delivered` (captures
+`cod_amount_collected`, defaulting to the order total for a `cod` order,
+and — if the order isn't already delivered — transitions it too, setting
+`payment_status` to `paid` for COD; this closes the Orders Wave 2 gap
+Phase 8 left open for COD reconciliation specifically). `failed_delivery`
+is reachable any time before delivery, and from there `returned_to_seller`
+— neither touches order status or stock, since reversing a shipment's
+stock effect is a Wave 2 returns problem. Once an order has a shipment,
+`Order.deliver()` refuses to mark it delivered directly, so the two
+can never disagree. COD settlements (`cod_settlements` +
+`cod_settlement_shipments`) record a courier's remittance batch against
+a set of delivered, unsettled COD shipments — an immutable financial
+record, same as `stock_movements`/`order_status_history`: no
+update/destroy endpoint. Also fixed along the way: `OrderResource`'s
+shipping division/district/upazila names were silently always `null`
+(read a non-existent `name` column instead of `name_en`), a latent
+Phase 8 bug caught while wiring the shipment relation onto the same
+resource. Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md`
+section 2): delivery zones/rates (no automatic shipping-rate-calculation
+consumer yet — `orders.shipping_amount` is still a plain manual entry),
+multi-shipment orders (`shipments.order_id` is unique — re-dispatching
+after a failed delivery has nowhere to go yet), and automatic
+stock-reversal movements on a return (needs Phase 10 to define the
+workflow).
+
 ## Next Session Should Start With
 
-Phase 9: Delivery (couriers, shipments, delivery zones, COD
-settlement) — the natural next unblock, since Phase 8 orders now exist
-for shipments to reference and COD settlement to reconcile against.
-Phase 5 Wave 2 (variants/attributes, bundles, bulk import/export, media
-library) is the other reasonable starting point — see its scope note
-above. Follow the phase order above; do not skip ahead to CMS/SEO/
-Storefront before Delivery exists, since those phases both link to and
-depend on catalog + inventory + order + delivery data.
+Phase 10: Returns (return requests, return items, refunds, exchanges)
+— the natural next unblock, since it closes the last stock-movement gap
+(`return`, reserved since Phase 6) and the Wave 2 deferrals both
+Purchasing and Delivery left open (reversing stock on a returned
+shipment). Phase 5 Wave 2 (variants/attributes, bundles, bulk
+import/export, media library) is the other reasonable starting point —
+see its scope note above. Follow the phase order above; do not skip
+ahead to CMS/SEO/Storefront before Returns exists, since those phases
+both link to and depend on catalog + inventory + order + delivery +
+returns data.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\BrandController;
 use App\Http\Controllers\Api\V1\CategoryController;
+use App\Http\Controllers\Api\V1\CodSettlementController;
+use App\Http\Controllers\Api\V1\CourierController;
 use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -13,6 +15,7 @@ use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReceiptController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\ShipmentController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockLevelController;
 use App\Http\Controllers\Api\V1\StockMovementController;
@@ -91,5 +94,20 @@ Route::prefix('v1')->group(function () {
         Route::post('orders/{order}/ship', [OrderController::class, 'ship']);
         Route::post('orders/{order}/deliver', [OrderController::class, 'deliver']);
         Route::post('orders/{order}/cancel', [OrderController::class, 'cancel']);
+
+        Route::apiResource('couriers', CourierController::class);
+
+        Route::post('orders/{order}/shipments', [ShipmentController::class, 'store']);
+        Route::get('shipments', [ShipmentController::class, 'index']);
+        Route::get('shipments/{shipment}', [ShipmentController::class, 'show']);
+        Route::post('shipments/{shipment}/picked-up', [ShipmentController::class, 'pickedUp']);
+        Route::post('shipments/{shipment}/in-transit', [ShipmentController::class, 'inTransit']);
+        Route::post('shipments/{shipment}/delivered', [ShipmentController::class, 'delivered']);
+        Route::post('shipments/{shipment}/failed', [ShipmentController::class, 'failed']);
+        Route::post('shipments/{shipment}/returned', [ShipmentController::class, 'returned']);
+
+        Route::get('cod-settlements', [CodSettlementController::class, 'index']);
+        Route::post('cod-settlements', [CodSettlementController::class, 'store']);
+        Route::get('cod-settlements/{codSettlement}', [CodSettlementController::class, 'show']);
     });
 });

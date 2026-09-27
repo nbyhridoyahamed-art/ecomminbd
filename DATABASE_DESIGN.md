@@ -336,6 +336,81 @@ would take on-hand `quantity` below the warehouse's `quantity_reserved`
 — otherwise a manual adjustment or transfer could leave `ship()` unable
 to decrement on-hand stock without going negative.
 
+## 1f. Delivery Schema (Phase 9 Wave 1)
+
+```
+couriers
+  id, uuid, store_id (FK→stores, cascade), name, contact_name (nullable),
+  email (nullable), phone (nullable),
+  tracking_url_template (nullable — e.g. "https://courier.example/track/
+    {tracking_number}"; the frontend substitutes {tracking_number} client-side,
+    so a shipment's tracking link never hard-codes a courier's URL scheme),
+  status, timestamps, deleted_at
+  index(store_id, name)
+
+shipments
+  id, uuid, store_id (FK→stores, cascade),
+  order_id (FK→orders, cascade, unique — one shipment per order in Wave 1;
+    a failed delivery that needs re-dispatching under a new shipment is a
+    Wave 2 problem, see below),
+  courier_id (FK→couriers, nullOnDelete), tracking_number,
+  status (varchar: pending_pickup/picked_up/in_transit/delivered/
+    failed_delivery/returned_to_seller — see the state machine below),
+  delivery_charge_amount (bigint minor units, default 0 — a snapshot,
+    independent of orders.shipping_amount, since what the courier actually
+    charges can differ from what the customer was quoted),
+  cod_amount_collected (bigint minor units, nullable — set only once status
+    becomes delivered; null until then even for a COD order, since collection
+    happens at the doorstep, not at dispatch),
+  cod_settled (bool, default false), delivered_at (nullable),
+  notes (nullable), created_by (FK→users, nullOnDelete), timestamps
+  index(store_id, status), index(courier_id)
+
+shipment_status_history
+  id, shipment_id (FK→shipments, cascade), from_status (nullable),
+  to_status, note (nullable), created_by (FK→users, nullOnDelete), timestamps
+  index(shipment_id)
+  — same append-only audit-ledger pattern as order_status_history/
+    stock_movements; every status transition in ShipmentController writes
+    one row.
+
+cod_settlements
+  id, uuid, store_id (FK→stores, cascade), courier_id (FK→couriers, cascade),
+  settlement_number (e.g. CODS-20260927-AB12CD — same date+random-suffix
+    scheme as stock_transfers.transfer_number, see section 1c),
+  amount_expected (bigint minor units — sum of the covered shipments'
+    cod_amount_collected, computed once at creation),
+  amount_received (bigint minor units — what the courier actually remitted;
+    can differ from amount_expected on courier fees/discrepancies, and the
+    gap is surfaced, not silently reconciled),
+  note (nullable), created_by (FK→users, nullOnDelete), timestamps
+  unique(store_id, settlement_number), index(courier_id)
+  — immutable once created, same reasoning as order_status_history/
+    stock_movements: no update/destroy endpoint exists.
+
+cod_settlement_shipments (pivot, plain belongsToMany — no extra columns,
+    same pattern as store_user)
+  id, cod_settlement_id (FK→cod_settlements, cascade),
+  shipment_id (FK→shipments, cascade, unique — a shipment can be settled
+    at most once), timestamps
+```
+
+**Status state machine:** `pending_pickup` (created by assigning a courier +
+tracking number to an already-`shipped` order — see `OrderController::ship()`
+in section 1e; this is additive, not a replacement: an order can also be
+manually marked delivered without ever getting a shipment, e.g. store pickup
+or self-delivery) → `picked_up` → `in_transit` → `delivered` (captures
+`cod_amount_collected`, defaulting to the order's total when the order's
+`payment_method` is `cod` and none is given, and — if the order isn't
+already `delivered` — transitions the order to `delivered` too, setting
+`payment_status` to `paid` for COD). `failed_delivery` is reachable from
+`pending_pickup`/`picked_up`/`in_transit` and, from there, `returned_to_seller`
+— neither touches the order's own status or its stock (`sale` movement/
+on-hand quantity), since reversing those is a Wave 2 returns problem (see
+below). Once an order has a shipment, `OrderController::deliver()` refuses
+to mark it delivered directly — the shipment's own `delivered` action is
+the only path, so the two can never disagree about the order's status.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -371,19 +446,27 @@ compatible with them.
   exists yet), and low-stock-driven reorder suggestions (needs Phase 18/20
   reporting infra). `suppliers`, `purchase_orders`, `purchase_order_items`,
   `purchase_receipts`, `purchase_receipt_items` are built — see section 1d.
-- **Orders Wave 2:** `payments` (a real gateway/COD reconciliation
-  ledger — Wave 1's `orders.payment_status` is a single unpaid/paid/
-  refunded column with no producer yet), `cod_settlements` (needs Phase
-  9 delivery/courier data), `coupons`/`coupon_usages` (no discount-code
-  concept yet — Wave 1's `discount_amount` is a plain manual entry),
-  order returns/exchanges (needs Phase 10), and an order-edit UI for
-  editing a pending order's items after creation (the `PUT` endpoint
-  exists and is tested — see `API_DESIGN.md` — but no page consumes it
-  yet, matching how purchase-order editing has no dedicated UI either).
-  `customers`, `customer_addresses`, `orders`, `order_items`,
-  `order_status_history` are built — see section 1e.
-- **Delivery:** `couriers` (config per provider), `shipments`,
-  `delivery_zones`, `delivery_zone_rates`.
+- **Orders Wave 2:** `payments` (a real gateway reconciliation ledger for
+  non-COD methods — Wave 1's `orders.payment_status` for `cod` orders is
+  now set by the Phase 9 shipment-delivered flow, but `bkash`/`nagad`/
+  `rocket`/`card`/`bank_transfer` have no producer yet), `coupons`/
+  `coupon_usages` (no discount-code concept yet — Wave 1's
+  `discount_amount` is a plain manual entry), order returns/exchanges
+  (needs Phase 10), and an order-edit UI for editing a pending order's
+  items after creation (the `PUT` endpoint exists and is tested — see
+  `API_DESIGN.md` — but no page consumes it yet, matching how
+  purchase-order editing has no dedicated UI either). `customers`,
+  `customer_addresses`, `orders`, `order_items`, `order_status_history`
+  are built — see section 1e.
+- **Delivery Wave 2:** `delivery_zones`/`delivery_zone_rates` (no
+  automatic shipping-rate-calculation consumer yet — `orders.shipping_amount`
+  is still a plain manual entry, same reasoning as Catalog/Purchasing/Orders
+  Wave 2 items above), multi-shipment orders (re-dispatching after a failed
+  delivery currently has nowhere to go — `shipments.order_id` is unique),
+  and automatic stock-reversal movements when a `returned_to_seller`
+  shipment should put stock back (needs Phase 10 returns to define the
+  workflow). `couriers`, `shipments`, `shipment_status_history`,
+  `cod_settlements`, `cod_settlement_shipments` are built — see section 1f.
 - **Returns:** `returns`, `return_items`, `refunds`, `exchanges`.
 - **CMS/Builder:** `pages`, `page_versions`, `navigation_menus`,
   `navigation_items`, `media`, `homepage_blocks` (ordered, `type` +
@@ -417,4 +500,8 @@ own header rather than repeating it per item, since a single order (or
 PO) is always placed in one currency. Order `subtotal_amount`/
 `total_amount` follow the same "never store a derivable total" rule as
 `purchase_orders.total_amount` — computed from `order_items` in
-`OrderResource`, not stored columns.
+`OrderResource`, not stored columns. Phase 9 added
+`shipments.delivery_charge_amount`/`cod_amount_collected` and
+`cod_settlements.amount_expected`/`amount_received` — all `Money`-backed
+minor-unit columns; a `Shipment` has no `currency_code` of its own and
+instead reads its order's, the same "one currency per header" reasoning.

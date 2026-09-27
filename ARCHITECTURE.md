@@ -164,12 +164,19 @@ later phases implement against an agreed shape.
   Phase 7 added `purchase_receipt` and Phase 8 added `sale` as real
   non-manual producers. Inventory *reservation* (`stock_levels.quantity_reserved`,
   distinct from on-hand `quantity`) also landed in Phase 8 — see
-  `DATABASE_DESIGN.md` section 1e.
+  `DATABASE_DESIGN.md` section 1e. Phase 9's `shipments`/`shipment_status_history`
+  and `cod_settlements`/`cod_settlement_shipments` are their own
+  append-only ledgers of the same shape, layered on top rather than
+  touching `stock_movements` directly — a shipment reaching `delivered`
+  doesn't write a new stock movement (the `sale` movement already
+  happened at `Order.ship()`); it only updates the order's
+  status/`payment_status` and records the COD amount collected.
 - Order creation, payment capture, inventory reservation, purchase
   receiving, and returns/refunds all run inside DB transactions (spec
-  rule 180/114). Purchase receiving (Phase 7) and order
-  reservation/shipment (Phase 8) are built — see
-  `PurchaseReceiptController`/`OrderController`.
+  rule 180/114). Purchase receiving (Phase 7), order reservation/shipment
+  (Phase 8), and shipment status transitions plus COD settlement
+  (Phase 9) are built — see
+  `PurchaseReceiptController`/`OrderController`/`ShipmentController`/`CodSettlementController`.
 
 ## 8. Caching & Queues
 
@@ -209,12 +216,19 @@ Wave 1 orders (customers with saved addresses, and orders with a
 pending/processing/shipped/delivered/cancelled state machine that
 reserve stock on creation and convert the reservation into a real stock
 movement on shipment — the first real consumer of Inventory Wave 2's
-reservation gap). Delivery/COD, returns, CMS/builder, blog, SEO,
-storefront, customer account, reporting, the adapter implementations
-described in section 6, Catalog Wave 2 (variants/attributes, bundles,
-bulk import/export, a reusable media library), Inventory Wave 2 (order-
-*return* movements, variant-level stock), Purchasing Wave 2 (purchase
-returns, supplier ledger, PO approval workflow), and Orders Wave 2 (a
-real payments/COD ledger, coupons, order returns/exchanges — see
+reservation gap), and Phase 9 Wave 1 delivery (couriers, and shipments
+with their own pending_pickup/picked_up/in_transit/delivered/
+failed_delivery/returned_to_seller state machine layered additively on
+top of `Order.ship()`/`deliver()`, plus COD settlement batches that
+reconcile a courier's remittance against delivered COD shipments — the
+first real consumer of the COD half of Orders Wave 2's payments gap).
+Returns, CMS/builder, blog, SEO, storefront, customer account,
+reporting, the adapter implementations described in section 6, Catalog
+Wave 2 (variants/attributes, bundles, bulk import/export, a reusable
+media library), Inventory Wave 2 (order-*return* movements,
+variant-level stock), Purchasing Wave 2 (purchase returns, supplier
+ledger, PO approval workflow), Orders Wave 2 (a non-COD gateway-payments
+ledger, coupons, order returns/exchanges), and Delivery Wave 2 (delivery
+zones/rates, multi-shipment orders, return-driven stock reversal — see
 `DATABASE_DESIGN.md` section 2) are designed here but built in later
 phases per `DEVELOPMENT_ROADMAP.md`.

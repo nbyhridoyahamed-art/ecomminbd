@@ -27,6 +27,7 @@ class OrderController extends Controller
     private const RELATIONS = [
         'customer', 'warehouse', 'items.product', 'creator',
         'shippingDivision', 'shippingDistrict', 'shippingUpazila', 'statusHistory.creator',
+        'shipment.courier',
     ];
 
     public function index(Request $request): JsonResponse
@@ -232,6 +233,10 @@ class OrderController extends Controller
 
         if ($order->status !== 'shipped') {
             return ApiResponse::error('Only shipped orders can be marked delivered.', [], 422);
+        }
+
+        if ($order->shipment()->exists()) {
+            return ApiResponse::error('This order has a courier shipment — mark that shipment delivered instead.', [], 422);
         }
 
         DB::transaction(function () use ($order) {

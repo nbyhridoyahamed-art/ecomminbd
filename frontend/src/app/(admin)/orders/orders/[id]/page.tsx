@@ -7,8 +7,11 @@ import Link from "next/link";
 import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useCancelOrder, useDeliverOrder, useOrder, useProcessOrder, useShipOrder } from "@/hooks/use-orders";
+import { useCreateShipment, useShipment } from "@/hooks/use-shipments";
 import { formatMoney } from "@/lib/money";
 import { PermissionDenied } from "@/components/permission-denied";
+import { ShipmentAssignForm } from "@/components/delivery/shipment-assign-form";
+import { ShipmentStatusCard } from "@/components/delivery/shipment-status-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ApiError } from "@/types/api";
 import type { OrderStatus } from "@/types/order";
 
 type BadgeVariant = BadgeProps["variant"];
@@ -52,6 +56,8 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
   const shipOrder = useShipOrder(orderId);
   const deliverOrder = useDeliverOrder(orderId);
   const cancelOrder = useCancelOrder(orderId);
+  const createShipment = useCreateShipment(orderId);
+  const { data: shipment } = useShipment(order?.shipment?.id);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   if (currentUser && !can(currentUser, "orders.view")) {
@@ -107,7 +113,7 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
                 Ship
               </Button>
             ) : null}
-            {order.status === "shipped" && canUpdate ? (
+            {order.status === "shipped" && !order.shipment && canUpdate ? (
               <Button size="sm" onClick={() => deliverOrder.mutate()} loading={deliverOrder.isPending}>
                 <CheckCircle2 />
                 Mark delivered
@@ -195,6 +201,24 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
           </div>
         </CardContent>
       </Card>
+
+      {order.status === "shipped" && !order.shipment && can(currentUser, "shipments.create") ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assign a courier</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ShipmentAssignForm
+              storeId={currentUser?.current_store_id ?? 0}
+              isPending={createShipment.isPending}
+              serverError={createShipment.error instanceof ApiError ? createShipment.error.message : null}
+              onSubmit={(values) => createShipment.mutate(values)}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {shipment ? <ShipmentStatusCard shipment={shipment} canUpdate={can(currentUser, "shipments.update")} /> : null}
 
       <Card>
         <CardHeader>

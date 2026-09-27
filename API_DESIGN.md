@@ -87,11 +87,11 @@ List endpoints accept:
 
 ## 6. Resources Planned for Later Phases
 
-`payments`, `couriers`, `pages`, `blog`, `media`, `seo`, `reports`,
-`settings` — each gets its own controller/request/resource set when its
-phase lands; none are stubbed early to avoid dead routes (spec rule 178:
-no fake functionality). `orders` and `customers` are implemented — see
-section 9.
+`payments`, `pages`, `blog`, `media`, `seo`, `reports`, `settings` —
+each gets its own controller/request/resource set when its phase lands;
+none are stubbed early to avoid dead routes (spec rule 178: no fake
+functionality). `orders`, `customers`, `couriers`, `shipments`, and
+`cod-settlements` are implemented — see section 9.
 
 ## 7. Webhooks (future phases)
 
@@ -170,5 +170,30 @@ warehouse. `GET /stock-levels` now also returns `quantity_reserved`/
 `quantity_available`, and its `low_stock` filter/`low-stock-count`
 compare against *available* quantity, not raw on-hand — a Phase 8
 change to Phase 6 code, covered by a regression test.
+
+Delivery (Phase 9 Wave 1): full CRUD for `couriers`
+(`couriers.view/create/update/delete`, standard Eloquent policy,
+soft-deleted). `POST /orders/{id}/shipments` (assigns a courier +
+tracking number to an already-`shipped` order; rejects a second
+shipment for the same order), `GET /shipments` + `GET .../{id}`, and the
+status-transition actions `POST .../{id}/picked-up`, `.../in-transit`,
+`.../delivered` (captures `cod_amount_collected`, defaulting to the
+order's total for a `cod` order when none is given, and — if the order
+isn't already `delivered` — transitions it too, setting `payment_status`
+to `paid` for COD; this is the only path to deliver an order that has a
+shipment, since `POST /orders/{id}/deliver` now rejects one that does),
+`.../failed`, and `.../returned` (failed → returned-to-seller; neither
+touches order status or stock). `shipments.*` uses a standard policy
+(`view`/`create`/`update` — the five status actions all check `update`).
+`GET/POST /cod-settlements` + `GET .../{id}` records a courier
+settlement batch covering a set of delivered, unsettled `cod` shipments
+— `amount_expected` is computed server-side from those shipments'
+`cod_amount_collected`, the covered shipments are locked
+(`lockForUpdate()`) and re-validated as still-unsettled inside the same
+transaction (so two settlement requests racing on the same shipment
+can't both succeed), and are marked `cod_settled` atomically with the
+settlement's creation. `cod_settlements.*` uses `view`/`create` only —
+no update/destroy endpoint, matching the immutable-ledger pattern of
+`stock_movements`/`order_status_history`.
 
 Section 7 (webhooks) remains documented intent for future phases.

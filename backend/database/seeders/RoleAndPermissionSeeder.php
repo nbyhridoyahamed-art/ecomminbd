@@ -11,9 +11,9 @@ use Spatie\Permission\Models\Role;
  * from spec section 6, plus the 17 default roles from spec section 6,
  * each with a starting permission set. Permissions for resources that
  * exist today (stores, warehouses, users, roles, catalog, inventory,
- * purchasing, orders) are enforced by their controllers; the rest are
- * latent, matching the spec's own permission examples, ready for the
- * phases that implement them.
+ * purchasing, orders, delivery) are enforced by their controllers; the
+ * rest are latent, matching the spec's own permission examples, ready
+ * for the phases that implement them.
  */
 class RoleAndPermissionSeeder extends Seeder
 {
@@ -37,6 +37,12 @@ class RoleAndPermissionSeeder extends Seeder
         'purchase_orders.cancel', 'purchase_orders.receive',
         'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
         'customers.view', 'customers.create', 'customers.update', 'customers.delete',
+
+        // Delivery (enforced today).
+        'couriers.view', 'couriers.create', 'couriers.update', 'couriers.delete',
+        'shipments.view', 'shipments.create', 'shipments.update',
+        'cod_settlements.view', 'cod_settlements.create',
+
         'pages.manage',
         'blog.manage',
         'seo.manage',
@@ -60,6 +66,9 @@ class RoleAndPermissionSeeder extends Seeder
             'purchase_orders.cancel', 'purchase_orders.receive',
             'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
             'customers.view', 'customers.create', 'customers.update', 'customers.delete', 'reports.view',
+            'couriers.view', 'couriers.create', 'couriers.update', 'couriers.delete',
+            'shipments.view', 'shipments.create', 'shipments.update',
+            'cod_settlements.view', 'cod_settlements.create',
         ],
         'Inventory Manager' => [
             'warehouses.view', 'warehouses.create', 'warehouses.update',
@@ -84,6 +93,7 @@ class RoleAndPermissionSeeder extends Seeder
         ],
         'Accountant' => [
             'orders.view', 'reports.view', 'settings.manage',
+            'couriers.view', 'cod_settlements.view', 'cod_settlements.create',
         ],
         'Marketing Manager' => [
             'products.view', 'categories.view', 'categories.update', 'brands.view', 'brands.update',
@@ -100,10 +110,13 @@ class RoleAndPermissionSeeder extends Seeder
         ],
         'Delivery Manager' => [
             'orders.view', 'orders.update', 'reports.view',
+            'couriers.view', 'shipments.view', 'shipments.create', 'shipments.update',
+            'cod_settlements.view', 'cod_settlements.create',
         ],
         'Viewer' => [
             'stores.view', 'warehouses.view', 'products.view', 'categories.view', 'brands.view',
             'inventory.view', 'suppliers.view', 'purchase_orders.view', 'orders.view', 'customers.view', 'reports.view',
+            'couriers.view', 'shipments.view', 'cod_settlements.view',
         ],
     ];
 

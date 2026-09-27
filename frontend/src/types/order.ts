@@ -46,6 +46,7 @@ export interface Order {
   subtotal_amount: number;
   total_amount: number;
   status_history: OrderStatusHistoryEntry[];
+  shipment: { id: number; tracking_number: string; status: string; courier_name: string | null } | null;
   created_by: string | null;
   created_at: string;
 }

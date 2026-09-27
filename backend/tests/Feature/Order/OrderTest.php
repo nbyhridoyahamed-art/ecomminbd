@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Order;
 
+use App\Models\BdDistrict;
+use App\Models\BdDivision;
+use App\Models\BdUpazila;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
@@ -281,6 +284,36 @@ class OrderTest extends TestCase
             ],
             ...$this->manualShipping(),
         ])->assertUnprocessable()->assertJsonValidationErrors('items');
+    }
+
+    public function test_the_shipping_division_district_and_upazila_names_are_returned(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create();
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 50]);
+
+        $division = BdDivision::create(['name_en' => 'Dhaka', 'name_bn' => 'ঢাকা', 'code' => '30']);
+        $district = BdDistrict::create(['bd_division_id' => $division->id, 'name_en' => 'Dhaka', 'name_bn' => 'ঢাকা', 'code' => '26']);
+        $upazila = BdUpazila::create(['bd_district_id' => $district->id, 'name_en' => 'Savar', 'name_bn' => 'সাভার', 'code' => '75']);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => '10.00']],
+            ...$this->manualShipping(),
+            'shipping_bd_division_id' => $division->id,
+            'shipping_bd_district_id' => $district->id,
+            'shipping_bd_upazila_id' => $upazila->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.shipping.division', 'Dhaka')
+            ->assertJsonPath('data.shipping.district', 'Dhaka')
+            ->assertJsonPath('data.shipping.upazila', 'Savar');
     }
 
     public function test_a_user_without_orders_view_is_forbidden(): void
