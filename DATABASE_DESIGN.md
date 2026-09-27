@@ -141,6 +141,54 @@ uses).
   of this record" queries and by `(store_id, created_at)` for the audit
   log list view.
 
+## 1c. Inventory Schema (Phase 6 Wave 1)
+
+```
+stock_levels
+  id, product_id (FK→products, cascade), warehouse_id (FK→warehouses, cascade),
+  quantity (int, default 0), timestamps
+  unique(product_id, warehouse_id)
+
+stock_movements
+  id, uuid, store_id (FK→stores, cascade), product_id (FK→products, cascade),
+  warehouse_id (FK→warehouses, cascade),
+  type (varchar: adjustment_increase/adjustment_decrease/transfer_in/transfer_out),
+  quantity (unsigned int — the delta magnitude, always positive; direction is in `type`),
+  quantity_before, quantity_after (int — snapshot either side of this movement),
+  reason (nullable), reference_type/reference_id (nullable — points at the
+    stock_transfer that produced a transfer_in/transfer_out pair; unused by
+    adjustments), created_by (FK→users, nullOnDelete), timestamps
+  index(product_id, warehouse_id), index(reference_type, reference_id),
+  index(store_id, created_at)
+
+stock_transfers
+  id, uuid, store_id (FK→stores, cascade), transfer_number (e.g. TRF-20260927-AB12CD —
+    date + random suffix, not a per-store sequence counter, to avoid needing a
+    counter table for a Wave 1 feature),
+  from_warehouse_id, to_warehouse_id (FK→warehouses, cascade),
+  note (nullable), created_by (FK→users, nullOnDelete), timestamps
+  unique(store_id, transfer_number)
+
+stock_transfer_items
+  id, stock_transfer_id (FK→stock_transfers, cascade), product_id (FK→products, cascade),
+  quantity (unsigned int), timestamps
+```
+
+Every stock mutation (adjustment or transfer) runs inside a DB transaction
+with `lockForUpdate()` on the `stock_levels` row and never lets quantity go
+negative — a decrease/transfer-out that would requires more stock than is on
+hand throws `App\Support\InsufficientStockException`, which rolls the whole
+transaction back (see `StockAdjustmentController`/`StockTransferController`).
+A transfer is executed immediately and atomically (source decremented,
+destination incremented, one `transfer_out` + one `transfer_in` movement
+written) — there is no draft/pending/in-transit workflow in Wave 1, since
+nothing yet needs multi-step transfer approval (see section 2).
+
+Stock is tracked per **product**, not per variant — `products.type` is
+still only `simple` (Phase 5 Wave 2 hasn't shipped variants). When variants
+land, `stock_levels`/`stock_movements` gain a `product_variant_id` and the
+existing `product_id` rows migrate to "the simple product's only variant."
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -156,11 +204,17 @@ compatible with them.
   category/brand images upload directly against their own record — see
   section 1b). `products`, `categories`, `brands`, `product_images` are
   built — see section 1b.
-- **Inventory:** `stock_levels` (product_variant_id, warehouse_id,
-  available/reserved/incoming/damaged), `stock_movements` (append-only
-  ledger: type enum, quantity delta, reference_type/reference_id,
-  before/after snapshot), `stock_transfers`, `stock_transfer_items`,
-  `stock_adjustments`.
+- **Inventory Wave 2:** `stock_levels.quantity_reserved` (needs Phase 8
+  orders to reserve against — Wave 1 only tracks on-hand quantity),
+  `product_variant_id` on `stock_levels`/`stock_movements` (needs Phase 5
+  Wave 2 variants), automatic movements from purchase receipts (Phase 7)
+  and order fulfillment/cancellation/returns (Phase 8/10), a
+  pending/in-transit/received transfer approval workflow, and a
+  `stock_adjustments` header table for grouping a stocktake's many
+  per-product adjustments under one reference (today each adjustment is
+  its own `stock_movements` row — see section 1c). `stock_levels`,
+  `stock_movements`, `stock_transfers`, `stock_transfer_items` are
+  built — see section 1c.
 - **Purchasing:** `suppliers`, `purchase_orders`, `purchase_order_items`,
   `purchase_receipts`, `purchase_returns`.
 - **Orders:** `customers`, `customer_addresses`, `orders`, `order_items`,

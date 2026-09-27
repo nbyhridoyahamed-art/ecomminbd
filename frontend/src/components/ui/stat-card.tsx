@@ -8,10 +8,12 @@ interface StatCardProps {
   value: React.ReactNode;
   icon?: React.ReactNode;
   trend?: { direction: "up" | "down" | "flat"; label: string };
+  /** Accent color for the icon badge — "danger" calls out an alert-style stat (e.g. low stock). */
+  tone?: "primary" | "danger";
   className?: string;
 }
 
-function StatCard({ label, value, icon, trend, className }: StatCardProps) {
+function StatCard({ label, value, icon, trend, tone = "primary", className }: StatCardProps) {
   return (
     <Card className={cn(className)}>
       <CardContent className="flex items-start justify-between gap-4 p-5">
@@ -32,7 +34,12 @@ function StatCard({ label, value, icon, trend, className }: StatCardProps) {
           ) : null}
         </div>
         {icon ? (
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary [&_svg]:size-5">
+          <div
+            className={cn(
+              "flex size-9 shrink-0 items-center justify-center rounded-md [&_svg]:size-5",
+              tone === "danger" ? "bg-danger/10 text-danger" : "bg-primary/10 text-primary",
+            )}
+          >
             {icon}
           </div>
         ) : null}

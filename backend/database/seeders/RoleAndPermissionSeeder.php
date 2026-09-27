@@ -9,10 +9,11 @@ use Spatie\Permission\Models\Role;
 /**
  * Seeds the RBAC foundation: the granular `resource.action` permissions
  * from spec section 6, plus the 17 default roles from spec section 6,
- * each with a starting permission set. Only permissions for resources
- * that exist today (stores, warehouses, users, roles) are enforced by
- * any controller right now; the rest are latent, matching the spec's
- * own permission examples, ready for the phases that implement them.
+ * each with a starting permission set. Permissions for resources that
+ * exist today (stores, warehouses, users, roles, catalog, inventory)
+ * are enforced by their controllers; the rest are latent, matching the
+ * spec's own permission examples, ready for the phases that implement
+ * them.
  */
 class RoleAndPermissionSeeder extends Seeder
 {
@@ -25,7 +26,7 @@ class RoleAndPermissionSeeder extends Seeder
         'roles.view', 'roles.create', 'roles.update', 'roles.delete', 'roles.assign',
         'settings.manage',
 
-        // Catalog (enforced today) / inventory / orders / customers (spec section 6 examples — latent until their phases ship)
+        // Catalog + Inventory (enforced today) / orders / customers (spec section 6 examples — latent until their phases ship)
         'products.view', 'products.create', 'products.update', 'products.delete',
         'categories.view', 'categories.create', 'categories.update', 'categories.delete',
         'brands.view', 'brands.create', 'brands.update', 'brands.delete',

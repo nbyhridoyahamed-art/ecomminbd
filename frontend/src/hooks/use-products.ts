@@ -60,6 +60,14 @@ export function useProducts(storeId: number | null | undefined, filters: Product
   });
 }
 
+export function useAllProducts(storeId: number | null | undefined) {
+  return useQuery({
+    queryKey: ["products", "all", storeId],
+    queryFn: () => api.getWithMeta<Product[]>(`/products?store_id=${storeId}&per_page=100`),
+    enabled: Boolean(storeId),
+  });
+}
+
 export function useProduct(id: number | null | undefined) {
   return useQuery({
     queryKey: ["products", "detail", id],

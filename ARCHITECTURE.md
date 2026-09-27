@@ -152,10 +152,15 @@ later phases implement against an agreed shape.
 - All money fields are stored as integer **minor units** (paisa) in the
   database and converted to/from decimal only at the API/UI boundary via
   a `Money` value object — never floats (spec rule 27/182).
-- Every stock change writes a `stock_movements` ledger row with a typed
-  reason (`OPENING_STOCK`, `SALE`, `RETURN`, `ADJUSTMENT`, ...); current
-  stock is a derived/cached projection, never mutated directly (spec
-  section 18–19). This lands in the Inventory phase (Phase 6).
+- Every stock change writes an immutable `stock_movements` ledger row
+  (`type`: `adjustment_increase`/`adjustment_decrease`/`transfer_in`/
+  `transfer_out` today; `purchase_receipt`, `sale`, `return` join once
+  Purchasing/Orders exist) recording a before/after quantity snapshot.
+  `stock_levels.quantity` is a materialized cache of "current stock,"
+  not derived by summing the ledger on every read — but it is only ever
+  written inside the same DB transaction as the movement row that
+  explains the change, with `lockForUpdate()` held on it throughout, so
+  the two can never drift (spec section 18–19). Landed in Phase 6.
 - Order creation, payment capture, inventory reservation, purchase
   receiving, and returns/refunds all run inside DB transactions (spec
   rule 180/114).
@@ -188,11 +193,14 @@ This document describes the **target architecture for the whole
 platform**. Sessions so far implement the foundation layer
 (organizations/stores/users/roles/permissions/warehouses/settings/BD
 localization on the backend, design system + auth + dashboard shell on
-the frontend) plus Phase 5 Wave 1 catalog (categories, brands, simple
-products with pricing/SEO/images). Inventory ledger, orders,
-purchasing, delivery/COD, returns, CMS/builder, blog, SEO, storefront,
-customer account, reporting, the adapter implementations described in
-section 6, and Catalog Wave 2 (variants/attributes, bundles, bulk
-import/export, a reusable media library — see `DATABASE_DESIGN.md`
-section 2) are designed here but built in later phases per
-`DEVELOPMENT_ROADMAP.md`.
+the frontend), Phase 5 Wave 1 catalog (categories, brands, simple
+products with pricing/SEO/images), and Phase 6 Wave 1 inventory (stock
+levels per warehouse, the movements ledger, manual adjustments, and
+warehouse-to-warehouse transfers). Orders, purchasing, delivery/COD,
+returns, CMS/builder, blog, SEO, storefront, customer account,
+reporting, the adapter implementations described in section 6, Catalog
+Wave 2 (variants/attributes, bundles, bulk import/export, a reusable
+media library), and Inventory Wave 2 (order reservations, purchase-
+receipt/order-driven movements, variant-level stock — see
+`DATABASE_DESIGN.md` section 2) are designed here but built in later
+phases per `DEVELOPMENT_ROADMAP.md`.

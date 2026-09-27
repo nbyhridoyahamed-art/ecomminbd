@@ -12,7 +12,7 @@ in place and the app still builds/runs.
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
 | 5 | Catalog | ✅ Wave 1 done (variants/attributes/bundles/reviews/bulk import-export/media library deferred — see note) | Yes — categories (hierarchy), brands, simple products w/ pricing/SEO/images, full admin UI |
-| 6 | Inventory | ⏳ Not started | No |
+| 6 | Inventory | ✅ Wave 1 done (order reservations/purchase-receipt movements/variant-level stock deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ⏳ Not started | No |
 | 8 | Orders | ⏳ Not started | No |
 | 9 | Delivery | ⏳ Not started | No |
@@ -51,21 +51,25 @@ pass would violate the spec's own explicit rules:
   architecture docs and starting **Phase 1 — Foundation**, not
   everything at once.
 
-So this project delivers Phases 0–5 (Wave 1) completely (foundation,
+So this project delivers Phases 0–6 (Wave 1) completely (foundation,
 design system, auth, RBAC, multi-store data model, BD localization,
-admin shell, full Settings UI, and a working catalog) as real, tested,
-runnable code — a solid base every later phase builds directly on top
-of, with zero placeholder/fake screens.
+admin shell, full Settings UI, a working catalog, and warehouse-level
+inventory tracking) as real, tested, runnable code — a solid base every
+later phase builds directly on top of, with zero placeholder/fake
+screens.
 
 **Phase 4 scope note:** the one deliberately deferred piece is a UI for
 *editing* the BD divisions/districts/upazilas reference data — the
 schema and seed data exist (`bd_divisions`/`bd_districts`/`bd_upazilas`),
 and a read API exists (`/api/v1/locations/*`), but there's no admin
 screen to add/edit that data yet. It doesn't block anything: nothing
-downstream needs to edit it before Phase 6 (warehouses) or the
-storefront's address forms need to consume it. Building that
-management screen now, with nothing yet driven by it, would be exactly
-the "fake functionality ahead of its consumer" spec rule 178 forbids.
+downstream needs to edit it before the storefront's address forms need
+to consume it. Building that management screen now, with nothing yet
+driven by it, would be exactly the "fake functionality ahead of its
+consumer" spec rule 178 forbids. (The other Phase 4 gap noted in an
+earlier version of this doc — a Warehouses admin UI — was closed in
+Phase 6, once Inventory made it a hard dependency rather than a nice-
+to-have.)
 
 **Phase 5 scope note:** Wave 1 ships everything a simple product needs
 end-to-end (categories with unlimited-depth hierarchy, brands, simple
@@ -80,16 +84,36 @@ CSV bulk import/export, and a reusable cross-entity media library
 its own right and every one currently has no real consumer to justify
 shipping it early — spec rule 178.
 
+**Phase 6 scope note:** Wave 1 ships on-hand stock tracking per
+warehouse (`stock_levels`), a full audit ledger of every change
+(`stock_movements`), manual adjustments (increase/decrease with a
+reason), and multi-item warehouse-to-warehouse transfers — executed
+atomically, with `lockForUpdate()` preventing a decrease/transfer from
+ever taking quantity negative. It also builds the Warehouses admin UI
+(list/create/edit), closing a Phase 4 gap: the backend model existed
+since Phase 4, but there was no screen to add a second warehouse and no
+demo data seeded either, which would have made Inventory unusable out
+of the box. Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md`
+section 2): stock *reservations* against pending orders (needs Phase 8),
+automatic movements from purchase receipts (needs Phase 7) and order
+fulfillment/cancellation/returns (needs Phase 8/10), variant-level stock
+(needs Phase 5 Wave 2), a pending/in-transit/received transfer approval
+workflow, and a `stock_adjustments` header table for grouping a
+stocktake's many adjustments. None of these has a real consumer yet —
+spec rule 178.
+
 ## Next Session Should Start With
 
-Phase 6: Inventory (stock levels per warehouse, stock movements ledger,
-transfers, adjustments) — now unblocked by Phase 5's products existing.
-Phase 5 Wave 2 (variants/attributes, bundles, bulk import/export, media
-library) is the other reasonable starting point once Inventory or
-Orders creates real demand for it — see the Phase 5 scope note above.
-Follow the phase order above; do not skip ahead to CMS/SEO/Storefront
-before Orders/Inventory exist, since those phases both link to and
-depend on catalog + order data.
+Phase 7: Purchasing (suppliers, purchase orders, receipts) — the
+natural next unblock, since receiving a purchase order is the real-world
+event that should drive a `stock_movements` "purchase_receipt" type
+(today only manual adjustments and transfers exist). Phase 5 Wave 2
+(variants/attributes, bundles, bulk import/export, media library) or
+Phase 6 Wave 2 (order reservations, once Orders exists) are the other
+reasonable starting points — see their scope notes above. Follow the
+phase order above; do not skip ahead to CMS/SEO/Storefront before
+Orders/Purchasing exist, since those phases both link to and depend on
+catalog + inventory + order data.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

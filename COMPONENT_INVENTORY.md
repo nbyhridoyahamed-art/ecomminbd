@@ -18,16 +18,16 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Alert | ✅ | inline error/success/info banners |
 | Dropdown Menu | ✅ | used in topbar (profile, theme) |
 | Sheet (drawer) | ✅ | mobile sidebar |
-| Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment, product category/brand/status |
-| Textarea | ✅ | category/brand/product descriptions, SEO meta description |
-| Checkbox | ✅ | Radix-based; role permission matrix, user role assignment, product track-stock/featured flags |
+| Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment, product category/brand/status, warehouse pickers, stock adjustment direction |
+| Textarea | ✅ | category/brand/product descriptions, SEO meta description, warehouse address, transfer note |
+| Checkbox | ✅ | Radix-based; role permission matrix, user role assignment, product track-stock/featured flags, low-stock-only filter |
 | Radio | ⏳ | Not needed yet |
 | Switch | ⏳ | Not needed yet — every boolean setting so far reads fine as a Checkbox or Select |
 | Tooltip | ⏳ | Not needed yet |
-| Modal/Dialog | ✅ | centered dialog (distinct from Sheet); delete confirmations for users/roles/categories/brands/products |
+| Modal/Dialog | ✅ | centered dialog (distinct from Sheet); delete confirmations for users/roles/categories/brands/products/warehouses, stock adjustment form |
 | Tabs | ✅ | Two flavors: a route-driven Link sub-nav (Settings, Catalog) and a client-state tab switcher inside the product form (General/Pricing/Media/SEO) — plain buttons + conditional rendering, not the Radix Tabs primitive, since neither use case needed its accessibility semantics beyond what a nav/button already gives |
 | Accordion | ⏳ | Phase 15 (SEO analysis groups) — not needed by anything shipped yet |
-| Table / DataTable | ✅ | Server-paginated table w/ loading/empty states. Built as a small dependency-free component rather than on TanStack Table — the installed major version (v9) shipped a completely different, unfamiliar API; safer to write ~100 lines directly than guess at an API with no reliable reference. |
+| Table / DataTable | ✅ | Server-paginated table w/ loading/empty states. Built as a small dependency-free component rather than on TanStack Table — the installed major version (v9) shipped a completely different, unfamiliar API; safer to write ~100 lines directly than guess at an API with no reliable reference. Now also backs Warehouses, Stock Levels, Movements, and Transfers. |
 | Pagination | ✅ | ships with DataTable (prev/next, server-driven) |
 | Breadcrumb | ✅ | topbar |
 | Toast | ✅ | global toaster for mutations |
@@ -37,7 +37,7 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Command Palette | ⏳ | Products is now a searchable resource, but the palette itself is still unbuilt — next natural pickup |
 | File Upload | ✅ | Two components: `ImageUploadField` (single image — category/brand) and `ProductImageGallery` (multi-image with primary selection, delete, drag-free grid). No shared/reusable media library yet (Phase 5 Wave 2) — each upload is stored directly against its owning record. |
 | Rich Editor (TipTap) | ⏳ | Phase 14 (blog) |
-| Stat Card | ✅ | dashboard KPI cards |
+| Stat Card | ✅ | dashboard KPI cards; supports a `tone="danger"` accent, added for the Phase 6 low-stock-alerts card |
 | Empty State | ✅ | generic empty-state component (icon/title/description/CTA) |
 
 ## Layout Components (`frontend/src/components/layout/`)

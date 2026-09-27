@@ -87,9 +87,8 @@ List endpoints accept:
 
 ## 6. Resources Planned for Later Phases
 
-`products`, `categories`, `brands`, `orders`, `customers`, `inventory`,
-`warehouses`, `payments`, `couriers`, `pages`, `blog`, `media`, `seo`,
-`reports`, `settings` — each gets its own controller/request/resource
+`orders`, `customers`, `payments`, `couriers`, `pages`, `blog`, `media`,
+`seo`, `reports`, `settings` — each gets its own controller/request/resource
 set when its phase lands; none are stubbed early to avoid dead routes
 (spec rule 178: no fake functionality).
 
@@ -114,5 +113,17 @@ Sections 2–5 (envelope, Sanctum auth endpoints, `auth:sanctum` +
 `users`, `roles` (+ `permissions` listing), `categories`, `brands`,
 `products` (+ image sub-resource endpoints), and read-only listings for
 `currencies` and BD `locations`. A generic `POST /uploads` endpoint
-handles category/brand image uploads. Section 6 (orders/inventory/etc.)
-and section 7 (webhooks) remain documented intent for future phases.
+handles category/brand image uploads.
+
+Inventory (Phase 6 Wave 1): `GET /stock-levels` (per-warehouse on-hand
+quantity per product, `low_stock` filter) + `GET .../low-stock-count`
+(scalar count backing the dashboard KPI), `GET /stock-movements` (the
+append-only ledger, filterable by product/warehouse/type),
+`POST /stock-adjustments` (manual increase/decrease with a reason), and
+`GET/POST /stock-transfers` + `GET .../{id}` (multi-item warehouse-to-
+warehouse transfer, executed atomically). All gated by the existing
+`inventory.view` / `inventory.adjust` / `inventory.transfer` permissions
+via direct `$user->can()` checks (like `UploadController`, since these
+endpoints span multiple models rather than mapping to one Eloquent
+policy). Section 6 (orders/purchasing/etc.) and section 7 (webhooks)
+remain documented intent for future phases.

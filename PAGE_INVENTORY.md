@@ -18,10 +18,14 @@ their backing functionality — no dead pages).
 | `/catalog/brands/new`, `/catalog/brands/[id]` | ✅ | 5 |
 | `/catalog/products` (variable/bundle/combo types, attributes, variant generator) | ⏳ | 5 Wave 2 — schema reserves `type` for this; only `simple` is functional |
 | `/catalog/media` (reusable, browsable media library) | ⏳ | 5 Wave 2 — product/category/brand images upload directly today, no shared library yet |
-| `/inventory` | ⏳ | 6 |
-| `/inventory/warehouses` | ⏳ | 6 (backend model exists; admin UI is Phase 6) |
-| `/inventory/transfers` | ⏳ | 6 |
-| `/inventory/adjustments` | ⏳ | 6 |
+| `/inventory` | ✅ | 6 (redirects to Stock Levels) |
+| `/inventory/stock-levels` | ✅ | 6 (per-warehouse on-hand quantity, low-stock filter, search, adjust dialog) |
+| `/inventory/movements` | ✅ | 6 (read-only ledger, filter by warehouse/type) |
+| `/inventory/transfers` | ✅ | 6 |
+| `/inventory/transfers/new`, `/inventory/transfers/[id]` | ✅ | 6 (multi-item warehouse-to-warehouse transfer) |
+| `/inventory/warehouses` | ✅ | 6 (list, create, edit — backend model existed since Phase 4, admin UI was the Phase 6 gap this closes) |
+| `/inventory/warehouses/new`, `/inventory/warehouses/[id]` | ✅ | 6 |
+| `/inventory` (stock reservations tied to orders, purchase-receipt-driven movements, variant-level stock) | ⏳ | 6 Wave 2 — needs Phase 7/8 or Phase 5 Wave 2 first, see `DATABASE_DESIGN.md` |
 | `/purchases/suppliers` | ⏳ | 7 |
 | `/purchases/orders` | ⏳ | 7 |
 | `/orders` | ⏳ | 8 |
@@ -91,7 +95,11 @@ their backing functionality — no dead pages).
 | `GET/POST/PUT/DELETE /api/v1/products` | ✅ |
 | `POST /api/v1/products/{id}/images`, `DELETE .../images/{id}`, `POST .../images/{id}/primary` | ✅ |
 | `POST /api/v1/uploads` (generic category/brand image upload) | ✅ |
-| Everything under orders/inventory/purchasing/etc. | ⏳ — added phase by phase |
+| `GET /api/v1/stock-levels`, `GET .../low-stock-count` | ✅ |
+| `GET /api/v1/stock-movements` | ✅ |
+| `POST /api/v1/stock-adjustments` | ✅ |
+| `GET/POST /api/v1/stock-transfers`, `GET .../{id}` | ✅ |
+| Everything under orders/purchasing/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

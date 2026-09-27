@@ -6,6 +6,7 @@ use App\Models\Currency;
 use App\Models\Organization;
 use App\Models\Store;
 use App\Models\User;
+use App\Models\Warehouse;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -52,5 +53,15 @@ class DemoDataSeeder extends Seeder
         $store->users()->syncWithoutDetaching([
             $owner->id => ['is_owner' => true, 'status' => 'active'],
         ]);
+
+        Warehouse::updateOrCreate(
+            ['store_id' => $store->id, 'code' => 'MAIN-DHK'],
+            ['name' => 'Dhaka Main Warehouse', 'type' => 'main', 'status' => 'active'],
+        );
+
+        Warehouse::updateOrCreate(
+            ['store_id' => $store->id, 'code' => 'BR-CTG'],
+            ['name' => 'Chattogram Branch', 'type' => 'branch', 'status' => 'active'],
+        );
     }
 }

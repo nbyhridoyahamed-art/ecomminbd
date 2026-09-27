@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Package, ShieldCheck, Store as StoreIcon, Truck, Users, Warehouse as WarehouseIcon } from "lucide-react";
+import { AlertTriangle, Package, ShieldCheck, Store as StoreIcon, Truck, Users, Warehouse as WarehouseIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/use-auth";
@@ -35,9 +35,22 @@ export default function DashboardPage() {
     },
     enabled: Boolean(user?.current_store_id),
   });
+  const lowStock = useQuery<number>({
+    queryKey: ["total", "/stock-levels/low-stock-count", user?.current_store_id],
+    queryFn: async () => {
+      const count = await api.get<{ count: number }>(`/stock-levels/low-stock-count?store_id=${user?.current_store_id}`);
+      return count.count;
+    },
+    enabled: Boolean(user?.current_store_id),
+  });
 
   const loading =
-    stores.isLoading || warehouses.isLoading || users.isLoading || roles.isLoading || products.isLoading;
+    stores.isLoading ||
+    warehouses.isLoading ||
+    users.isLoading ||
+    roles.isLoading ||
+    products.isLoading ||
+    lowStock.isLoading;
 
   return (
     <div className="space-y-6">
@@ -51,14 +64,20 @@ export default function DashboardPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, i) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <StatCard label="Products" value={products.data ?? 0} icon={<Package />} />
+          <StatCard
+            label="Low stock alerts"
+            value={lowStock.data ?? 0}
+            icon={<AlertTriangle />}
+            tone={lowStock.data && lowStock.data > 0 ? "danger" : undefined}
+          />
           <StatCard label="Stores" value={stores.data ?? 0} icon={<StoreIcon />} />
           <StatCard label="Warehouses" value={warehouses.data ?? 0} icon={<WarehouseIcon />} />
           <StatCard label="Staff users" value={users.data ?? 0} icon={<Users />} />
@@ -68,8 +87,8 @@ export default function DashboardPage() {
 
       <EmptyState
         icon={<Truck />}
-        title="Inventory, orders, and delivery aren't enabled yet"
-        description="Phases 6–10 (Inventory, Purchasing, Orders, Delivery, Returns) haven't shipped in this build. Once they do, this dashboard will show revenue, pending orders, COD, and low-stock KPIs here — see DEVELOPMENT_ROADMAP.md for the plan."
+        title="Purchasing, orders, and delivery aren't enabled yet"
+        description="Phases 7–10 (Purchasing, Orders, Delivery, Returns) haven't shipped in this build. Once they do, this dashboard will show revenue, pending orders, and COD KPIs here — see DEVELOPMENT_ROADMAP.md for the plan."
       />
 
       {user && user.permissions.length === 0 ? (

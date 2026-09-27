@@ -8,6 +8,10 @@ use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\StockAdjustmentController;
+use App\Http\Controllers\Api\V1\StockLevelController;
+use App\Http\Controllers\Api\V1\StockMovementController;
+use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -55,5 +59,13 @@ Route::prefix('v1')->group(function () {
         Route::post('products/{product}/images', [ProductImageController::class, 'store']);
         Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
         Route::post('products/{product}/images/{image}/primary', [ProductImageController::class, 'markPrimary']);
+
+        Route::get('stock-levels', [StockLevelController::class, 'index']);
+        Route::get('stock-levels/low-stock-count', [StockLevelController::class, 'lowStockCount']);
+        Route::get('stock-movements', [StockMovementController::class, 'index']);
+        Route::post('stock-adjustments', [StockAdjustmentController::class, 'store']);
+        Route::get('stock-transfers', [StockTransferController::class, 'index']);
+        Route::post('stock-transfers', [StockTransferController::class, 'store']);
+        Route::get('stock-transfers/{stockTransfer}', [StockTransferController::class, 'show']);
     });
 });
