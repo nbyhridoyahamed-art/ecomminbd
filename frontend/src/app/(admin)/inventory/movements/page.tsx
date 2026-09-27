@@ -22,6 +22,7 @@ const TYPE_LABELS: Record<StockMovementType, string> = {
   transfer_in: "Transfer in",
   transfer_out: "Transfer out",
   purchase_receipt: "Purchase receipt",
+  sale: "Sale",
 };
 
 const TYPE_VARIANTS: Record<StockMovementType, BadgeVariant> = {
@@ -30,6 +31,7 @@ const TYPE_VARIANTS: Record<StockMovementType, BadgeVariant> = {
   transfer_in: "success",
   transfer_out: "warning",
   purchase_receipt: "success",
+  sale: "warning",
 };
 
 export default function StockMovementsPage() {

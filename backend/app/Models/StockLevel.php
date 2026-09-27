@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['product_id', 'warehouse_id', 'quantity'])]
+#[Fillable(['product_id', 'warehouse_id', 'quantity', 'quantity_reserved'])]
 class StockLevel extends Model
 {
     use HasFactory;

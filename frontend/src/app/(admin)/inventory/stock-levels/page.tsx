@@ -78,6 +78,8 @@ export default function StockLevelsPage() {
       ),
     },
     { id: "quantity", header: "On hand", cell: (row) => row.quantity },
+    { id: "reserved", header: "Reserved", cell: (row) => row.quantity_reserved },
+    { id: "available", header: "Available", cell: (row) => row.quantity_available },
     {
       id: "status",
       header: "Status",

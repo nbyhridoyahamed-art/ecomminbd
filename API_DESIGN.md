@@ -87,10 +87,11 @@ List endpoints accept:
 
 ## 6. Resources Planned for Later Phases
 
-`orders`, `customers`, `payments`, `couriers`, `pages`, `blog`, `media`,
-`seo`, `reports`, `settings` — each gets its own controller/request/resource
-set when its phase lands; none are stubbed early to avoid dead routes
-(spec rule 178: no fake functionality).
+`payments`, `couriers`, `pages`, `blog`, `media`, `seo`, `reports`,
+`settings` — each gets its own controller/request/resource set when its
+phase lands; none are stubbed early to avoid dead routes (spec rule 178:
+no fake functionality). `orders` and `customers` are implemented — see
+section 9.
 
 ## 7. Webhooks (future phases)
 
@@ -144,5 +145,30 @@ is checked directly in `PurchaseReceiptController`, the same
 direct-`$user->can()` pattern as inventory, since receiving is a
 distinct action from editing a PO's terms.
 
-Section 6 (orders/etc.) and section 7 (webhooks) remain documented
-intent for future phases.
+Orders (Phase 8 Wave 1): full CRUD for `customers`
+(`customers.view/create/update/delete`, standard Eloquent policy,
+soft-deleted) plus nested `POST/PUT/DELETE /customers/{id}/addresses(/{address})`
+(no top-level address resource — addresses only exist as a customer's
+children; adding/editing a default address unsets the previous one in
+the same transaction, deleting the default promotes the next one).
+`GET/POST/PUT /orders` + `GET .../{id}` (PUT only while `status =
+pending` — items are replaced wholesale and re-reserved, same one-shot
+pattern as `purchase-orders`; no `DELETE` — `cancel` is the only removal
+path), `POST .../{id}/process` (pending → processing), `POST .../{id}/ship`
+(pending/processing → shipped — converts the stock reservation into a
+real `sale` `stock_movements` row and decrements on-hand `stock_levels.quantity`,
+inside the same locked transaction as section on inventory),
+`POST .../{id}/deliver` (shipped → delivered), and `POST .../{id}/cancel`
+(pending/processing → cancelled — releases the reservation without
+touching on-hand quantity). `GET /orders` also accepts `open=1` to
+return only `pending`/`processing` orders, backing the dashboard's
+"Pending orders" KPI. `orders.*` uses a standard policy (`view`/
+`create`/`update`/`cancel`); creating/updating an order can fail with a
+422 (`InsufficientStockException`, reused from Phase 6) when the
+requested quantity exceeds what's currently available at the chosen
+warehouse. `GET /stock-levels` now also returns `quantity_reserved`/
+`quantity_available`, and its `low_stock` filter/`low-stock-count`
+compare against *available* quantity, not raw on-hand — a Phase 8
+change to Phase 6 code, covered by a regression test.
+
+Section 7 (webhooks) remains documented intent for future phases.

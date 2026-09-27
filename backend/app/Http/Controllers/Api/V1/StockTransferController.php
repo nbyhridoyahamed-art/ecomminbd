@@ -145,6 +145,13 @@ class StockTransferController extends Controller
             throw new InsufficientStockException("Not enough stock of \"{$product->name}\" at {$from->name} to transfer {$quantity} unit(s).");
         }
 
+        // Stock already reserved for pending/processing orders can't be transferred out,
+        // or ship() would later try to decrement on-hand quantity below zero.
+        if ($sourceAfter < ($sourceLevel?->quantity_reserved ?? 0)) {
+            $product = Product::findOrFail($productId);
+            throw new InsufficientStockException("Cannot transfer \"{$product->name}\" out of {$from->name}: that stock is reserved for pending orders.");
+        }
+
         $sourceLevel
             ? $sourceLevel->update(['quantity' => $sourceAfter])
             : StockLevel::create(['product_id' => $productId, 'warehouse_id' => $from->id, 'quantity' => $sourceAfter]);

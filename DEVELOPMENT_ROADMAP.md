@@ -14,7 +14,7 @@ in place and the app still builds/runs.
 | 5 | Catalog | ✅ Wave 1 done (variants/attributes/bundles/reviews/bulk import-export/media library deferred — see note) | Yes — categories (hierarchy), brands, simple products w/ pricing/SEO/images, full admin UI |
 | 6 | Inventory | ✅ Wave 1 done (order reservations/variant-level stock deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Wave 1 done (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
-| 8 | Orders | ⏳ Not started | No |
+| 8 | Orders | ✅ Wave 1 done (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
 | 9 | Delivery | ⏳ Not started | No |
 | 10 | Returns | ⏳ Not started | No |
 | 11 | Admin Dashboard (full KPIs/charts) | 🟡 Shell only | Yes (shell) |
@@ -94,14 +94,14 @@ ever taking quantity negative. It also builds the Warehouses admin UI
 since Phase 4, but there was no screen to add a second warehouse and no
 demo data seeded either, which would have made Inventory unusable out
 of the box. Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md`
-section 2): stock *reservations* against pending orders (needs Phase 8),
-order fulfillment/cancellation/returns movements (needs Phase 8/10),
-variant-level stock (needs Phase 5 Wave 2), a pending/in-transit/received
-transfer approval workflow, and a `stock_adjustments` header table for
-grouping a stocktake's many adjustments. None of these has a real
-consumer yet — spec rule 178. (Purchase-receipt-driven movements, the
-one Wave 2 item this note used to list, are no longer deferred — Phase 7
-built them.)
+section 2): order *returns* movements (needs Phase 10), variant-level
+stock (needs Phase 5 Wave 2), a pending/in-transit/received transfer
+approval workflow, and a `stock_adjustments` header table for grouping a
+stocktake's many adjustments. None of these has a real consumer yet —
+spec rule 178. (Purchase-receipt-driven movements and order
+reservation/fulfillment/cancellation movements, the two Wave 2 items
+this note used to list, are no longer deferred — Phase 7 and Phase 8
+built them respectively.)
 
 **Phase 7 scope note:** Wave 1 ships suppliers (full CRUD) and purchase
 orders with a real state machine: `draft` (items freely editable, a PUT
@@ -121,17 +121,39 @@ confidence), supplier payment terms/ledger and multi-currency POs
 multi-user approval concept exists yet), and low-stock-driven reorder
 suggestions (needs Phase 18/20 reporting infra).
 
+**Phase 8 scope note:** Wave 1 ships customers (full CRUD) with saved
+addresses (managed inline on the customer edit page, no separate
+address pages), and orders with a real state machine: `pending` (stock
+reserved atomically at creation via `stock_levels.quantity_reserved`,
+items freely editable — a PUT releases the old reservation and
+re-reserves the new items) → `processing` (explicit action) →
+`shipped` (explicit action — converts the reservation into a real
+`sale` stock movement and decrements on-hand quantity) → `delivered`
+(explicit action), or `cancelled` (only reachable from
+`pending`/`processing` — releases the reservation without touching
+on-hand stock; cancelling after shipment is a Wave 2 problem, see
+below). This is also the first real consumer of stock reservations,
+closing the Inventory Wave 2 gap Phase 6 left open: low-stock detection
+now compares against *available* (on-hand minus reserved) quantity, and
+`StockAdjustmentController`/`StockTransferController` both reject a
+change that would take on-hand stock below what's already reserved.
+Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md` section 2):
+a real payments/COD-reconciliation ledger, coupons/discount codes
+(`discount_amount` is a plain manual entry in Wave 1), order
+returns/exchanges (needs Phase 10), and a dedicated order-edit-while-
+pending UI (the endpoint exists and is tested, but no page consumes it
+yet — same as purchase-order editing).
+
 ## Next Session Should Start With
 
-Phase 8: Orders (customers, orders, order items, payments) — the
-natural next unblock, since it's the real-world event that should drive
-stock *reservations* (Inventory Wave 2) and gives Purchasing Wave 2's
-cancellation/return workflows something concrete to react to. Phase 5
-Wave 2 (variants/attributes, bundles, bulk import/export, media library)
-is the other reasonable starting point — see its scope note above.
-Follow the phase order above; do not skip ahead to CMS/SEO/Storefront
-before Orders exists, since those phases both link to and depend on
-catalog + inventory + order data.
+Phase 9: Delivery (couriers, shipments, delivery zones, COD
+settlement) — the natural next unblock, since Phase 8 orders now exist
+for shipments to reference and COD settlement to reconcile against.
+Phase 5 Wave 2 (variants/attributes, bundles, bulk import/export, media
+library) is the other reasonable starting point — see its scope note
+above. Follow the phase order above; do not skip ahead to CMS/SEO/
+Storefront before Delivery exists, since those phases both link to and
+depend on catalog + inventory + order + delivery data.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

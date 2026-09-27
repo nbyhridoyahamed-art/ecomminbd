@@ -10,10 +10,10 @@ use Spatie\Permission\Models\Role;
  * Seeds the RBAC foundation: the granular `resource.action` permissions
  * from spec section 6, plus the 17 default roles from spec section 6,
  * each with a starting permission set. Permissions for resources that
- * exist today (stores, warehouses, users, roles, catalog, inventory)
- * are enforced by their controllers; the rest are latent, matching the
- * spec's own permission examples, ready for the phases that implement
- * them.
+ * exist today (stores, warehouses, users, roles, catalog, inventory,
+ * purchasing, orders) are enforced by their controllers; the rest are
+ * latent, matching the spec's own permission examples, ready for the
+ * phases that implement them.
  */
 class RoleAndPermissionSeeder extends Seeder
 {
@@ -26,7 +26,8 @@ class RoleAndPermissionSeeder extends Seeder
         'roles.view', 'roles.create', 'roles.update', 'roles.delete', 'roles.assign',
         'settings.manage',
 
-        // Catalog + Inventory + Purchasing (enforced today) / orders / customers (spec section 6 examples — latent until their phases ship)
+        // Catalog + Inventory + Purchasing + Orders (enforced today) — the rest of
+        // spec section 6's examples remain latent until their phases ship.
         'products.view', 'products.create', 'products.update', 'products.delete',
         'categories.view', 'categories.create', 'categories.update', 'categories.delete',
         'brands.view', 'brands.create', 'brands.update', 'brands.delete',
@@ -35,7 +36,7 @@ class RoleAndPermissionSeeder extends Seeder
         'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
         'purchase_orders.cancel', 'purchase_orders.receive',
         'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
-        'customers.view', 'customers.update',
+        'customers.view', 'customers.create', 'customers.update', 'customers.delete',
         'pages.manage',
         'blog.manage',
         'seo.manage',
@@ -58,7 +59,7 @@ class RoleAndPermissionSeeder extends Seeder
             'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
             'purchase_orders.cancel', 'purchase_orders.receive',
             'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
-            'customers.view', 'customers.update', 'reports.view',
+            'customers.view', 'customers.create', 'customers.update', 'customers.delete', 'reports.view',
         ],
         'Inventory Manager' => [
             'warehouses.view', 'warehouses.create', 'warehouses.update',
@@ -66,7 +67,8 @@ class RoleAndPermissionSeeder extends Seeder
             'products.view', 'categories.view', 'brands.view', 'reports.view',
         ],
         'Order Manager' => [
-            'orders.view', 'orders.create', 'orders.update', 'orders.cancel', 'customers.view', 'reports.view',
+            'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
+            'customers.view', 'customers.create', 'customers.update', 'reports.view',
         ],
         'Sales Manager' => [
             'orders.view', 'orders.update', 'customers.view', 'customers.update', 'reports.view',
@@ -94,7 +96,7 @@ class RoleAndPermissionSeeder extends Seeder
             'pages.manage', 'blog.manage', 'builder.view', 'builder.edit', 'builder.publish',
         ],
         'Customer Support' => [
-            'orders.view', 'customers.view', 'customers.update',
+            'orders.view', 'customers.view', 'customers.create', 'customers.update',
         ],
         'Delivery Manager' => [
             'orders.view', 'orders.update', 'reports.view',

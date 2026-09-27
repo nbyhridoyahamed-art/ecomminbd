@@ -1,0 +1,351 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Order\OrderRequest;
+use App\Http\Resources\OrderResource;
+use App\Models\CustomerAddress;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\StockLevel;
+use App\Models\StockMovement;
+use App\Support\ApiResponse;
+use App\Support\InsufficientStockException;
+use App\Support\Money;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class OrderController extends Controller
+{
+    // Same reasoning as PurchaseOrderController::RELATIONS — every response
+    // representing "an order" loads the same relations so a frontend cache
+    // write from any action (place/ship/cancel/...) never drops a field the
+    // show() response always includes.
+    private const RELATIONS = [
+        'customer', 'warehouse', 'items.product', 'creator',
+        'shippingDivision', 'shippingDistrict', 'shippingUpazila', 'statusHistory.creator',
+    ];
+
+    public function index(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Order::class);
+
+        $perPage = min((int) $request->integer('per_page', 20), 100);
+
+        $orders = Order::query()
+            ->with(self::RELATIONS)
+            ->when($request->filled('store_id'), fn ($query) => $query->where('store_id', $request->integer('store_id')))
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($request->boolean('open'), fn ($query) => $query->whereIn('status', ['pending', 'processing']))
+            ->when($request->filled('customer_id'), fn ($query) => $query->where('customer_id', $request->integer('customer_id')))
+            ->when($request->filled('warehouse_id'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse_id')))
+            ->latest()
+            ->paginate($perPage);
+
+        return ApiResponse::success(
+            OrderResource::collection($orders),
+            'Orders fetched successfully.',
+            [
+                'current_page' => $orders->currentPage(),
+                'per_page' => $orders->perPage(),
+                'total' => $orders->total(),
+                'last_page' => $orders->lastPage(),
+            ],
+        );
+    }
+
+    public function store(OrderRequest $request): JsonResponse
+    {
+        $this->authorize('create', Order::class);
+
+        $data = $request->validated();
+        $currency = $data['currency_code'] ?? 'BDT';
+        $shipping = $this->resolveShipping($data);
+
+        try {
+            $order = DB::transaction(function () use ($data, $currency, $shipping, $request) {
+                $order = Order::create([
+                    'store_id' => $data['store_id'],
+                    'order_number' => 'ORD-'.now()->format('Ymd').'-'.Str::upper(Str::random(6)),
+                    'customer_id' => $data['customer_id'],
+                    'warehouse_id' => $data['warehouse_id'],
+                    'status' => 'pending',
+                    'payment_method' => $data['payment_method'],
+                    'currency_code' => $currency,
+                    'shipping_amount' => Money::fromDecimal($data['shipping_amount'] ?? 0, $currency)->amountMinor,
+                    'discount_amount' => Money::fromDecimal($data['discount_amount'] ?? 0, $currency)->amountMinor,
+                    'notes' => $data['notes'] ?? null,
+                    'created_by' => $request->user()->id,
+                    ...$shipping,
+                ]);
+
+                $this->syncItems($order, $data['items'], $currency);
+                $this->reserveItems($order);
+
+                $order->statusHistory()->create([
+                    'from_status' => null,
+                    'to_status' => 'pending',
+                    'created_by' => $request->user()->id,
+                ]);
+
+                return $order;
+            });
+        } catch (InsufficientStockException $exception) {
+            return ApiResponse::error($exception->getMessage(), [], 422);
+        }
+
+        return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order created successfully.', status: 201);
+    }
+
+    public function show(Order $order): JsonResponse
+    {
+        $this->authorize('view', $order);
+
+        return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order fetched successfully.');
+    }
+
+    public function update(OrderRequest $request, Order $order): JsonResponse
+    {
+        $this->authorize('update', $order);
+
+        if ($order->status !== 'pending') {
+            return ApiResponse::error('Only pending orders can be edited.', [], 422);
+        }
+
+        $data = $request->validated();
+        $currency = $data['currency_code'] ?? $order->currency_code;
+        $shipping = $this->resolveShipping($data);
+
+        try {
+            DB::transaction(function () use ($order, $data, $currency, $shipping) {
+                $order->load('items');
+                $this->releaseReservation($order);
+                $order->items()->delete();
+
+                $order->update([
+                    'customer_id' => $data['customer_id'],
+                    'warehouse_id' => $data['warehouse_id'],
+                    'payment_method' => $data['payment_method'],
+                    'currency_code' => $currency,
+                    'shipping_amount' => Money::fromDecimal($data['shipping_amount'] ?? 0, $currency)->amountMinor,
+                    'discount_amount' => Money::fromDecimal($data['discount_amount'] ?? 0, $currency)->amountMinor,
+                    'notes' => $data['notes'] ?? null,
+                    ...$shipping,
+                ]);
+
+                $this->syncItems($order, $data['items'], $currency);
+                $this->reserveItems($order);
+            });
+        } catch (InsufficientStockException $exception) {
+            return ApiResponse::error($exception->getMessage(), [], 422);
+        }
+
+        return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order updated successfully.');
+    }
+
+    public function process(Order $order): JsonResponse
+    {
+        $this->authorize('update', $order);
+
+        if ($order->status !== 'pending') {
+            return ApiResponse::error('Only pending orders can be moved to processing.', [], 422);
+        }
+
+        DB::transaction(function () use ($order) {
+            $order->update(['status' => 'processing']);
+            $order->statusHistory()->create([
+                'from_status' => 'pending',
+                'to_status' => 'processing',
+                'created_by' => request()->user()->id,
+            ]);
+        });
+
+        return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order moved to processing.');
+    }
+
+    public function ship(Order $order): JsonResponse
+    {
+        $this->authorize('update', $order);
+
+        if (! in_array($order->status, ['pending', 'processing'], true)) {
+            return ApiResponse::error('Only pending or processing orders can be shipped.', [], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($order) {
+                $fromStatus = $order->status;
+
+                foreach ($order->items()->get() as $item) {
+                    $level = StockLevel::query()
+                        ->where('product_id', $item->product_id)
+                        ->where('warehouse_id', $order->warehouse_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    $before = $level?->quantity ?? 0;
+                    $after = $before - $item->quantity;
+
+                    if ($after < 0 || ($level?->quantity_reserved ?? 0) < $item->quantity) {
+                        $product = Product::findOrFail($item->product_id);
+                        throw new InsufficientStockException("Stock for \"{$product->name}\" is inconsistent with this order's reservation.");
+                    }
+
+                    $level->update([
+                        'quantity' => $after,
+                        'quantity_reserved' => $level->quantity_reserved - $item->quantity,
+                    ]);
+
+                    StockMovement::create([
+                        'store_id' => $order->store_id,
+                        'product_id' => $item->product_id,
+                        'warehouse_id' => $order->warehouse_id,
+                        'type' => 'sale',
+                        'quantity' => $item->quantity,
+                        'quantity_before' => $before,
+                        'quantity_after' => $after,
+                        'reference_type' => Order::class,
+                        'reference_id' => $order->id,
+                        'created_by' => request()->user()->id,
+                    ]);
+                }
+
+                $order->update(['status' => 'shipped']);
+                $order->statusHistory()->create([
+                    'from_status' => $fromStatus,
+                    'to_status' => 'shipped',
+                    'created_by' => request()->user()->id,
+                ]);
+            });
+        } catch (InsufficientStockException $exception) {
+            return ApiResponse::error($exception->getMessage(), [], 422);
+        }
+
+        return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order shipped successfully.');
+    }
+
+    public function deliver(Order $order): JsonResponse
+    {
+        $this->authorize('update', $order);
+
+        if ($order->status !== 'shipped') {
+            return ApiResponse::error('Only shipped orders can be marked delivered.', [], 422);
+        }
+
+        DB::transaction(function () use ($order) {
+            $order->update(['status' => 'delivered']);
+            $order->statusHistory()->create([
+                'from_status' => 'shipped',
+                'to_status' => 'delivered',
+                'created_by' => request()->user()->id,
+            ]);
+        });
+
+        return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order marked as delivered.');
+    }
+
+    public function cancel(Request $request, Order $order): JsonResponse
+    {
+        $this->authorize('cancel', $order);
+
+        if (! in_array($order->status, ['pending', 'processing'], true)) {
+            return ApiResponse::error('Only pending or processing orders can be cancelled.', [], 422);
+        }
+
+        DB::transaction(function () use ($order, $request) {
+            $fromStatus = $order->status;
+
+            $order->load('items');
+            $this->releaseReservation($order);
+
+            $order->update(['status' => 'cancelled']);
+            $order->statusHistory()->create([
+                'from_status' => $fromStatus,
+                'to_status' => 'cancelled',
+                'note' => $request->input('note'),
+                'created_by' => $request->user()->id,
+            ]);
+        });
+
+        return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order cancelled successfully.');
+    }
+
+    /** Resolves the shipping snapshot from either a saved address or the manually entered fields. */
+    private function resolveShipping(array $data): array
+    {
+        if (! empty($data['customer_address_id'])) {
+            $address = CustomerAddress::findOrFail($data['customer_address_id']);
+
+            return [
+                'customer_address_id' => $address->id,
+                'shipping_recipient_name' => $address->recipient_name,
+                'shipping_phone' => $address->phone,
+                'shipping_address_line' => $address->address_line,
+                'shipping_bd_division_id' => $address->bd_division_id,
+                'shipping_bd_district_id' => $address->bd_district_id,
+                'shipping_bd_upazila_id' => $address->bd_upazila_id,
+            ];
+        }
+
+        return [
+            'customer_address_id' => null,
+            'shipping_recipient_name' => $data['shipping_recipient_name'],
+            'shipping_phone' => $data['shipping_phone'],
+            'shipping_address_line' => $data['shipping_address_line'],
+            'shipping_bd_division_id' => $data['shipping_bd_division_id'] ?? null,
+            'shipping_bd_district_id' => $data['shipping_bd_district_id'] ?? null,
+            'shipping_bd_upazila_id' => $data['shipping_bd_upazila_id'] ?? null,
+        ];
+    }
+
+    /** Replaces an order's items wholesale — see OrderRequest for why a partial PATCH isn't offered. */
+    private function syncItems(Order $order, array $items, string $currency): void
+    {
+        foreach ($items as $item) {
+            $order->items()->create([
+                'product_id' => $item['product_id'],
+                'quantity' => $item['quantity'],
+                'unit_price_amount' => Money::fromDecimal($item['unit_price'], $currency)->amountMinor,
+            ]);
+        }
+    }
+
+    /** Reserves stock for every item on the order, atomically, at its current warehouse. */
+    private function reserveItems(Order $order): void
+    {
+        foreach ($order->items()->get() as $item) {
+            $level = StockLevel::query()
+                ->where('product_id', $item->product_id)
+                ->where('warehouse_id', $order->warehouse_id)
+                ->lockForUpdate()
+                ->first();
+
+            $available = ($level?->quantity ?? 0) - ($level?->quantity_reserved ?? 0);
+
+            if ($available < $item->quantity) {
+                $product = Product::findOrFail($item->product_id);
+                throw new InsufficientStockException("Not enough available stock of \"{$product->name}\" at this warehouse to fulfil {$item->quantity} unit(s).");
+            }
+
+            $level->update(['quantity_reserved' => $level->quantity_reserved + $item->quantity]);
+        }
+    }
+
+    /** Releases this order's reserved stock without touching on-hand quantity. Requires items to be loaded. */
+    private function releaseReservation(Order $order): void
+    {
+        foreach ($order->items as $item) {
+            $level = StockLevel::query()
+                ->where('product_id', $item->product_id)
+                ->where('warehouse_id', $order->warehouse_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($level) {
+                $level->update(['quantity_reserved' => max(0, $level->quantity_reserved - $item->quantity)]);
+            }
+        }
+    }
+}

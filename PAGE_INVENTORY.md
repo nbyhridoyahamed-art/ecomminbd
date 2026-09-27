@@ -25,7 +25,7 @@ their backing functionality — no dead pages).
 | `/inventory/transfers/new`, `/inventory/transfers/[id]` | ✅ | 6 (multi-item warehouse-to-warehouse transfer) |
 | `/inventory/warehouses` | ✅ | 6 (list, create, edit — backend model existed since Phase 4, admin UI was the Phase 6 gap this closes) |
 | `/inventory/warehouses/new`, `/inventory/warehouses/[id]` | ✅ | 6 |
-| `/inventory` (stock reservations tied to orders, variant-level stock) | ⏳ | 6 Wave 2 — needs Phase 8 or Phase 5 Wave 2 first, see `DATABASE_DESIGN.md` |
+| `/inventory/stock-levels` (Reserved/Available columns) | ✅ | 6/8 (stock reservations tied to orders — Phase 8 built the consumer; variant-level stock is still 5 Wave 2) |
 | `/purchasing` | ✅ | 7 (redirects to Purchase Orders) |
 | `/purchasing/purchase-orders` | ✅ | 7 (status/supplier filters, total shown per order) |
 | `/purchasing/purchase-orders/new` | ✅ | 7 (supplier/warehouse + line-item builder with unit cost) |
@@ -33,9 +33,14 @@ their backing functionality — no dead pages).
 | `/purchasing/suppliers` | ✅ | 7 (list, search, pagination) |
 | `/purchasing/suppliers/new`, `/purchasing/suppliers/[id]` | ✅ | 7 |
 | `/purchasing` (purchase returns, supplier ledger/payment terms, PO approval workflow, reorder suggestions) | ⏳ | 7 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
-| `/orders` | ⏳ | 8 |
-| `/orders/[id]` | ⏳ | 8 |
-| `/customers` | ⏳ | 8 |
+| `/orders` | ✅ | 8 (redirects to Orders) |
+| `/orders/orders` | ✅ | 8 (status/customer filters, total shown per order) |
+| `/orders/orders/new` | ✅ | 8 (customer/warehouse/payment method + saved-or-manual shipping address + line-item builder) |
+| `/orders/orders/[id]` | ✅ | 8 (items, shipping address, status badge, Process/Ship/Deliver/Cancel actions gated by status+permission, status history timeline — ship drives real `stock_movements`) |
+| `/orders/customers` | ✅ | 8 (list, search, pagination) |
+| `/orders/customers/new` | ✅ | 8 |
+| `/orders/customers/[id]` | ✅ | 8 (edit customer + inline saved-address manager, no separate address pages) |
+| `/orders` (payments/refunds, order edit-while-pending UI, guest checkout) | ⏳ | 8 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/delivery/couriers` | ⏳ | 9 |
 | `/delivery/shipments` | ⏳ | 9 |
 | `/delivery/zones` | ⏳ | 9 |
@@ -108,7 +113,11 @@ their backing functionality — no dead pages).
 | `GET/POST/PUT/DELETE /api/v1/purchase-orders` | ✅ |
 | `POST /api/v1/purchase-orders/{id}/place`, `.../cancel` | ✅ |
 | `POST /api/v1/purchase-orders/{id}/receipts` (drives `stock_movements`/`stock_levels`) | ✅ |
-| Everything under orders/etc. | ⏳ — added phase by phase |
+| `GET/POST/PUT/DELETE /api/v1/customers` | ✅ |
+| `POST/PUT/DELETE /api/v1/customers/{id}/addresses(/{address})` | ✅ |
+| `GET/POST/PUT /api/v1/orders`, `GET .../{id}` | ✅ |
+| `POST /api/v1/orders/{id}/process`, `.../ship` (drives `stock_movements`/`stock_levels`), `.../deliver`, `.../cancel` | ✅ |
+| Everything under delivery/returns/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

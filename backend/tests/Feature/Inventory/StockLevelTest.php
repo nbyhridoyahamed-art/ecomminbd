@@ -83,6 +83,24 @@ class StockLevelTest extends TestCase
             ->assertJsonPath('data.0.is_low_stock', true);
     }
 
+    public function test_reserved_quantity_reduces_availability_and_can_trigger_low_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['low_stock_threshold' => 10, 'track_stock' => true]);
+        // 50 on hand, but 45 already reserved by pending orders -> only 5 available.
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 50, 'quantity_reserved' => 45]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/stock-levels?store_id={$store->id}&warehouse_id={$warehouse->id}")
+            ->assertOk()
+            ->assertJsonPath('data.0.quantity', 50)
+            ->assertJsonPath('data.0.quantity_reserved', 45)
+            ->assertJsonPath('data.0.quantity_available', 5)
+            ->assertJsonPath('data.0.is_low_stock', true);
+    }
+
     public function test_a_user_without_inventory_view_is_forbidden(): void
     {
         $viewer = User::factory()->create();

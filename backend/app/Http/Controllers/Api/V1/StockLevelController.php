@@ -17,7 +17,11 @@ class StockLevelController extends Controller
     /**
      * Current on-hand quantity per product at one warehouse. Products
      * without a stock_levels row yet (nothing has moved for them there)
-     * still show up with quantity 0 via the left join.
+     * still show up with quantity 0 via the left join. "Low stock" (and
+     * the low_stock filter) compares against *available* stock
+     * (quantity - quantity_reserved), not raw on-hand quantity — once
+     * Phase 8 orders reserve stock, on-hand alone overstates what's
+     * actually sellable.
      */
     public function index(Request $request): JsonResponse
     {
@@ -41,7 +45,11 @@ class StockLevelController extends Controller
                     ->where('stock_levels.warehouse_id', '=', $warehouseId);
             })
             ->where('products.store_id', $storeId)
-            ->select('products.*', DB::raw('COALESCE(stock_levels.quantity, 0) as warehouse_quantity'))
+            ->select(
+                'products.*',
+                DB::raw('COALESCE(stock_levels.quantity, 0) as warehouse_quantity'),
+                DB::raw('COALESCE(stock_levels.quantity_reserved, 0) as warehouse_reserved'),
+            )
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = '%'.$request->string('search').'%';
                 $query->where(function ($q) use ($term) {
@@ -51,7 +59,7 @@ class StockLevelController extends Controller
             ->when($lowStockOnly, fn ($query) => $query
                 ->where('products.track_stock', true)
                 ->whereNotNull('products.low_stock_threshold')
-                ->whereRaw('COALESCE(stock_levels.quantity, 0) <= products.low_stock_threshold'))
+                ->whereRaw('(COALESCE(stock_levels.quantity, 0) - COALESCE(stock_levels.quantity_reserved, 0)) <= products.low_stock_threshold'))
             ->orderBy('products.name')
             ->paginate($perPage);
 
@@ -69,8 +77,9 @@ class StockLevelController extends Controller
 
     /**
      * Count of (product, warehouse) pairs currently at or below their
-     * product's low_stock_threshold, across every warehouse in the store —
-     * backs the dashboard's "Low stock alerts" KPI.
+     * product's low_stock_threshold — comparing *available* stock
+     * (quantity - quantity_reserved), across every warehouse in the
+     * store — backs the dashboard's "Low stock alerts" KPI.
      */
     public function lowStockCount(Request $request): JsonResponse
     {
@@ -85,7 +94,7 @@ class StockLevelController extends Controller
             ->where('products.store_id', $request->integer('store_id'))
             ->where('products.track_stock', true)
             ->whereNotNull('products.low_stock_threshold')
-            ->whereColumn('stock_levels.quantity', '<=', 'products.low_stock_threshold')
+            ->whereRaw('(stock_levels.quantity - stock_levels.quantity_reserved) <= products.low_stock_threshold')
             ->count();
 
         return ApiResponse::success(['count' => $count], 'Low stock count fetched successfully.');

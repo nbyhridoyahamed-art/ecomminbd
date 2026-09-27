@@ -47,6 +47,12 @@ class StockAdjustmentController extends Controller
                     throw new InsufficientStockException('Not enough stock at this warehouse to decrease by that amount.');
                 }
 
+                // Stock already reserved for pending/processing orders can't be adjusted away,
+                // or ship() would later try to decrement on-hand quantity below zero.
+                if ($after < ($level?->quantity_reserved ?? 0)) {
+                    throw new InsufficientStockException('That would take on-hand stock below the quantity already reserved for pending orders.');
+                }
+
                 if ($level) {
                     $level->update(['quantity' => $after]);
                 } else {

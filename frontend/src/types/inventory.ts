@@ -3,6 +3,8 @@ export interface StockLevel {
   product_name: string;
   sku: string;
   quantity: number;
+  quantity_reserved: number;
+  quantity_available: number;
   track_stock: boolean;
   low_stock_threshold: number | null;
   is_low_stock: boolean;
@@ -13,7 +15,8 @@ export type StockMovementType =
   | "adjustment_decrease"
   | "transfer_in"
   | "transfer_out"
-  | "purchase_receipt";
+  | "purchase_receipt"
+  | "sale";
 
 export interface StockMovement {
   id: number;

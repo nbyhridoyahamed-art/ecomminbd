@@ -4,7 +4,10 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\BrandController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CurrencyController;
+use App\Http\Controllers\Api\V1\CustomerAddressController;
+use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\LocationController;
+use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
@@ -77,5 +80,16 @@ Route::prefix('v1')->group(function () {
         Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
         Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
         Route::post('purchase-orders/{purchaseOrder}/receipts', [PurchaseReceiptController::class, 'store']);
+
+        Route::apiResource('customers', CustomerController::class);
+        Route::post('customers/{customer}/addresses', [CustomerAddressController::class, 'store']);
+        Route::put('customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'update']);
+        Route::delete('customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'destroy']);
+
+        Route::apiResource('orders', OrderController::class)->except(['destroy']);
+        Route::post('orders/{order}/process', [OrderController::class, 'process']);
+        Route::post('orders/{order}/ship', [OrderController::class, 'ship']);
+        Route::post('orders/{order}/deliver', [OrderController::class, 'deliver']);
+        Route::post('orders/{order}/cancel', [OrderController::class, 'cancel']);
     });
 });

@@ -141,18 +141,21 @@ uses).
   of this record" queries and by `(store_id, created_at)` for the audit
   log list view.
 
-## 1c. Inventory Schema (Phase 6 Wave 1)
+## 1c. Inventory Schema (Phase 6 Wave 1; `quantity_reserved` added Phase 8 Wave 1)
 
 ```
 stock_levels
   id, product_id (FK→products, cascade), warehouse_id (FK→warehouses, cascade),
-  quantity (int, default 0), timestamps
+  quantity (int, default 0),
+  quantity_reserved (unsigned int, default 0 — reserved by pending/processing
+    orders; "available to sell" = quantity - quantity_reserved; see section 1e),
+  timestamps
   unique(product_id, warehouse_id)
 
 stock_movements
   id, uuid, store_id (FK→stores, cascade), product_id (FK→products, cascade),
   warehouse_id (FK→warehouses, cascade),
-  type (varchar: adjustment_increase/adjustment_decrease/transfer_in/transfer_out/purchase_receipt),
+  type (varchar: adjustment_increase/adjustment_decrease/transfer_in/transfer_out/purchase_receipt/sale),
   quantity (unsigned int — the delta magnitude, always positive; direction is in `type`),
   quantity_before, quantity_after (int — snapshot either side of this movement),
   reason (nullable), reference_type/reference_id (nullable — points at the
@@ -249,6 +252,90 @@ increment and the PO's status recompute — the same locked read/write
 discipline as `stock_transfers`, minus the negative-quantity guard,
 since receiving only ever increases stock.
 
+## 1e. Orders Schema (Phase 8 Wave 1)
+
+```
+customers
+  id, uuid, store_id (FK→stores, cascade), name, email (nullable),
+  phone, status, timestamps, deleted_at
+
+customer_addresses
+  id, customer_id (FK→customers, cascade), label (nullable),
+  recipient_name, phone, address_line,
+  bd_division_id, bd_district_id, bd_upazila_id (FK→bd_*, nullOnDelete),
+  is_default (bool, default false), timestamps
+  — exactly one address per customer has is_default = true, enforced in
+    CustomerAddressController (not a DB constraint): adding/editing an
+    address as default unsets the previous default in the same
+    transaction; deleting the default promotes the next-oldest address.
+
+orders
+  id, uuid, store_id (FK→stores, cascade), order_number (e.g.
+    ORD-20260927-AB12CD — same date+random-suffix scheme as
+    stock_transfers.transfer_number, see section 1c),
+  customer_id (FK→customers, cascade),
+  warehouse_id (FK→warehouses, cascade — fulfilling warehouse, where
+    stock is reserved/decremented),
+  status (varchar: pending/processing/shipped/delivered/cancelled — see
+    the state machine below), payment_method (varchar: cod/bkash/nagad/
+    rocket/card/bank_transfer), payment_status (varchar, default
+    'unpaid' — Wave 2, see below), currency_code (char(3), default 'BDT'),
+  shipping_amount, discount_amount (bigint minor units, default 0 — real
+    order-level inputs, unlike subtotal/total which are never stored,
+    see section 3),
+  customer_address_id (FK→customer_addresses, nullOnDelete — which saved
+    address this came from, if any),
+  shipping_recipient_name, shipping_phone, shipping_address_line,
+  shipping_bd_division_id, shipping_bd_district_id, shipping_bd_upazila_id
+    (FK→bd_*, nullOnDelete) — a snapshot of the shipping address at order
+    time (from the saved address, or entered manually), so it survives
+    the customer later editing or deleting that saved address,
+  notes (nullable), created_by (FK→users, nullOnDelete), timestamps
+  unique(store_id, order_number), index(store_id, status)
+
+order_items
+  id, order_id (FK→orders, cascade), product_id (FK→products, cascade),
+  quantity (unsigned int),
+  unit_price_amount (bigint minor units — a price snapshot at order
+    time; never re-read the live product price afterwards), timestamps
+
+order_status_history
+  id, order_id (FK→orders, cascade), from_status (nullable — null on the
+    initial "created as pending" entry), to_status, note (nullable),
+    created_by (FK→users, nullOnDelete), timestamps
+  index(order_id)
+  — an append-only audit trail, same ledger style as stock_movements;
+    every status transition in OrderController writes one row.
+```
+
+**Status state machine:** `pending` (stock reserved atomically at
+creation — see below; items freely editable, a PUT releases the old
+reservation and re-reserves the new items, same wholesale-replace
+pattern as `purchase_orders`/`stock_transfers`) → `processing` (explicit
+`process()` action, a pure status change) → `shipped` (explicit `ship()`
+action — converts the reservation into a real `sale` stock movement,
+decrementing both `quantity` and `quantity_reserved`) → `delivered`
+(explicit `deliver()` action, a pure status change). `cancelled` is
+reachable only from `pending`/`processing` — it releases the reservation
+via `quantity_reserved` without touching on-hand `quantity` (no stock
+was ever removed). Once `shipped`, an order can no longer be edited or
+cancelled — reversing a shipment is a Wave 2 problem (see section 2,
+order returns/exchanges).
+
+Creating or editing a `pending` order reserves stock by incrementing
+`stock_levels.quantity_reserved` (not `quantity`) at the order's
+`warehouse_id`, inside a DB transaction with `lockForUpdate()`, rejecting
+(via `App\Support\InsufficientStockException`, reused from section 1c)
+when the requested quantity exceeds what's currently *available*
+(`quantity - quantity_reserved`) rather than raw on-hand quantity — the
+same locked read/write discipline as every other stock mutation in
+sections 1c/1d. Because reserved stock is committed to real orders,
+`StockAdjustmentController`'s decrease path and `StockTransferController`'s
+transfer-out path both also reject (added in Phase 8) any change that
+would take on-hand `quantity` below the warehouse's `quantity_reserved`
+— otherwise a manual adjustment or transfer could leave `ship()` unable
+to decrement on-hand stock without going negative.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -258,23 +345,24 @@ compatible with them.
 
 - **Catalog Wave 2:** `product_variants`, `product_attributes`,
   `product_attribute_values` (variable products — `products.type` already
-  reserves the column value, schema not yet built), `reviews` (needs
-  Phase 8 customers/orders for "verified purchase"), a reusable/browsable
+  reserves the column value, schema not yet built), `reviews` (Phase 8's
+  `customers`/`orders` now exist to back "verified purchase", but the
+  reviews table itself isn't built), a reusable/browsable
   `media` library with folders and cross-entity reuse (today, product/
   category/brand images upload directly against their own record — see
   section 1b). `products`, `categories`, `brands`, `product_images` are
   built — see section 1b.
-- **Inventory Wave 2:** `stock_levels.quantity_reserved` (needs Phase 8
-  orders to reserve against — Wave 1 only tracks on-hand quantity),
-  `product_variant_id` on `stock_levels`/`stock_movements` (needs Phase 5
-  Wave 2 variants), automatic movements from order fulfillment/
-  cancellation/returns (Phase 8/10), a pending/in-transit/received
+- **Inventory Wave 2:** `product_variant_id` on `stock_levels`/
+  `stock_movements` (needs Phase 5 Wave 2 variants), automatic movements
+  from order *returns* (needs Phase 10 — cancellation and fulfillment
+  movements are built, see section 1e), a pending/in-transit/received
   transfer approval workflow, and a `stock_adjustments` header table for
   grouping a stocktake's many per-product adjustments under one
   reference (today each adjustment is its own `stock_movements` row —
-  see section 1c). `stock_levels`, `stock_movements`, `stock_transfers`,
-  `stock_transfer_items` are built — see section 1c. Movements driven by
-  purchase receipts are also built — see section 1d.
+  see section 1c). `stock_levels` (incl. `quantity_reserved`),
+  `stock_movements`, `stock_transfers`, `stock_transfer_items` are built
+  — see section 1c. Movements driven by purchase receipts and by order
+  reservation/shipment are also built — see sections 1d/1e.
 - **Purchasing Wave 2:** `purchase_returns` (returning received goods to
   a supplier — needs a real trigger from actual usage before its
   workflow can be designed with confidence), supplier payment
@@ -283,9 +371,17 @@ compatible with them.
   exists yet), and low-stock-driven reorder suggestions (needs Phase 18/20
   reporting infra). `suppliers`, `purchase_orders`, `purchase_order_items`,
   `purchase_receipts`, `purchase_receipt_items` are built — see section 1d.
-- **Orders:** `customers`, `customer_addresses`, `orders`, `order_items`,
-  `order_status_history`, `payments`, `cod_settlements`, `coupons`,
-  `coupon_usages`.
+- **Orders Wave 2:** `payments` (a real gateway/COD reconciliation
+  ledger — Wave 1's `orders.payment_status` is a single unpaid/paid/
+  refunded column with no producer yet), `cod_settlements` (needs Phase
+  9 delivery/courier data), `coupons`/`coupon_usages` (no discount-code
+  concept yet — Wave 1's `discount_amount` is a plain manual entry),
+  order returns/exchanges (needs Phase 10), and an order-edit UI for
+  editing a pending order's items after creation (the `PUT` endpoint
+  exists and is tested — see `API_DESIGN.md` — but no page consumes it
+  yet, matching how purchase-order editing has no dedicated UI either).
+  `customers`, `customer_addresses`, `orders`, `order_items`,
+  `order_status_history` are built — see section 1e.
 - **Delivery:** `couriers` (config per provider), `shipments`,
   `delivery_zones`, `delivery_zone_rates`.
 - **Returns:** `returns`, `return_items`, `refunds`, `exchanges`.
@@ -314,7 +410,11 @@ financial column. `App\Support\Money` (backend) and `formatMoney()`
 between minor units and display strings — every controller and
 component goes through one of these rather than doing `* 100` or
 interpolating a currency symbol itself. Both are implemented and in use
-by the product pricing fields (Phase 5) and purchase-order item unit
-costs (Phase 7) — the latter stores `currency_code` once on the
-`purchase_orders` header rather than repeating it per item, since a
-single order is always placed in one currency.
+by the product pricing fields (Phase 5), purchase-order item unit
+costs (Phase 7), and order item unit prices plus `shipping_amount`/
+`discount_amount` (Phase 8) — each stores `currency_code` once on its
+own header rather than repeating it per item, since a single order (or
+PO) is always placed in one currency. Order `subtotal_amount`/
+`total_amount` follow the same "never store a derivable total" rule as
+`purchase_orders.total_amount` — computed from `order_items` in
+`OrderResource`, not stored columns.
