@@ -63,15 +63,22 @@ sugar, backend is authoritative (spec rule 135/182).
 
 ## 6. Tables
 
-A single reusable `DataTable` (TanStack Table under the hood) handles
-sorting, filtering, pagination (20/50/100 page sizes), column
-visibility, row selection, and bulk actions, built once and reused by
-every list screen from Phase 5 onward (spec section 136).
+A single reusable `DataTable` component (`components/ui/data-table.tsx`)
+handles server-driven pagination, loading skeletons, and empty states,
+reused by every list screen (Users, Roles today; Phase 5+ resources as
+they ship). It's a small dependency-free implementation rather than
+built on TanStack Table — the version available at build time (v9) ships
+a materially different API from what's documented/commonly known, so
+writing the ~100 lines directly was safer than guessing at an
+unfamiliar surface. Column sorting, visibility toggles, and row
+selection/bulk actions are not implemented yet; they're added when a
+screen actually needs them (spec rule 136 on pagination is satisfied
+today via server-side `page`/`per_page`).
 
 ## 7. UI States Discipline
 
-Every screen this session ships (login, dashboard) implements all of:
-loading (skeleton), empty, error, success, disabled, and — where
+Every screen this session ships (login, dashboard, settings) implements
+all of: loading (skeleton), empty, error, success, disabled, and — where
 relevant — permission-denied. This is a hard rule for every future
 phase too (spec rule 181): no "happy path only" screens.
 
@@ -82,10 +89,12 @@ hard-coded UI strings in components — spec section 12). Bangla line-
 height handled at the token level (`DESIGN_SYSTEM.md` §3), not per
 component.
 
-## 9. What This Session Implements
+## 9. What's Implemented So Far
 
 Admin shell (sidebar + topbar, collapse/expand, dark mode toggle,
-responsive drawer), the login screen, and the dashboard page shell with
-real (if currently sparse) data from the backend. Storefront, customer
-account shell, command palette, and DataTable land with the phases that
-have real data to back them.
+responsive drawer, permission-gated nav), the login screen, the
+dashboard page shell with real (if currently sparse) data from the
+backend, and the full Settings section (General/Users/Roles — list,
+create, edit, delete-with-confirmation, permission-denied states).
+Storefront, customer account shell, and command palette land with the
+phases that have real data to back them.

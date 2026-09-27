@@ -30,13 +30,39 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+const SEGMENT_LABELS: Record<string, string> = {
+  general: "General",
+  users: "Users",
+  roles: "Roles",
+  new: "New",
+};
+
+function getBreadcrumb(pathname: string): string[] {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return ["Dashboard"];
+
+  const [root, ...rest] = segments;
+  const rootItem = NAV_ITEMS.find((item) => item.href.split("/")[1] === root);
+  const crumbs = [rootItem?.label ?? root];
+
+  for (const segment of rest) {
+    if (/^\d+$/.test(segment)) {
+      crumbs.push("Edit");
+    } else {
+      crumbs.push(SEGMENT_LABELS[segment] ?? segment);
+    }
+  }
+
+  return crumbs;
+}
+
 export function AdminTopbar({ user }: { user?: User }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const logout = useLogout();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const currentPage = NAV_ITEMS.find((item) => item.href === pathname)?.label ?? "Dashboard";
+  const breadcrumb = getBreadcrumb(pathname);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
@@ -57,8 +83,17 @@ export function AdminTopbar({ user }: { user?: User }) {
           </SheetContent>
         </Sheet>
 
-        <nav aria-label="Breadcrumb" className="text-sm text-text-secondary">
-          <span className="text-text-primary font-medium">{currentPage}</span>
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm text-text-secondary">
+          {breadcrumb.map((crumb, index) => (
+            <span key={index} className="flex items-center gap-1.5">
+              {index > 0 ? <span className="text-text-muted">/</span> : null}
+              <span
+                className={index === breadcrumb.length - 1 ? "font-medium text-text-primary" : undefined}
+              >
+                {crumb}
+              </span>
+            </span>
+          ))}
         </nav>
       </div>
 

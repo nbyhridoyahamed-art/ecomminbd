@@ -38,9 +38,21 @@ class RoleController extends Controller
         return ApiResponse::success(new RoleResource($role->load('permissions')), 'Role created successfully.', status: 201);
     }
 
+    /**
+     * These two roles are the platform's guaranteed full-access roles
+     * (spec section 6). Letting anyone edit their name or strip their
+     * permissions could lock every admin out of the system, so both are
+     * protected here in addition to the frontend disabling their form.
+     */
+    private const LOCKED_ROLES = ['Super Admin', 'Store Owner'];
+
     public function update(RoleRequest $request, Role $role): JsonResponse
     {
         $this->authorize('update', $role);
+
+        if (in_array($role->name, self::LOCKED_ROLES, true)) {
+            return ApiResponse::error('This role is built-in and cannot be edited.', [], 422);
+        }
 
         $role->update(['name' => $request->validated('name')]);
         $role->syncPermissions($request->validated('permissions') ?? []);
@@ -52,7 +64,7 @@ class RoleController extends Controller
     {
         $this->authorize('delete', $role);
 
-        if (in_array($role->name, ['Super Admin', 'Store Owner'], true)) {
+        if (in_array($role->name, self::LOCKED_ROLES, true)) {
             return ApiResponse::error('This role cannot be deleted.', [], 422);
         }
 

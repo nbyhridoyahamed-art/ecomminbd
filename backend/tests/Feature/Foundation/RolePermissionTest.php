@@ -7,6 +7,7 @@ use App\Models\Store;
 use App\Models\User;
 use Database\Seeders\RoleAndPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class RolePermissionTest extends TestCase
@@ -110,6 +111,26 @@ class RolePermissionTest extends TestCase
             ->getJson('/api/v1/roles')
             ->assertOk()
             ->assertJsonPath('success', true);
+    }
+
+    public function test_built_in_roles_cannot_be_edited_or_deleted(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Super Admin');
+        $superAdminRole = Role::where('name', 'Super Admin')->firstOrFail();
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/v1/roles/{$superAdminRole->id}", [
+                'name' => 'Renamed',
+                'permissions' => ['stores.view'],
+            ])
+            ->assertStatus(422);
+
+        $this->actingAs($admin, 'sanctum')
+            ->deleteJson("/api/v1/roles/{$superAdminRole->id}")
+            ->assertStatus(422);
+
+        $this->assertTrue($superAdminRole->fresh()->hasPermissionTo('users.delete'));
     }
 
     public function test_roles_can_be_assigned_to_a_user(): void

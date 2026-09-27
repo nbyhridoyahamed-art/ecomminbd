@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\StoreController;
@@ -25,6 +26,8 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('stores', StoreController::class);
         Route::apiResource('warehouses', WarehouseController::class);
         Route::apiResource('users', UserController::class);
+
+        Route::get('currencies', [CurrencyController::class, 'index']);
 
         Route::get('roles', [RoleController::class, 'index']);
         Route::get('permissions', [RoleController::class, 'permissions']);

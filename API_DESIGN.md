@@ -107,10 +107,10 @@ subscriber. Not implemented until an event-producing phase exists.
 (`login`, `forgot-password`) get a tighter `throttle:6,1` to blunt
 credential-stuffing/brute force per spec section 107.
 
-## 9. What This Session Implements
+## 9. What's Implemented So Far
 
-Sections 2–5 are implemented now (envelope, Sanctum auth endpoints,
-`auth:sanctum` + `can:` middleware wiring, the `stores`/`warehouses`
-CRUD as the first concrete example of the resource convention). Section
-6 (catalog/orders/etc.) and section 7 (webhooks) are documented intent
-for future phases.
+Sections 2–5 (envelope, Sanctum auth endpoints, `auth:sanctum` +
+`can:` middleware wiring) plus full CRUD for `stores`, `warehouses`,
+`users`, `roles` (+ `permissions` listing), and a read-only
+`currencies` listing. Section 6 (catalog/orders/etc.) and section 7
+(webhooks) are documented intent for future phases.

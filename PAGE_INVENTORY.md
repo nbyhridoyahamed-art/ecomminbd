@@ -35,10 +35,12 @@ their backing functionality — no dead pages).
 | `/blog` | ⏳ | 14 |
 | `/seo` | ⏳ | 15 |
 | `/reports` | ⏳ | 18 |
-| `/settings/*` | ⏳ | 4 (backend settings table exists; admin settings UI ships incrementally per section as each domain lands) |
-| `/settings/users` | ⏳ | 4 (backend user/role CRUD exists via API; UI screen next) |
-| `/settings/roles` | ⏳ | 4 |
-| `/settings/localization` | ⏳ | 4 (BD divisions/districts seeded; UI to manage them is a later increment) |
+| `/settings/general` | ✅ | 4 (store name/domain/currency/timezone/locale/status) |
+| `/settings/users` | ✅ | 4 (list, search, create, edit, role assignment, delete w/ confirmation) |
+| `/settings/users/new`, `/settings/users/[id]` | ✅ | 4 |
+| `/settings/roles` | ✅ | 4 (list, create, edit grouped permission matrix, delete w/ confirmation; Super Admin/Store Owner locked) |
+| `/settings/roles/new`, `/settings/roles/[id]` | ✅ | 4 |
+| `/settings/localization` | ⏳ | 4 (BD divisions/districts seeded; managing them via UI is a later increment — not needed until Phase 6+ warehouse/address forms) |
 
 ## Storefront (`frontend/src/app/(storefront)/`)
 
@@ -77,7 +79,8 @@ their backing functionality — no dead pages).
 | `GET/POST/PUT/DELETE /api/v1/warehouses` | ✅ |
 | `GET /api/v1/locations/divisions` `/districts` `/upazilas` | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/users` | ✅ |
-| `GET/POST/PUT/DELETE /api/v1/roles` | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/roles`, `GET /api/v1/permissions` | ✅ |
+| `GET /api/v1/currencies` | ✅ |
 | Everything under products/orders/inventory/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in

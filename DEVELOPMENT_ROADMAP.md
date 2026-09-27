@@ -10,7 +10,7 @@ in place and the app still builds/runs.
 | 1 | Architecture | ✅ Done | Yes — this doc suite + folder structure |
 | 2 | Design System | ✅ Done | Yes — tokens, theme, first primitives |
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
-| 4 | Store Foundation | 🟡 Backend done, admin UI pending | Yes (backend) — orgs/stores/users/roles/permissions/settings/localization/currency |
+| 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
 | 5 | Catalog | ⏳ Not started | No |
 | 6 | Inventory | ⏳ Not started | No |
 | 7 | Purchasing | ⏳ Not started | No |
@@ -51,23 +51,30 @@ pass would violate the spec's own explicit rules:
   architecture docs and starting **Phase 1 — Foundation**, not
   everything at once.
 
-So this session delivers Phases 0–3 completely, and the backend half of
-Phase 4, as real, tested, runnable code — a solid foundation (auth,
-RBAC, multi-store data model, BD localization, design system, admin
-shell) that every later phase builds directly on top of, with zero
+So this project delivers Phases 0–4 completely (foundation, design
+system, auth, RBAC, multi-store data model, BD localization, admin
+shell, and full Settings UI) as real, tested, runnable code — a solid
+base every later phase builds directly on top of, with zero
 placeholder/fake screens.
+
+**Phase 4 scope note:** the one deliberately deferred piece is a UI for
+*editing* the BD divisions/districts/upazilas reference data — the
+schema and seed data exist (`bd_divisions`/`bd_districts`/`bd_upazilas`),
+and a read API exists (`/api/v1/locations/*`), but there's no admin
+screen to add/edit that data yet. It doesn't block anything: nothing
+downstream needs to edit it before Phase 6 (warehouses) or the
+storefront's address forms need to consume it. Building that
+management screen now, with nothing yet driven by it, would be exactly
+the "fake functionality ahead of its consumer" spec rule 178 forbids.
 
 ## Next Session Should Start With
 
-1. Phase 4 admin UI: Users, Roles, Settings, Localization management
-   screens (backend API already exists — see `PAGE_INVENTORY.md`).
-2. Phase 5: Catalog (products, categories, brands, attributes, variants,
-   media library, bulk import/export) — the biggest unblocking phase,
-   since Inventory (6), Orders (8), and Storefront (16) all depend on
-   products existing.
-3. Follow the phase order above; do not skip ahead to CMS/SEO/Storefront
-   before Orders/Inventory exist, since those phases both link to and
-   depend on catalog + order data.
+Phase 5: Catalog (products, categories, brands, attributes, variants,
+media library, bulk import/export) — the biggest unblocking phase,
+since Inventory (6), Orders (8), and Storefront (16) all depend on
+products existing. Follow the phase order above; do not skip ahead to
+CMS/SEO/Storefront before Orders/Inventory exist, since those phases
+both link to and depend on catalog + order data.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

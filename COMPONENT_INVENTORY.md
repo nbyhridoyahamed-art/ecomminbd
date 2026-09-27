@@ -18,17 +18,17 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Alert | ✅ | inline error/success/info banners |
 | Dropdown Menu | ✅ | used in topbar (profile, theme) |
 | Sheet (drawer) | ✅ | mobile sidebar |
-| Select | ⏳ | Phase 5 (catalog forms) |
+| Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment |
 | Textarea | ⏳ | Phase 5 |
-| Checkbox | ⏳ | Phase 5 (bulk table selection) |
+| Checkbox | ✅ | Radix-based; role permission matrix, user role assignment |
 | Radio | ⏳ | Phase 5 |
-| Switch | ⏳ | Phase 5 (settings toggles) |
+| Switch | ⏳ | Phase 5 (settings toggles) — a boolean status is exposed via Select for now, since nothing yet needs a true on/off toggle |
 | Tooltip | ⏳ | Phase 5 |
-| Modal/Dialog | ⏳ | Phase 5 |
-| Tabs | ⏳ | Phase 5 (product editor tabs) |
+| Modal/Dialog | ✅ | centered dialog (distinct from Sheet); delete confirmations for users/roles |
+| Tabs | ⏳ | Settings uses a plain Link-based sub-nav instead (route navigation, not stateful panels — Radix Tabs doesn't fit that); still planned for Phase 5 in-page tabs (e.g. product editor) |
 | Accordion | ⏳ | Phase 5/15 (FAQ, SEO analysis groups) |
-| Table / DataTable | ⏳ | Phase 5 (first real list screen: products) |
-| Pagination | ⏳ | ships with DataTable |
+| Table / DataTable | ✅ | Server-paginated table w/ loading/empty states. Built as a small dependency-free component rather than on TanStack Table — the installed major version (v9) shipped a completely different, unfamiliar API; safer to write ~100 lines directly than guess at an API with no reliable reference. |
+| Pagination | ✅ | ships with DataTable (prev/next, server-driven) |
 | Breadcrumb | ✅ | topbar |
 | Toast | ✅ | global toaster for mutations |
 | Timeline | ⏳ | Phase 8 (order timeline) |
