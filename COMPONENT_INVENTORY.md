@@ -32,12 +32,12 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Breadcrumb | ✅ | topbar |
 | Toast | ✅ | global toaster for mutations |
 | Timeline | ✅ | order, shipment, and return status history — a plain `<ol>` of status badges + timestamp/actor, same "plain markup over a new primitive" call as Tabs; now has three consumers with the identical shape (order show page, shipment show page, return show page) but still duplicated inline rather than extracted, since each instance is small and none has diverged — promote to a real shared component the next time it actually needs to change in more than one place at once |
-| Chart | ⏳ | Phase 11 (dashboard KPI charts, Recharts) |
+| Chart | ✅ | Recharts (v3, React 19-compatible); see the Charts section below — no generic `ui/chart.tsx` wrapper, each chart is its own focused component under `components/charts/` since the two built so far (trend vs. breakdown) have different enough shapes that a shared abstraction would be premature |
 | Date Picker | ⏳ | Not needed yet — nothing shipped so far has a date field (products have no scheduled-publish date in Wave 1; orders use server-set timestamps, not a user-picked date) |
 | Command Palette | ⏳ | Products is now a searchable resource, but the palette itself is still unbuilt — next natural pickup |
 | File Upload | ✅ | Two components: `ImageUploadField` (single image — category/brand) and `ProductImageGallery` (multi-image with primary selection, delete, drag-free grid). No shared/reusable media library yet (Phase 5 Wave 2) — each upload is stored directly against its owning record. |
 | Rich Editor (TipTap) | ⏳ | Phase 14 (blog) |
-| Stat Card | ✅ | dashboard KPI cards; supports a `tone="danger"` accent, added for the Phase 6 low-stock-alerts card |
+| Stat Card | ✅ | dashboard KPI cards; supports a `tone="danger"` accent, added for the Phase 6 low-stock-alerts card; since Phase 11 every card on the dashboard is filtered by the permission that backs its number before rendering, rather than showing 0 for data the viewer can't see |
 | Empty State | ✅ | generic empty-state component (icon/title/description/CTA) |
 
 ## Layout Components (`frontend/src/components/layout/`)
@@ -52,7 +52,13 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 
 ## Charts (`frontend/src/components/charts/`)
 
-All ⏳ — Phase 11 (Dashboard) is the first consumer.
+| Component | Status | Notes |
+|---|---|---|
+| SalesTrendChart | ✅ | Recharts `ComposedChart` — an `Area` for revenue (left axis) + a dashed `Line` for order count (right axis) over the trailing N days, colored from CSS custom properties (`var(--color-primary)` etc.) so it repaints for dark mode automatically, same mechanism as every other themed component |
+| OrderStatusChart | ✅ | Recharts `BarChart`, one bar per order status, each `Cell` colored to match the same status badge variant used everywhere else (pending/processing/shipped/delivered/cancelled) |
+
+Both are the first Phase 11 consumers of Recharts. A generic reusable
+`Chart` wrapper wasn't built — see the Primitives table above for why.
 
 ## Rule Followed
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\CourierController;
 use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\ProductController;
@@ -118,5 +119,8 @@ Route::prefix('v1')->group(function () {
         Route::post('returns/{orderReturn}/reject', [ReturnController::class, 'reject']);
         Route::post('returns/{orderReturn}/receive', [ReturnController::class, 'receive']);
         Route::post('returns/{orderReturn}/refund', [ReturnController::class, 'refund']);
+
+        Route::get('dashboard/sales-trend', [DashboardController::class, 'salesTrend']);
+        Route::get('dashboard/order-status-breakdown', [DashboardController::class, 'orderStatusBreakdown']);
     });
 });

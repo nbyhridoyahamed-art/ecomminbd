@@ -475,6 +475,19 @@ since `Order.ship()` had already decremented on-hand quantity before any
 shipment existed and nothing was reversing it — this was the Delivery
 Wave 2 gap Phase 9 flagged.
 
+## 1h. Admin Dashboard (Phase 11 Wave 1)
+
+No new tables — the two new endpoints (`DashboardController::salesTrend()`/
+`orderStatusBreakdown()`) are pure read-side aggregation over `orders`/
+`order_items`, the same rows sections 1e/1c already describe. Nothing here
+introduces a derived/cached column: the trend and breakdown are computed
+fresh on every request (`GROUP BY DATE(orders.created_at)` / `GROUP BY
+orders.status`), same "never store a derivable total" reasoning as an
+order's own `total_amount`, just applied across rows instead of within
+one. A materialized/scheduled aggregate table only becomes worth it once
+Phase 18 Reporting needs heavier queries than a dashboard's trailing-14-
+days window — see the Reporting/Analytics bullet in section 2.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the

@@ -9,7 +9,7 @@ their backing functionality — no dead pages).
 | Route | Status | Phase |
 |---|---|---|
 | `/login` | ✅ | 3 (Auth) |
-| `/dashboard` | ✅ (shell + real KPI wiring, incl. product count) | 3/11 |
+| `/dashboard` | ✅ | 3/11 (real KPI stat cards, each permission-gated so a card never shows a misleading 0; sales-trend + order-status-breakdown Recharts visuals; recent-orders widget) |
 | `/catalog/products` | ✅ | 5 (search, filter by category/brand/status, pagination) |
 | `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5 (tabbed form: General/Pricing/Media/SEO; multi-image upload with primary selection) |
 | `/catalog/categories` | ✅ | 5 (hierarchical list, unlimited nesting, cycle-safe) |
@@ -53,6 +53,7 @@ their backing functionality — no dead pages).
 | `/orders/returns` | ✅ | 10 (status filter, tab under Orders alongside Orders/Customers) |
 | `/orders/returns/[id]` | ✅ | 10 (status card w/ Approve/Reject/Receive/Refund actions — receive has a per-item restock checklist, refund has a suggested-amount-prefilled input — items table, order summary, status history timeline) |
 | `/orders` (exchanges, store credit, cross-return partial-refund reconciliation) | ⏳ | 10 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
+| `/dashboard` (custom date-range picker, per-warehouse/per-courier breakdowns, low-stock-products widget w/ names, export) | ⏳ | 11 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md`; full reporting suite is Phase 18 |
 | `/website/homepage` | ⏳ | 13 |
 | `/website/pages` | ⏳ | 12 |
 | `/website/navigation` | ⏳ | 12 |
@@ -130,6 +131,7 @@ their backing functionality — no dead pages).
 | `GET/POST /api/v1/cod-settlements`, `GET .../{id}` | ✅ |
 | `POST /api/v1/orders/{id}/returns`, `GET /api/v1/returns`, `GET .../{id}` | ✅ |
 | `POST /api/v1/returns/{id}/approve`, `.../reject`, `.../receive` (drives `stock_movements`/`stock_levels`), `.../refund` | ✅ |
+| `GET /api/v1/dashboard/sales-trend`, `GET /api/v1/dashboard/order-status-breakdown` | ✅ |
 | Everything under CMS/blog/SEO/reports/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in

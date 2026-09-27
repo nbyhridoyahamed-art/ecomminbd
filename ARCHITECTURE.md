@@ -236,16 +236,23 @@ the first real producer, alongside a fix to Phase 9's
 `returned_to_seller` shipment action, of Inventory Wave 2's `return`
 stock-movement gap; a refund reconciles `orders.payment_status` once
 every order item's ordered quantity is covered by that order's refunded
-returns combined).
-CMS/builder, blog, SEO, storefront, customer account, reporting, the
-adapter implementations described in section 6, Catalog Wave 2
-(variants/attributes, bundles, bulk import/export, a reusable media
-library), Inventory Wave 2 (variant-level stock — the order-*return*
-movement gap this used to list is closed, see above), Purchasing Wave 2
-(purchase returns, supplier ledger, PO approval workflow), Orders Wave 2
-(a non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery
-zones/rates, multi-shipment orders — the return-driven stock reversal
-gap this used to list is closed, see above), and Returns Wave 2
-(exchanges, store credit, cross-return partial-refund reconciliation —
-see `DATABASE_DESIGN.md` section 2) are designed here but built in later
-phases per `DEVELOPMENT_ROADMAP.md`.
+returns combined), and Phase 11 Wave 1 admin dashboard (two aggregate
+endpoints — a 14-day sales trend and an order-status breakdown, both
+pure read-side `GROUP BY` queries with no new tables, see
+`DATABASE_DESIGN.md` section 1h — wired into real Recharts visuals, plus
+every dashboard stat card now gated behind the permission that backs its
+number instead of showing a misleading 0).
+CMS/builder, blog, SEO, storefront, customer account, the full reporting
+suite (Phase 18), the adapter implementations described in section 6,
+Catalog Wave 2 (variants/attributes, bundles, bulk import/export, a
+reusable media library), Inventory Wave 2 (variant-level stock — the
+order-*return* movement gap this used to list is closed, see above),
+Purchasing Wave 2 (purchase returns, supplier ledger, PO approval
+workflow), Orders Wave 2 (a non-COD gateway-payments ledger, coupons),
+Delivery Wave 2 (delivery zones/rates, multi-shipment orders — the
+return-driven stock reversal gap this used to list is closed, see
+above), Returns Wave 2 (exchanges, store credit, cross-return
+partial-refund reconciliation), and Dashboard Wave 2 (a custom
+date-range picker, per-warehouse/per-courier breakdowns, a low-stock-
+products widget with names, export — see `DATABASE_DESIGN.md` section 2)
+are designed here but built in later phases per `DEVELOPMENT_ROADMAP.md`.

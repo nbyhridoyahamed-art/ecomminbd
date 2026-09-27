@@ -216,4 +216,16 @@ order item's ordered quantity is fully covered by the order's `refunded`
 returns combined). `returns.*` uses a standard policy (`view`/`create`/
 `update` — the four status actions all check `update`).
 
+Admin Dashboard (Phase 11 Wave 1): `GET /dashboard/sales-trend`
+(`store_id` + optional `days`, default 14/max 90 — per-day
+`{date, orders_count, revenue_amount}`, zero-filled for days with no
+orders, cancelled orders excluded, `revenue_amount` summed from
+`order_items` line totals not `orders.total_amount`) and
+`GET /dashboard/order-status-breakdown` (`store_id` — counts per
+`orders.status`, zero-filled for every known status). Both check
+`orders.view` directly (`$request->user()->can(...)`), the same
+direct-permission pattern as `StockLevelController::lowStockCount()`,
+since a dashboard aggregate spans multiple models rather than one
+Eloquent policy. No new resource — see `DATABASE_DESIGN.md` section 2.
+
 Section 7 (webhooks) remains documented intent for future phases.

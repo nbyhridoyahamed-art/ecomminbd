@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -15,10 +16,38 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
+import { useOrderStatusBreakdown, useSalesTrend } from "@/hooks/use-dashboard";
+import { useOrders } from "@/hooks/use-orders";
+import { formatMoney } from "@/lib/money";
+import { OrderStatusChart } from "@/components/charts/order-status-chart";
+import { SalesTrendChart } from "@/components/charts/sales-trend-chart";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
+import type { OrderStatus } from "@/types/order";
+
+type BadgeVariant = BadgeProps["variant"];
+
+const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: "Pending",
+  processing: "Processing",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
+
+const ORDER_STATUS_VARIANTS: Record<OrderStatus, BadgeVariant> = {
+  pending: "neutral",
+  processing: "info",
+  shipped: "warning",
+  delivered: "success",
+  cancelled: "danger",
+};
 
 /** Fetches just enough of a list endpoint to read its total count. */
 function useTotal(path: string) {
@@ -33,76 +62,103 @@ function useTotal(path: string) {
 
 export default function DashboardPage() {
   const { data: user } = useCurrentUser();
+  const storeId = user?.current_store_id;
+
   const stores = useTotal("/stores");
   const warehouses = useTotal("/warehouses");
   const users = useTotal("/users");
   const roles = useTotal("/roles");
   const products = useQuery<number>({
-    queryKey: ["total", "/products", user?.current_store_id],
+    queryKey: ["total", "/products", storeId],
     queryFn: async () => {
-      const { meta } = await api.getWithMeta<unknown[]>(`/products?store_id=${user?.current_store_id}&per_page=1`);
+      const { meta } = await api.getWithMeta<unknown[]>(`/products?store_id=${storeId}&per_page=1`);
       return meta?.total ?? 0;
     },
-    enabled: Boolean(user?.current_store_id),
+    enabled: Boolean(storeId),
   });
   const lowStock = useQuery<number>({
-    queryKey: ["total", "/stock-levels/low-stock-count", user?.current_store_id],
+    queryKey: ["total", "/stock-levels/low-stock-count", storeId],
     queryFn: async () => {
-      const count = await api.get<{ count: number }>(`/stock-levels/low-stock-count?store_id=${user?.current_store_id}`);
+      const count = await api.get<{ count: number }>(`/stock-levels/low-stock-count?store_id=${storeId}`);
       return count.count;
     },
-    enabled: Boolean(user?.current_store_id),
+    enabled: Boolean(storeId),
   });
   const openPurchaseOrders = useQuery<number>({
-    queryKey: ["total", "/purchase-orders", "open", user?.current_store_id],
+    queryKey: ["total", "/purchase-orders", "open", storeId],
     queryFn: async () => {
-      const { meta } = await api.getWithMeta<unknown[]>(
-        `/purchase-orders?store_id=${user?.current_store_id}&open=1&per_page=1`,
-      );
+      const { meta } = await api.getWithMeta<unknown[]>(`/purchase-orders?store_id=${storeId}&open=1&per_page=1`);
       return meta?.total ?? 0;
     },
-    enabled: Boolean(user?.current_store_id),
+    enabled: Boolean(storeId),
   });
   const pendingOrders = useQuery<number>({
-    queryKey: ["total", "/orders", "open", user?.current_store_id],
+    queryKey: ["total", "/orders", "open", storeId],
     queryFn: async () => {
-      const { meta } = await api.getWithMeta<unknown[]>(`/orders?store_id=${user?.current_store_id}&open=1&per_page=1`);
+      const { meta } = await api.getWithMeta<unknown[]>(`/orders?store_id=${storeId}&open=1&per_page=1`);
       return meta?.total ?? 0;
     },
-    enabled: Boolean(user?.current_store_id),
+    enabled: Boolean(storeId),
   });
   const shipmentsInTransit = useQuery<number>({
-    queryKey: ["total", "/shipments", "in_transit", user?.current_store_id],
+    queryKey: ["total", "/shipments", "in_transit", storeId],
     queryFn: async () => {
       const { meta } = await api.getWithMeta<unknown[]>(
-        `/shipments?store_id=${user?.current_store_id}&status=in_transit&per_page=1`,
+        `/shipments?store_id=${storeId}&status=in_transit&per_page=1`,
       );
       return meta?.total ?? 0;
     },
-    enabled: Boolean(user?.current_store_id),
+    enabled: Boolean(storeId),
   });
   const pendingReturns = useQuery<number>({
-    queryKey: ["total", "/returns", "requested", user?.current_store_id],
+    queryKey: ["total", "/returns", "requested", storeId],
     queryFn: async () => {
-      const { meta } = await api.getWithMeta<unknown[]>(
-        `/returns?store_id=${user?.current_store_id}&status=requested&per_page=1`,
-      );
+      const { meta } = await api.getWithMeta<unknown[]>(`/returns?store_id=${storeId}&status=requested&per_page=1`);
       return meta?.total ?? 0;
     },
-    enabled: Boolean(user?.current_store_id),
+    enabled: Boolean(storeId),
   });
 
-  const loading =
-    stores.isLoading ||
-    warehouses.isLoading ||
-    users.isLoading ||
-    roles.isLoading ||
-    products.isLoading ||
-    lowStock.isLoading ||
-    openPurchaseOrders.isLoading ||
-    pendingOrders.isLoading ||
-    shipmentsInTransit.isLoading ||
-    pendingReturns.isLoading;
+  const salesTrend = useSalesTrend(storeId, 14);
+  const orderStatusBreakdown = useOrderStatusBreakdown(storeId);
+  const recentOrders = useOrders(storeId, { page: 1 });
+
+  const canViewOrders = can(user, "orders.view");
+
+  // Each card names the permission that backs its number — a user who
+  // lacks it never sees a card showing a misleading 0 for data it can't
+  // actually see (spec rule 178: no fake/misleading data).
+  const cards = [
+    { permission: "products.view", label: "Products", value: products.data, icon: <Package />, isLoading: products.isLoading },
+    {
+      permission: "inventory.view",
+      label: "Low stock alerts",
+      value: lowStock.data,
+      icon: <AlertTriangle />,
+      isLoading: lowStock.isLoading,
+      tone: lowStock.data && lowStock.data > 0 ? ("danger" as const) : undefined,
+    },
+    {
+      permission: "purchase_orders.view",
+      label: "Open purchase orders",
+      value: openPurchaseOrders.data,
+      icon: <ClipboardList />,
+      isLoading: openPurchaseOrders.isLoading,
+    },
+    { permission: "orders.view", label: "Pending orders", value: pendingOrders.data, icon: <ShoppingCart />, isLoading: pendingOrders.isLoading },
+    {
+      permission: "shipments.view",
+      label: "Shipments in transit",
+      value: shipmentsInTransit.data,
+      icon: <Truck />,
+      isLoading: shipmentsInTransit.isLoading,
+    },
+    { permission: "returns.view", label: "Pending returns", value: pendingReturns.data, icon: <Undo2 />, isLoading: pendingReturns.isLoading },
+    { permission: "stores.view", label: "Stores", value: stores.data, icon: <StoreIcon />, isLoading: stores.isLoading },
+    { permission: "warehouses.view", label: "Warehouses", value: warehouses.data, icon: <WarehouseIcon />, isLoading: warehouses.isLoading },
+    { permission: "users.view", label: "Staff users", value: users.data, icon: <Users />, isLoading: users.isLoading },
+    { permission: "roles.view", label: "Roles", value: roles.data, icon: <ShieldCheck />, isLoading: roles.isLoading },
+  ].filter((card) => can(user, card.permission));
 
   return (
     <div className="space-y-6">
@@ -115,31 +171,54 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-10">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-10">
-          <StatCard label="Products" value={products.data ?? 0} icon={<Package />} />
-          <StatCard
-            label="Low stock alerts"
-            value={lowStock.data ?? 0}
-            icon={<AlertTriangle />}
-            tone={lowStock.data && lowStock.data > 0 ? "danger" : undefined}
-          />
-          <StatCard label="Open purchase orders" value={openPurchaseOrders.data ?? 0} icon={<ClipboardList />} />
-          <StatCard label="Pending orders" value={pendingOrders.data ?? 0} icon={<ShoppingCart />} />
-          <StatCard label="Shipments in transit" value={shipmentsInTransit.data ?? 0} icon={<Truck />} />
-          <StatCard label="Pending returns" value={pendingReturns.data ?? 0} icon={<Undo2 />} />
-          <StatCard label="Stores" value={stores.data ?? 0} icon={<StoreIcon />} />
-          <StatCard label="Warehouses" value={warehouses.data ?? 0} icon={<WarehouseIcon />} />
-          <StatCard label="Staff users" value={users.data ?? 0} icon={<Users />} />
-          <StatCard label="Roles" value={roles.data ?? 0} icon={<ShieldCheck />} />
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {cards.map((card) =>
+          card.isLoading ? (
+            <Skeleton key={card.label} className="h-24 w-full" />
+          ) : (
+            <StatCard key={card.label} label={card.label} value={card.value ?? 0} icon={card.icon} tone={card.tone} />
+          ),
+        )}
+      </div>
+
+      {canViewOrders ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <SalesTrendChart data={salesTrend.data} isLoading={salesTrend.isLoading} currencyCode="BDT" days={14} />
+            <OrderStatusChart data={orderStatusBreakdown.data} isLoading={orderStatusBreakdown.isLoading} />
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent orders</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentOrders.isLoading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : (recentOrders.data?.data ?? []).length === 0 ? (
+                <EmptyState icon={<ShoppingCart />} title="No orders yet" description="Orders will show up here once placed." />
+              ) : (
+                <ul className="divide-y divide-border">
+                  {(recentOrders.data?.data ?? []).slice(0, 5).map((order) => (
+                    <li key={order.id} className="flex items-center justify-between py-2.5 text-sm">
+                      <div>
+                        <Link href={`/orders/orders/${order.id}`} className="font-medium text-primary hover:underline">
+                          {order.order_number}
+                        </Link>
+                        <span className="ml-2 text-text-muted">{order.customer.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-text-secondary">{formatMoney(order.total_amount, order.currency_code)}</span>
+                        <Badge variant={ORDER_STATUS_VARIANTS[order.status]}>{ORDER_STATUS_LABELS[order.status]}</Badge>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
 
       {user && user.permissions.length === 0 ? (
         <Alert variant="warning">

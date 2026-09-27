@@ -17,7 +17,7 @@ in place and the app still builds/runs.
 | 8 | Orders | ✅ Wave 1 done (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
 | 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
 | 10 | Returns | ✅ Wave 1 done (exchanges/store-credit, cross-return refund reconciliation deferred — see note) | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
-| 11 | Admin Dashboard (full KPIs/charts) | 🟡 Shell only | Yes (shell) |
+| 11 | Admin Dashboard (full KPIs/charts) | ✅ Wave 1 done (custom date ranges, per-warehouse/per-courier breakdowns, full reporting suite deferred — see note) | Yes — sales trend (orders + revenue, last 14 days) and order-status-breakdown charts backed by real aggregate endpoints, a recent-orders widget, and every stat card now permission-gated |
 | 12 | CMS | ⏳ Not started | No |
 | 13 | Homepage Builder | ⏳ Not started | No |
 | 14 | Blog | ⏳ Not started | No |
@@ -202,16 +202,43 @@ exists), and reconciling `payment_status` across *partial* refunds spread
 over multiple separate return records (today only a full-coverage refund
 reconciles it — see above).
 
+**Phase 11 scope note:** Wave 1 ships two new store-scoped aggregate
+endpoints (`DashboardController::salesTrend()`/`orderStatusBreakdown()`,
+gated by a direct `orders.view` check, same pattern as
+`StockLevelController::lowStockCount()` — a dashboard aggregate spans
+multiple models, not one Eloquent policy) and wires them into real
+Recharts visuals: a 14-day orders+revenue trend (revenue is the sum of
+`order_items` line totals — quantity × `unit_price_amount` — deliberately
+excluding shipping/discount, so it won't exactly match an individual
+order's `total_amount`; that per-order figure belongs on the order
+itself, this is a trend) and an order-status-breakdown bar chart, plus a
+recent-orders widget (reuses the existing `GET /orders` list, sliced to
+5 client-side — no new endpoint needed). Every existing stat card is now
+gated behind the permission that backs its number, so a user without
+`orders.view`/`shipments.view`/etc. no longer sees a misleadingly blank
+0 for data they can't actually see (spec rule 178). Deliberately
+deferred to a Wave 2 (see `DATABASE_DESIGN.md` section 2): a custom
+date-range picker (Wave 1 is fixed at the trailing 14 days),
+per-warehouse/per-courier breakdowns, revenue by payment method, a
+low-stock-*products* widget with names (today's `/stock-levels` list
+endpoint is single-warehouse only — a cross-warehouse product list
+needs a new endpoint, and the existing store-wide `low-stock-count`
+scalar already backs the "Low stock alerts" card honestly), CSV/PDF
+export, period-over-period comparisons, and the full reporting suite —
+all of that is Phase 18 Reporting's job, not a dashboard widget's.
+
 ## Next Session Should Start With
 
-Phase 11: Admin Dashboard (full KPIs/charts) — the natural next unblock,
-since every phase through Returns now has real data for it to surface
-and today's dashboard is still shell-only stat cards with no charts or
-trends. Phase 5 Wave 2 (variants/attributes, bundles, bulk import/export,
-media library) is the other reasonable starting point — see its scope
-note above. Follow the phase order above; do not skip ahead to CMS/SEO/
-Storefront before both exist, since those phases link to and depend on
-catalog + inventory + order + delivery + returns data.
+Phase 5 Wave 2 (variants/attributes, bundles, bulk import/export, media
+library) — the other reasonable starting point flagged since Phase 5's
+own scope note, and now the most natural next unblock: every Wave 1
+phase through Admin Dashboard is done, and Phase 5 Wave 2 is a
+prerequisite several later phases (variant-aware inventory, storefront
+product pages) will eventually need. Phase 18 Reporting (a full report
+suite building on the aggregate-endpoint pattern Phase 11 established)
+is the other reasonable pickup. Follow the phase order above; do not
+skip ahead to CMS/SEO/Storefront before catalog variants exist, since
+storefront product pages depend on them.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

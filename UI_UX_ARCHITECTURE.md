@@ -79,6 +79,18 @@ selection/bulk actions are not implemented yet; they're added when a
 screen actually needs them (spec rule 136 on pagination is satisfied
 today via server-side `page`/`per_page`).
 
+## 6b. Data Visualization
+
+Recharts (v3, React 19-compatible) backs the two charts the dashboard
+ships in Phase 11 (`SalesTrendChart`, `OrderStatusChart` — see
+`COMPONENT_INVENTORY.md`). Every stroke/fill is a CSS custom property
+(`var(--color-primary)`, `var(--color-success)`, …) rather than a baked-in
+hex value, so a chart repaints correctly under the dark-mode class toggle
+the same way every other themed component does (spec section 45/46) —
+no chart-specific theme logic. Axes, grid lines, and tooltips use the
+muted/border/surface tokens so a chart reads as part of the same design
+language as its surrounding Card, not a foreign widget dropped in.
+
 ## 7. UI States Discipline
 
 Every screen this session ships (login, dashboard, settings) implements
