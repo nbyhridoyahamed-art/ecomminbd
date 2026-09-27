@@ -12,8 +12,8 @@ in place and the app still builds/runs.
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
 | 5 | Catalog | ✅ Wave 1 done (variants/attributes/bundles/reviews/bulk import-export/media library deferred — see note) | Yes — categories (hierarchy), brands, simple products w/ pricing/SEO/images, full admin UI |
-| 6 | Inventory | ✅ Wave 1 done (order reservations/purchase-receipt movements/variant-level stock deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
-| 7 | Purchasing | ⏳ Not started | No |
+| 6 | Inventory | ✅ Wave 1 done (order reservations/variant-level stock deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
+| 7 | Purchasing | ✅ Wave 1 done (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
 | 8 | Orders | ⏳ Not started | No |
 | 9 | Delivery | ⏳ Not started | No |
 | 10 | Returns | ⏳ Not started | No |
@@ -51,12 +51,12 @@ pass would violate the spec's own explicit rules:
   architecture docs and starting **Phase 1 — Foundation**, not
   everything at once.
 
-So this project delivers Phases 0–6 (Wave 1) completely (foundation,
+So this project delivers Phases 0–7 (Wave 1) completely (foundation,
 design system, auth, RBAC, multi-store data model, BD localization,
-admin shell, full Settings UI, a working catalog, and warehouse-level
-inventory tracking) as real, tested, runnable code — a solid base every
-later phase builds directly on top of, with zero placeholder/fake
-screens.
+admin shell, full Settings UI, a working catalog, warehouse-level
+inventory tracking, and supplier purchase orders) as real, tested,
+runnable code — a solid base every later phase builds directly on top
+of, with zero placeholder/fake screens.
 
 **Phase 4 scope note:** the one deliberately deferred piece is a UI for
 *editing* the BD divisions/districts/upazilas reference data — the
@@ -95,24 +95,42 @@ since Phase 4, but there was no screen to add a second warehouse and no
 demo data seeded either, which would have made Inventory unusable out
 of the box. Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md`
 section 2): stock *reservations* against pending orders (needs Phase 8),
-automatic movements from purchase receipts (needs Phase 7) and order
-fulfillment/cancellation/returns (needs Phase 8/10), variant-level stock
-(needs Phase 5 Wave 2), a pending/in-transit/received transfer approval
-workflow, and a `stock_adjustments` header table for grouping a
-stocktake's many adjustments. None of these has a real consumer yet —
-spec rule 178.
+order fulfillment/cancellation/returns movements (needs Phase 8/10),
+variant-level stock (needs Phase 5 Wave 2), a pending/in-transit/received
+transfer approval workflow, and a `stock_adjustments` header table for
+grouping a stocktake's many adjustments. None of these has a real
+consumer yet — spec rule 178. (Purchase-receipt-driven movements, the
+one Wave 2 item this note used to list, are no longer deferred — Phase 7
+built them.)
+
+**Phase 7 scope note:** Wave 1 ships suppliers (full CRUD) and purchase
+orders with a real state machine: `draft` (items freely editable, a PUT
+replaces them wholesale) → `ordered` (explicit "Place order" action,
+items lock) → `partially_received`/`received` (set automatically as
+receipts come in) or `cancelled` (only reachable from `draft`/`ordered`
+— cancelling after any stock has been received is a Wave 2 problem, see
+below). Recording a receipt is the first real producer of the
+`purchase_receipt` stock-movement type Phase 6 reserved: it increases
+`stock_levels` and writes to the ledger inside the same locked
+transaction as the receipt itself, rejecting any attempt to over-receive
+beyond what remains on an order line. Deliberately deferred to a Wave 2
+(see `DATABASE_DESIGN.md` section 2): purchase returns (needs a real
+trigger from actual usage before its workflow can be designed with
+confidence), supplier payment terms/ledger and multi-currency POs
+(accounting-heavy, no consumer yet), a PO approval/sign-off workflow (no
+multi-user approval concept exists yet), and low-stock-driven reorder
+suggestions (needs Phase 18/20 reporting infra).
 
 ## Next Session Should Start With
 
-Phase 7: Purchasing (suppliers, purchase orders, receipts) — the
-natural next unblock, since receiving a purchase order is the real-world
-event that should drive a `stock_movements` "purchase_receipt" type
-(today only manual adjustments and transfers exist). Phase 5 Wave 2
-(variants/attributes, bundles, bulk import/export, media library) or
-Phase 6 Wave 2 (order reservations, once Orders exists) are the other
-reasonable starting points — see their scope notes above. Follow the
-phase order above; do not skip ahead to CMS/SEO/Storefront before
-Orders/Purchasing exist, since those phases both link to and depend on
+Phase 8: Orders (customers, orders, order items, payments) — the
+natural next unblock, since it's the real-world event that should drive
+stock *reservations* (Inventory Wave 2) and gives Purchasing Wave 2's
+cancellation/return workflows something concrete to react to. Phase 5
+Wave 2 (variants/attributes, bundles, bulk import/export, media library)
+is the other reasonable starting point — see its scope note above.
+Follow the phase order above; do not skip ahead to CMS/SEO/Storefront
+before Orders exists, since those phases both link to and depend on
 catalog + inventory + order data.
 
 ## Execution Protocol for Every Future Phase (spec section 177)

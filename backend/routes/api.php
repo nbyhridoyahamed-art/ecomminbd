@@ -7,12 +7,15 @@ use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
+use App\Http\Controllers\Api\V1\PurchaseOrderController;
+use App\Http\Controllers\Api\V1\PurchaseReceiptController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockLevelController;
 use App\Http\Controllers\Api\V1\StockMovementController;
 use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\WarehouseController;
@@ -67,5 +70,12 @@ Route::prefix('v1')->group(function () {
         Route::get('stock-transfers', [StockTransferController::class, 'index']);
         Route::post('stock-transfers', [StockTransferController::class, 'store']);
         Route::get('stock-transfers/{stockTransfer}', [StockTransferController::class, 'show']);
+
+        Route::apiResource('suppliers', SupplierController::class);
+
+        Route::apiResource('purchase-orders', PurchaseOrderController::class);
+        Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
+        Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
+        Route::post('purchase-orders/{purchaseOrder}/receipts', [PurchaseReceiptController::class, 'store']);
     });
 });

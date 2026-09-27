@@ -8,7 +8,12 @@ export interface StockLevel {
   is_low_stock: boolean;
 }
 
-export type StockMovementType = "adjustment_increase" | "adjustment_decrease" | "transfer_in" | "transfer_out";
+export type StockMovementType =
+  | "adjustment_increase"
+  | "adjustment_decrease"
+  | "transfer_in"
+  | "transfer_out"
+  | "purchase_receipt";
 
 export interface StockMovement {
   id: number;

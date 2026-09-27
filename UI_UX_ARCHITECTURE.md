@@ -66,8 +66,9 @@ sugar, backend is authoritative (spec rule 135/182).
 
 A single reusable `DataTable` component (`components/ui/data-table.tsx`)
 handles server-driven pagination, loading skeletons, and empty states,
-reused by every list screen (Users, Roles, Categories, Brands, Products
-today; later phases' resources as they ship). It's a small
+reused by every list screen (Users, Roles, Categories, Brands, Products,
+Warehouses, Stock Levels, Movements, Transfers, Suppliers, Purchase
+Orders today; later phases' resources as they ship). It's a small
 dependency-free implementation rather than
 built on TanStack Table — the version available at build time (v9) ships
 a materially different API from what's documented/commonly known, so

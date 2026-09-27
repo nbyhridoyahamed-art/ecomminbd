@@ -42,6 +42,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   movements: "Movements",
   transfers: "Transfers",
   warehouses: "Warehouses",
+  "purchase-orders": "Purchase Orders",
+  suppliers: "Suppliers",
 };
 
 function getBreadcrumb(pathname: string): string[] {

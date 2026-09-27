@@ -18,16 +18,16 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Alert | ✅ | inline error/success/info banners |
 | Dropdown Menu | ✅ | used in topbar (profile, theme) |
 | Sheet (drawer) | ✅ | mobile sidebar |
-| Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment, product category/brand/status, warehouse pickers, stock adjustment direction |
-| Textarea | ✅ | category/brand/product descriptions, SEO meta description, warehouse address, transfer note |
+| Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment, product category/brand/status, warehouse pickers, stock adjustment direction, supplier/warehouse pickers on purchase orders |
+| Textarea | ✅ | category/brand/product descriptions, SEO meta description, warehouse address, transfer note, supplier address, PO notes/receipt note |
 | Checkbox | ✅ | Radix-based; role permission matrix, user role assignment, product track-stock/featured flags, low-stock-only filter |
 | Radio | ⏳ | Not needed yet |
 | Switch | ⏳ | Not needed yet — every boolean setting so far reads fine as a Checkbox or Select |
 | Tooltip | ⏳ | Not needed yet |
-| Modal/Dialog | ✅ | centered dialog (distinct from Sheet); delete confirmations for users/roles/categories/brands/products/warehouses, stock adjustment form |
+| Modal/Dialog | ✅ | centered dialog (distinct from Sheet); delete confirmations for users/roles/categories/brands/products/warehouses/suppliers, stock adjustment form, purchase-order cancel confirmation |
 | Tabs | ✅ | Two flavors: a route-driven Link sub-nav (Settings, Catalog) and a client-state tab switcher inside the product form (General/Pricing/Media/SEO) — plain buttons + conditional rendering, not the Radix Tabs primitive, since neither use case needed its accessibility semantics beyond what a nav/button already gives |
 | Accordion | ⏳ | Phase 15 (SEO analysis groups) — not needed by anything shipped yet |
-| Table / DataTable | ✅ | Server-paginated table w/ loading/empty states. Built as a small dependency-free component rather than on TanStack Table — the installed major version (v9) shipped a completely different, unfamiliar API; safer to write ~100 lines directly than guess at an API with no reliable reference. Now also backs Warehouses, Stock Levels, Movements, and Transfers. |
+| Table / DataTable | ✅ | Server-paginated table w/ loading/empty states. Built as a small dependency-free component rather than on TanStack Table — the installed major version (v9) shipped a completely different, unfamiliar API; safer to write ~100 lines directly than guess at an API with no reliable reference. Now also backs Warehouses, Stock Levels, Movements, Transfers, Suppliers, and Purchase Orders. |
 | Pagination | ✅ | ships with DataTable (prev/next, server-driven) |
 | Breadcrumb | ✅ | topbar |
 | Toast | ✅ | global toaster for mutations |

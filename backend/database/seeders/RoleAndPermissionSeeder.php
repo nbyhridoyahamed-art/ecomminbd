@@ -26,11 +26,14 @@ class RoleAndPermissionSeeder extends Seeder
         'roles.view', 'roles.create', 'roles.update', 'roles.delete', 'roles.assign',
         'settings.manage',
 
-        // Catalog + Inventory (enforced today) / orders / customers (spec section 6 examples — latent until their phases ship)
+        // Catalog + Inventory + Purchasing (enforced today) / orders / customers (spec section 6 examples — latent until their phases ship)
         'products.view', 'products.create', 'products.update', 'products.delete',
         'categories.view', 'categories.create', 'categories.update', 'categories.delete',
         'brands.view', 'brands.create', 'brands.update', 'brands.delete',
         'inventory.view', 'inventory.adjust', 'inventory.transfer',
+        'suppliers.view', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
+        'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
+        'purchase_orders.cancel', 'purchase_orders.receive',
         'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
         'customers.view', 'customers.update',
         'pages.manage',
@@ -51,6 +54,9 @@ class RoleAndPermissionSeeder extends Seeder
             'categories.view', 'categories.create', 'categories.update', 'categories.delete',
             'brands.view', 'brands.create', 'brands.update', 'brands.delete',
             'inventory.view', 'inventory.adjust', 'inventory.transfer',
+            'suppliers.view', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
+            'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
+            'purchase_orders.cancel', 'purchase_orders.receive',
             'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
             'customers.view', 'customers.update', 'reports.view',
         ],
@@ -66,10 +72,13 @@ class RoleAndPermissionSeeder extends Seeder
             'orders.view', 'orders.update', 'customers.view', 'customers.update', 'reports.view',
         ],
         'Warehouse Staff' => [
-            'warehouses.view', 'inventory.view', 'inventory.adjust',
+            'warehouses.view', 'inventory.view', 'inventory.adjust', 'purchase_orders.view', 'purchase_orders.receive',
         ],
         'Purchase Manager' => [
             'products.view', 'categories.view', 'brands.view', 'inventory.view', 'inventory.adjust', 'reports.view',
+            'suppliers.view', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
+            'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
+            'purchase_orders.cancel', 'purchase_orders.receive',
         ],
         'Accountant' => [
             'orders.view', 'reports.view', 'settings.manage',
@@ -92,7 +101,7 @@ class RoleAndPermissionSeeder extends Seeder
         ],
         'Viewer' => [
             'stores.view', 'warehouses.view', 'products.view', 'categories.view', 'brands.view',
-            'inventory.view', 'orders.view', 'customers.view', 'reports.view',
+            'inventory.view', 'suppliers.view', 'purchase_orders.view', 'orders.view', 'customers.view', 'reports.view',
         ],
     ];
 

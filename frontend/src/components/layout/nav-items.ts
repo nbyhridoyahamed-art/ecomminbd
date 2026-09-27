@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Boxes, LayoutDashboard, Package, Settings } from "lucide-react";
+import { Boxes, ClipboardList, LayoutDashboard, Package, Settings } from "lucide-react";
 
 export interface NavItem {
   label: string;
@@ -27,6 +27,12 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/inventory/stock-levels",
     icon: Boxes,
     anyPermission: ["inventory.view", "inventory.transfer", "warehouses.view"],
+  },
+  {
+    label: "Purchasing",
+    href: "/purchasing/purchase-orders",
+    icon: ClipboardList,
+    anyPermission: ["purchase_orders.view", "suppliers.view"],
   },
   {
     label: "Settings",

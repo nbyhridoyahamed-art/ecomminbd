@@ -154,16 +154,18 @@ later phases implement against an agreed shape.
   a `Money` value object — never floats (spec rule 27/182).
 - Every stock change writes an immutable `stock_movements` ledger row
   (`type`: `adjustment_increase`/`adjustment_decrease`/`transfer_in`/
-  `transfer_out` today; `purchase_receipt`, `sale`, `return` join once
-  Purchasing/Orders exist) recording a before/after quantity snapshot.
+  `transfer_out`/`purchase_receipt` today; `sale`, `return` join once
+  Orders exists) recording a before/after quantity snapshot.
   `stock_levels.quantity` is a materialized cache of "current stock,"
   not derived by summing the ledger on every read — but it is only ever
   written inside the same DB transaction as the movement row that
   explains the change, with `lockForUpdate()` held on it throughout, so
-  the two can never drift (spec section 18–19). Landed in Phase 6.
+  the two can never drift (spec section 18–19). Landed in Phase 6;
+  Phase 7 added `purchase_receipt` as its first real non-manual producer.
 - Order creation, payment capture, inventory reservation, purchase
   receiving, and returns/refunds all run inside DB transactions (spec
-  rule 180/114).
+  rule 180/114). Purchase receiving is built (Phase 7) — see
+  `PurchaseReceiptController`.
 
 ## 8. Caching & Queues
 
@@ -194,13 +196,16 @@ platform**. Sessions so far implement the foundation layer
 (organizations/stores/users/roles/permissions/warehouses/settings/BD
 localization on the backend, design system + auth + dashboard shell on
 the frontend), Phase 5 Wave 1 catalog (categories, brands, simple
-products with pricing/SEO/images), and Phase 6 Wave 1 inventory (stock
+products with pricing/SEO/images), Phase 6 Wave 1 inventory (stock
 levels per warehouse, the movements ledger, manual adjustments, and
-warehouse-to-warehouse transfers). Orders, purchasing, delivery/COD,
-returns, CMS/builder, blog, SEO, storefront, customer account,
-reporting, the adapter implementations described in section 6, Catalog
-Wave 2 (variants/attributes, bundles, bulk import/export, a reusable
-media library), and Inventory Wave 2 (order reservations, purchase-
-receipt/order-driven movements, variant-level stock — see
+warehouse-to-warehouse transfers), and Phase 7 Wave 1 purchasing
+(suppliers, purchase orders with a draft/ordered/received state
+machine, and receipts that drive real stock movements). Orders,
+delivery/COD, returns, CMS/builder, blog, SEO, storefront, customer
+account, reporting, the adapter implementations described in section 6,
+Catalog Wave 2 (variants/attributes, bundles, bulk import/export, a
+reusable media library), Inventory Wave 2 (order reservations,
+order-driven movements, variant-level stock), and Purchasing Wave 2
+(purchase returns, supplier ledger, PO approval workflow — see
 `DATABASE_DESIGN.md` section 2) are designed here but built in later
 phases per `DEVELOPMENT_ROADMAP.md`.

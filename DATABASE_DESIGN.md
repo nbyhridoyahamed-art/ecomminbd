@@ -152,7 +152,7 @@ stock_levels
 stock_movements
   id, uuid, store_id (FK→stores, cascade), product_id (FK→products, cascade),
   warehouse_id (FK→warehouses, cascade),
-  type (varchar: adjustment_increase/adjustment_decrease/transfer_in/transfer_out),
+  type (varchar: adjustment_increase/adjustment_decrease/transfer_in/transfer_out/purchase_receipt),
   quantity (unsigned int — the delta magnitude, always positive; direction is in `type`),
   quantity_before, quantity_after (int — snapshot either side of this movement),
   reason (nullable), reference_type/reference_id (nullable — points at the
@@ -189,6 +189,66 @@ still only `simple` (Phase 5 Wave 2 hasn't shipped variants). When variants
 land, `stock_levels`/`stock_movements` gain a `product_variant_id` and the
 existing `product_id` rows migrate to "the simple product's only variant."
 
+## 1d. Purchasing Schema (Phase 7 Wave 1)
+
+```
+suppliers
+  id, uuid, store_id (FK→stores, cascade), name, contact_name (nullable),
+  email (nullable), phone (nullable), address (nullable), status,
+  timestamps, deleted_at
+  index(store_id, name)
+
+purchase_orders
+  id, uuid, store_id (FK→stores, cascade), warehouse_id (FK→warehouses,
+    cascade — where the goods will be received), supplier_id (FK→suppliers,
+    cascade), po_number (e.g. PO-20260927-AB12CD — same date+random-suffix
+    scheme as stock_transfers.transfer_number, see section 1c),
+  status (varchar: draft/ordered/partially_received/received/cancelled —
+    see the state machine below), currency_code (char(3), default 'BDT'),
+  notes (nullable), created_by (FK→users, nullOnDelete), timestamps, deleted_at
+  unique(store_id, po_number), index(store_id, status)
+
+purchase_order_items
+  id, purchase_order_id (FK→purchase_orders, cascade),
+  product_id (FK→products, cascade), quantity_ordered (unsigned int),
+  quantity_received (unsigned int, default 0 — running tally, incremented
+    by each receipt against this line), unit_cost_amount (bigint minor
+    units — no separate currency_code column; a PO uses one currency,
+    stored on the header), timestamps
+
+purchase_receipts
+  id, uuid, store_id (FK→stores, cascade), purchase_order_id
+    (FK→purchase_orders, cascade), receipt_number (e.g. GRN-20260927-AB12CD),
+  note (nullable), received_by (FK→users, nullOnDelete), timestamps
+  unique(store_id, receipt_number)
+
+purchase_receipt_items
+  id, purchase_receipt_id (FK→purchase_receipts, cascade),
+  purchase_order_item_id (FK→purchase_order_items, cascade),
+  quantity_received (unsigned int), timestamps
+```
+
+**Status state machine:** `draft` (items freely editable — a PUT
+replaces them wholesale, same pattern as `stock_transfers`' one-shot
+create) → `ordered` (explicit `place()` action; items locked from
+further edits) → `partially_received` / `received` (set automatically
+by `PurchaseReceiptController` after each receipt, based on whether
+every line's `quantity_received` has reached its `quantity_ordered`).
+`cancelled` is reachable only from `draft` or `ordered` — once any
+stock has been received against an order, cancelling it would leave
+the received stock unaccounted for, so that's a Wave 2 problem (see
+section 2, purchase returns).
+
+Recording a receipt is the first real producer of the `purchase_receipt`
+stock-movement type reserved in section 1c: `PurchaseReceiptController`
+increases `stock_levels.quantity` at the PO's `warehouse_id` and writes
+a `stock_movements` row with `reference_type`/`reference_id` pointing at
+the `purchase_receipt`, inside the same DB transaction (with
+`lockForUpdate()`) as the `purchase_order_items.quantity_received`
+increment and the PO's status recompute — the same locked read/write
+discipline as `stock_transfers`, minus the negative-quantity guard,
+since receiving only ever increases stock.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -207,16 +267,22 @@ compatible with them.
 - **Inventory Wave 2:** `stock_levels.quantity_reserved` (needs Phase 8
   orders to reserve against — Wave 1 only tracks on-hand quantity),
   `product_variant_id` on `stock_levels`/`stock_movements` (needs Phase 5
-  Wave 2 variants), automatic movements from purchase receipts (Phase 7)
-  and order fulfillment/cancellation/returns (Phase 8/10), a
-  pending/in-transit/received transfer approval workflow, and a
-  `stock_adjustments` header table for grouping a stocktake's many
-  per-product adjustments under one reference (today each adjustment is
-  its own `stock_movements` row — see section 1c). `stock_levels`,
-  `stock_movements`, `stock_transfers`, `stock_transfer_items` are
-  built — see section 1c.
-- **Purchasing:** `suppliers`, `purchase_orders`, `purchase_order_items`,
-  `purchase_receipts`, `purchase_returns`.
+  Wave 2 variants), automatic movements from order fulfillment/
+  cancellation/returns (Phase 8/10), a pending/in-transit/received
+  transfer approval workflow, and a `stock_adjustments` header table for
+  grouping a stocktake's many per-product adjustments under one
+  reference (today each adjustment is its own `stock_movements` row —
+  see section 1c). `stock_levels`, `stock_movements`, `stock_transfers`,
+  `stock_transfer_items` are built — see section 1c. Movements driven by
+  purchase receipts are also built — see section 1d.
+- **Purchasing Wave 2:** `purchase_returns` (returning received goods to
+  a supplier — needs a real trigger from actual usage before its
+  workflow can be designed with confidence), supplier payment
+  terms/ledger and multi-currency POs (accounting-heavy, no consumer
+  yet), a PO approval/sign-off workflow (no multi-user approval concept
+  exists yet), and low-stock-driven reorder suggestions (needs Phase 18/20
+  reporting infra). `suppliers`, `purchase_orders`, `purchase_order_items`,
+  `purchase_receipts`, `purchase_receipt_items` are built — see section 1d.
 - **Orders:** `customers`, `customer_addresses`, `orders`, `order_items`,
   `order_status_history`, `payments`, `cod_settlements`, `coupons`,
   `coupon_usages`.
@@ -248,4 +314,7 @@ financial column. `App\Support\Money` (backend) and `formatMoney()`
 between minor units and display strings — every controller and
 component goes through one of these rather than doing `* 100` or
 interpolating a currency symbol itself. Both are implemented and in use
-by the product pricing fields (Phase 5).
+by the product pricing fields (Phase 5) and purchase-order item unit
+costs (Phase 7) — the latter stores `currency_code` once on the
+`purchase_orders` header rather than repeating it per item, since a
+single order is always placed in one currency.

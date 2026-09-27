@@ -25,9 +25,14 @@ their backing functionality — no dead pages).
 | `/inventory/transfers/new`, `/inventory/transfers/[id]` | ✅ | 6 (multi-item warehouse-to-warehouse transfer) |
 | `/inventory/warehouses` | ✅ | 6 (list, create, edit — backend model existed since Phase 4, admin UI was the Phase 6 gap this closes) |
 | `/inventory/warehouses/new`, `/inventory/warehouses/[id]` | ✅ | 6 |
-| `/inventory` (stock reservations tied to orders, purchase-receipt-driven movements, variant-level stock) | ⏳ | 6 Wave 2 — needs Phase 7/8 or Phase 5 Wave 2 first, see `DATABASE_DESIGN.md` |
-| `/purchases/suppliers` | ⏳ | 7 |
-| `/purchases/orders` | ⏳ | 7 |
+| `/inventory` (stock reservations tied to orders, variant-level stock) | ⏳ | 6 Wave 2 — needs Phase 8 or Phase 5 Wave 2 first, see `DATABASE_DESIGN.md` |
+| `/purchasing` | ✅ | 7 (redirects to Purchase Orders) |
+| `/purchasing/purchase-orders` | ✅ | 7 (status/supplier filters, total shown per order) |
+| `/purchasing/purchase-orders/new` | ✅ | 7 (supplier/warehouse + line-item builder with unit cost) |
+| `/purchasing/purchase-orders/[id]` | ✅ | 7 (items w/ received-so-far, place/cancel actions, record-receipt form, receipt history — drives real `stock_movements`) |
+| `/purchasing/suppliers` | ✅ | 7 (list, search, pagination) |
+| `/purchasing/suppliers/new`, `/purchasing/suppliers/[id]` | ✅ | 7 |
+| `/purchasing` (purchase returns, supplier ledger/payment terms, PO approval workflow, reorder suggestions) | ⏳ | 7 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/orders` | ⏳ | 8 |
 | `/orders/[id]` | ⏳ | 8 |
 | `/customers` | ⏳ | 8 |
@@ -99,7 +104,11 @@ their backing functionality — no dead pages).
 | `GET /api/v1/stock-movements` | ✅ |
 | `POST /api/v1/stock-adjustments` | ✅ |
 | `GET/POST /api/v1/stock-transfers`, `GET .../{id}` | ✅ |
-| Everything under orders/purchasing/etc. | ⏳ — added phase by phase |
+| `GET/POST/PUT/DELETE /api/v1/suppliers` | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/purchase-orders` | ✅ |
+| `POST /api/v1/purchase-orders/{id}/place`, `.../cancel` | ✅ |
+| `POST /api/v1/purchase-orders/{id}/receipts` (drives `stock_movements`/`stock_levels`) | ✅ |
+| Everything under orders/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

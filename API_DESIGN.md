@@ -125,5 +125,24 @@ warehouse transfer, executed atomically). All gated by the existing
 `inventory.view` / `inventory.adjust` / `inventory.transfer` permissions
 via direct `$user->can()` checks (like `UploadController`, since these
 endpoints span multiple models rather than mapping to one Eloquent
-policy). Section 6 (orders/purchasing/etc.) and section 7 (webhooks)
-remain documented intent for future phases.
+policy).
+
+Purchasing (Phase 7 Wave 1): full CRUD for `suppliers`
+(`suppliers.view/create/update/delete`, standard Eloquent policy).
+`GET/POST/PUT/DELETE /purchase-orders` + `GET .../{id}` (PUT/DELETE only
+while `status = draft` — items are replaced wholesale, same one-shot
+pattern as `stock-transfers`), `POST .../{id}/place` (draft → ordered,
+locks items), `POST .../{id}/cancel` (draft/ordered → cancelled), and
+`POST .../{id}/receipts` (records a `purchase_receipts` row, rejects
+over-receiving beyond what remains on each line, and — inside the same
+transaction — writes the `purchase_receipt` `stock_movements` type and
+updates `stock_levels`). `GET /purchase-orders` also accepts `open=1` to
+return only `draft`/`ordered`/`partially_received` orders, backing the
+dashboard's "Open purchase orders" KPI. `purchase_orders.*` uses a
+standard policy (`view`/`create`/`update`/`cancel`); `purchase_orders.receive`
+is checked directly in `PurchaseReceiptController`, the same
+direct-`$user->can()` pattern as inventory, since receiving is a
+distinct action from editing a PO's terms.
+
+Section 6 (orders/etc.) and section 7 (webhooks) remain documented
+intent for future phases.
