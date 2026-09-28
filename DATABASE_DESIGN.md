@@ -932,6 +932,101 @@ to the SEO Manager and Content Manager roles) since Phase 3, dormant until
 this phase activated it — see `DEVELOPMENT_ROADMAP.md`'s Phase 12 Wave 1
 scope note.
 
+## 1r. Homepage Builder Schema (Phase 13)
+
+```
+homepage_blocks
+  id, uuid
+  store_id (FK stores, cascade)
+  type (varchar — one of ~30 registry keys, App\Support\HomepageBlockTypes::ALL)
+  settings (json — the one type-specific column; shape validated per `type`)
+  styles, responsive, visibility (json, nullable — shared by every type)
+  animation (varchar, nullable — 'fade'|'slide'|'scale'|'reveal')
+  sort_order (integer)
+  is_active (boolean, default false — every new block is a draft)
+  scheduled_at (timestamp, nullable)
+  created_by (FK users, nullOnDelete)
+  timestamps — no soft deletes
+
+homepage_block_revisions
+  id
+  homepage_block_id (FK homepage_blocks, cascade)
+  store_id (FK stores, cascade)
+  snapshot (json — {type, settings, styles, responsive, visibility, animation, is_active})
+  created_by (FK users, nullOnDelete)
+  timestamps
+
+saved_sections
+  id, uuid
+  store_id (FK stores, cascade)
+  name
+  type, settings, styles, responsive, visibility, animation (same shape as homepage_blocks, minus is_active/sort_order/scheduled_at — a saved section is a template, not a positioned instance)
+  created_by (FK users, nullOnDelete)
+  timestamps
+
+testimonials
+  id
+  store_id (FK stores, cascade)
+  name, role (nullable), quote, avatar_url (nullable), rating (nullable, 1-5)
+  sort_order, is_active (default true)
+  timestamps
+
+blog_posts
+  id, uuid
+  store_id (FK stores, cascade)
+  title, slug, excerpt (nullable), featured_image_url (nullable)
+  published_at (nullable), is_active (default true)
+  timestamps
+  unique(store_id, slug)
+
+newsletter_subscribers
+  id
+  store_id (FK stores, cascade)
+  email
+  timestamps
+  unique(store_id, email)
+```
+
+One column pair (`type` + `settings`) drives all ~30 block types — the
+block-registry pattern spec section 60 calls for ("create a block
+registry, not one giant conditional") rather than a table per type or a
+column per possible field. `settings` validation rules and default
+values both live centrally in `App\Support\HomepageBlockTypes`, keyed by
+`type`; adding a future block type means adding one case there, no
+migration. `styles`/`responsive`/`visibility`/`animation` are columns
+every type shares (spec sections 61-62's design/responsive/animation
+system), kept separate from `settings` specifically so the generic
+Design/Layout/Animation/Advanced panels (`COMPONENT_INVENTORY.md`) never
+need to know a block's `type` at all.
+
+`homepage_block_revisions` is the durable, server-side "already-saved
+change" history (spec section 62) — a row is inserted before every
+settings/publish/unpublish/restore mutation, restorable via a dedicated
+endpoint (itself snapshotting first, so a restore is itself undoable).
+Deliberately separate from the frontend's own local undo/redo, which
+only steps through one editing session's not-yet-saved keystrokes — see
+`DEVELOPMENT_ROADMAP.md`'s Phase 13 scope note for why one mechanism
+doesn't try to do both jobs. `saved_sections` (spec section 63) is a
+reusable library: any block can be saved into it and inserted back onto
+the page (or, in principle, any future page) any number of times: a
+template, not a live instance, which is why it carries no
+`is_active`/`sort_order`/`scheduled_at`.
+
+`testimonials`, `blog_posts`, and `newsletter_subscribers` are
+deliberately minimal placeholder models, each existing only to back one
+or two block types' real (not fabricated) data, explicitly not their
+eventual real feature: `testimonials` backs both the Testimonials and
+Reviews blocks (same underlying content, different card emphasis on the
+storefront) and is explicitly not Catalog Wave 2's still-unbuilt
+verified-purchase review system (section 2 below) — a real product
+review needs an order to attach to and belongs to that feature, not this
+one; `blog_posts` is intentionally just enough for the Blog Posts block
+(title/slug/excerpt/image/published_at, no body/categories/tags) and is
+expected to be absorbed or replaced outright once Phase 14 builds the
+real blog CMS (see section 2's Blog bullet); `newsletter_subscribers` is
+plain email capture with no confirmation/unsubscribe-token flow, since
+nothing yet needs one.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -1006,16 +1101,27 @@ compatible with them.
   separate return records (today only a full-coverage refund reconciles
   it — see section 1g). `returns`, `return_items`, `return_status_history`
   are built — see section 1g.
-- **CMS/Builder (Wave 1 shipped — section 1q):** `pages` is built (simple
-  content pages only). Still deferred: `page_versions` (edit history —
-  no version-diffing/rollback concept exists yet), `navigation_menus`/
-  `navigation_items` (today's page links are a flat, unordered footer
-  list via `GET storefront/pages` — no menu/ordering concept), a reusable
-  `media` library (Catalog Wave 2 above lists this same gap), and the page
-  builder itself: `homepage_blocks` (ordered, `type` + `settings` JSON per
-  the block registry pattern), `saved_sections`.
-- **Blog:** `blog_posts`, `blog_post_versions`, `blog_categories`,
-  `blog_tags`, `blog_post_tag` (pivot).
+- **CMS/Builder (Phase 12 + full Phase 13 shipped — sections 1q/1r):**
+  `pages` (simple content pages) and the full Homepage Builder
+  (`homepage_blocks`, `homepage_block_revisions`, `saved_sections`,
+  plus the placeholder `testimonials`/`blog_posts`/
+  `newsletter_subscribers` models three of its block types resolve real
+  data from) are built. Still deferred: `page_versions` (edit history for
+  *CMS pages* specifically — `homepage_blocks` already got its own
+  revision history in Phase 13, this is the still-missing equivalent for
+  `pages`), and `navigation_menus`/`navigation_items` (today's page links
+  are a flat, unordered footer list via `GET storefront/pages` — no
+  menu/ordering concept). A reusable `media` library (Catalog Wave 2
+  above lists this same gap) remains unbuilt for the builder's own
+  image-URL fields too — every image field across all ~30 block types is
+  a plain URL string, no upload-and-browse picker yet.
+- **Blog:** `blog_posts` now exists, but only in the deliberately minimal
+  shape Phase 13's Blog Posts block needed
+  (`title`/`slug`/`excerpt`/`featured_image_url`/`published_at` — see
+  section 1r); a real blog still needs `body`, `blog_post_versions`,
+  `blog_categories`, `blog_tags`, `blog_post_tag` (pivot), and is
+  expected to absorb or replace today's placeholder table rather than
+  run alongside it.
 - **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,
   description, focus_keyword, og_*, twitter_*, schema_json, canonical,
   robots), `redirects`, `seo_templates`.

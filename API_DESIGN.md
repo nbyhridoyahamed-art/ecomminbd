@@ -530,4 +530,57 @@ only `title`/`slug`/`content`/`meta_title`/`meta_description` — no `id`,
 `status`, or `created_by`, the same admin-vs-public field split every other
 Storefront resource in this API already draws.
 
+Homepage Builder (Phase 13, full spec): `GET/POST/PUT/DELETE
+homepage-blocks` is the block-registry controller every one of the ~30
+types shares — `type` is fixed at creation (an update's `type` field, if
+sent, is silently ignored rather than rejected, since "changing type" is
+really "make a new block"), and `HomepageBlockRequest` composes its
+validation from `App\Support\HomepageBlockTypes::settingsRules($type,
+$storeId)` (type-specific) plus `styleRules()` (shared by every type) —
+the controller itself never branches on `type`. A new block is always
+created as a draft (`is_active` forced `false` server-side, any
+client-sent value ignored, same pattern Wave 1's `preparePayload()`-style
+"forced never client-controlled" fields already established elsewhere).
+`POST .../reorder` takes a flat ordered array of ids and checks
+`builder.edit` directly (not through a policy method, since it isn't
+scoped to one instance) — the same pattern Purchasing's own bulk
+endpoints use. `POST .../{id}/duplicate` copies a block's full snapshot
+as a new draft immediately after it in sort order. `POST .../{id}/
+publish` and `.../unpublish` both snapshot a revision first, then flip
+`is_active` — publishing is gated on the separate `builder.publish`
+permission (`HomepageBlockPolicy::publish()`), everything else on
+`builder.edit`, discovered pre-wired and dormant in the RBAC seeder since
+Phase 3 (Marketing Manager: view+edit only; Content Manager: all three).
+`POST .../{id}/schedule` sets `scheduled_at`; a `homepage-blocks:
+publish-scheduled` Artisan command (registered `everyFiveMinutes()` in
+`routes/console.php`) publishes anything due. `GET .../{id}/revisions`
+lists that block's `homepage_block_revisions`, latest first; `POST
+.../{id}/revisions/{revision}/restore` snapshots the current state
+first (a restore is itself undoable), then applies the target
+snapshot's settings/styles/responsive/visibility/animation. `POST
+.../{id}/save-as-section` copies a block's snapshot into
+`saved_sections`. The standout endpoint: **`GET
+homepage-blocks/preview`** returns every block for the store — draft
+included — each already resolved through the exact same
+`App\Support\ResolvesHomepageBlocks` trait the public endpoint below
+uses, so the admin builder's canvas renders precisely what a block will
+look like once published, not an approximation of it. (Route-ordering
+note: `homepage-blocks/preview` is registered before
+`Route::apiResource('homepage-blocks', ...)`, or the resource's
+`{homepage_block}` wildcard would swallow the literal `preview`
+segment — the same gotcha `products/export` already documented.)
+`GET/POST/DELETE saved-sections` (no update — a saved section is a
+frozen template) plus `POST .../{id}/insert` (creates a new draft block
+from the section's snapshot, appended to the end of the page).
+`GET/POST/PUT/DELETE testimonials` and `.../blog-posts` are plain
+per-store CRUD, gated the same way every other simple admin resource is.
+Two public, unauthenticated, store-scoped endpoints back the storefront:
+`GET storefront/homepage-blocks` (active blocks only, ordered, each
+resolved via the same shared trait — `data` on each block carries only
+the keys that type actually resolved, e.g. `products`/`categories`/
+`brands`/`testimonials`/`posts`/`items`, never all of them) and `POST
+storefront/newsletter/subscribe` (throttled `15,1`, idempotent —
+`firstOrCreate` on `(store_id, email)`, so resubscribing an existing
+address isn't an error).
+
 Section 7 (webhooks) remains documented intent for future phases.

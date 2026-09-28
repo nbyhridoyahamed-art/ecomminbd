@@ -388,10 +388,10 @@ scoped down: guest-only (no accounts — Phase 17), one hardcoded store
 (no domain-based multi-tenant routing yet — Phase 4's `stores.domain`/
 `slug` exist but nothing seeds a second store to route between), COD
 only (no payment gateway — Phase 19), a client-side-only
-(`zustand`/`localStorage`) cart with no server persistence, a hardcoded
-homepage (not block-driven — Phase 13 doesn't exist yet to feed it), and
+(`zustand`/`localStorage`) cart with no server persistence, and
 no real per-page SEO metadata (see section 9's note on why that's a
-separate, deliberate pass, not a quick add-on here).
+separate, deliberate pass, not a quick add-on here). The homepage itself
+is no longer hardcoded — see Phase 13 below.
 Also built since: **Phase 17 Wave 1** — real customer accounts (register/
 login/logout/me under a new `api/v1/account/*` prefix) that close
 Storefront Wave 1's guest-only gap, via the two-identity Sanctum design
@@ -458,7 +458,51 @@ history, `navigation_menus`/`navigation_items` (today's page links are a
 flat, unordered footer column), hierarchical/nested pages, and scheduled
 publish dates — none of which a first "About Us" page needs, per
 `DEVELOPMENT_ROADMAP.md`'s Phase 12 Wave 1 scope note.
-Homepage Builder, blog, SEO, Catalog Wave 2's remaining
+Also built since: **Phase 13** — a full drag-and-drop Homepage Builder
+(not a lean wave — the user explicitly asked for the complete spec),
+covering all ~30 block types the spec's block-registry pattern
+(section 60) calls for. Two files are the registry's entire integration
+surface — `content-panel-registry.tsx` (block type → Content-tab editor)
+and `homepage-block-renderer.tsx` (block type → storefront renderer) —
+deliberately kept as the only two files every one of the ~30 type's
+renderer/panel pair plugs into, so ~25 of them could be built by parallel
+background agents against four hand-built exemplars (hero, category_grid,
+featured_products, rich_text) without merge conflicts, then wired in one
+pass. `App\Support\ResolvesHomepageBlocks` is the matching backend
+half: one trait, shared verbatim by the public `Storefront\
+HomepageController` (active blocks only) and a new admin `preview`
+endpoint (every block, draft included), so the builder canvas's "live
+preview" claim is literally true — same renderer components, same
+resolved data shape — rather than an approximation. Two real bugs only
+surfaced by actually clicking through the builder in a browser against a
+running backend, not by tsc/eslint/PHPUnit: (1) `flash_sale`'s
+`sale_price` was passed through as a raw minor-unit integer on read and
+never converted at all on write, instead of through the `Money` value
+object every other price field in the app already uses at the API
+boundary (`ProductController::preparePayload()`); (2) eleven block
+types' own `defaultSettings()` didn't satisfy their own
+`settingsRules()` (Laravel's `required` rejects both `null` and empty
+string/array), so clicking them in the block picker 422'd and silently
+added nothing — fixed by making decorative/optional fields nullable
+(matching how their renderers already treat "not configured yet") and
+giving genuinely-core-text fields a real starter value instead, plus a
+regression test that creates all 30 types from their own defaults via
+the real endpoint. Builder access is a granular three-permission split
+(`builder.view`/`builder.edit`/`builder.publish`) rather than Phase 12's
+single `pages.manage` — discovered pre-wired and dormant in the RBAC
+seeder (Marketing Manager: view+edit only; Content Manager: all three),
+honored rather than replaced. Local undo/redo (an in-session draft
+history, debounce-autosaved) and server-side revision history (a
+snapshot taken before every settings/publish/unpublish/restore mutation,
+restorable from a new UI sheet) are deliberately two separate mechanisms
+rather than one trying to do both jobs — see
+`DEVELOPMENT_ROADMAP.md`'s Phase 13 scope note. Deliberately minimal
+placeholder models back three block types pending their real phase:
+`Testimonial` (backs both Testimonials and Reviews — not Catalog Wave
+2's still-unbuilt verified-purchase review system), `BlogPost`
+(title/slug/excerpt/image/published_at only — not Phase 14's real
+blog CMS), and `NewsletterSubscriber` (email capture only).
+Blog, SEO, Catalog Wave 2's remaining
 items (reviews — no longer blocked on anything, just not yet picked, now
 that Phase 17 gives the real customer identity it was waiting on — see
 `DATABASE_DESIGN.md` section 2 — and a reusable media library), Purchasing Wave 2's remaining

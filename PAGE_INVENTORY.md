@@ -64,9 +64,9 @@ their backing functionality — no dead pages).
 | `/reports/sales` | ✅ | 18 (date range + warehouse + granularity filters, revenue/orders/AOV stat cards each with a vs.-previous-period trend badge, reused `SalesTrendChart`, by-payment-method and by-courier tables, Export dropdown: CSV/PDF) |
 | `/reports/products` | ✅ | 18 (date range + warehouse filters, units-sold/revenue table ranked by revenue, variant sales rolled up to the parent product, Export dropdown: CSV/PDF) |
 | `/reports/low-stock` | ✅ | 18 (cross-warehouse on-hand/reserved/available vs. threshold, Export dropdown: CSV/PDF) |
-| `/website/homepage` | ⏳ | 13 |
 | `/content/pages` | ✅ | 12 — a small, deliberate path change beyond this table's original `/website/pages` sketch, grouping under a new "Content" nav section rather than a "Website" one (list w/ Title/Slug/Status, delete w/ confirmation) |
 | `/content/pages/new`, `/content/pages/[id]` | ✅ | 12 (title/slug w/ auto-fill, plain-text content, draft/published status, optional meta title/description) |
+| `/content/homepage` | ✅ | 13 — same deliberate `/content/*` grouping as Pages above, not this table's original `/website/homepage` sketch; the tab-nav infrastructure both now share is documented in `COMPONENT_INVENTORY.md`. A real live-WYSIWYG drag-and-drop builder: left sidebar (Blocks palette/Layers/Saved sections), center canvas (dnd-kit sortable, renders every block through the exact same component the live storefront uses, via a new `/homepage-blocks/preview` endpoint), right panel (Content/Design/Layout/Animation/Advanced/SEO tabs, local autosave + undo/redo, a revision-history sheet with restore). All ~30 block types have a real Content-tab editor — see `COMPONENT_INVENTORY.md`. Gated on a granular `builder.view`/`builder.edit`/`builder.publish` split, not one umbrella permission like Pages. |
 | `/website/navigation` | ⏳ | 12 Wave 2 — no `navigation_menus`/`navigation_items` schema yet, see `DATABASE_DESIGN.md` |
 | `/website/media` | ⏳ | 12 Wave 2 — same reusable media library gap Catalog Wave 2 lists |
 | `/website/theme` | ⏳ | 12 Wave 2 |
@@ -83,7 +83,7 @@ their backing functionality — no dead pages).
 
 | Route | Status | Phase |
 |---|---|---|
-| `/` | ✅ | 16 (hardcoded hero + "Shop by Category" grid + featured products — not block-driven; Phase 13's Homepage Builder doesn't exist yet to feed it, see `DEVELOPMENT_ROADMAP.md`) |
+| `/` | ✅ | 16/13 — fully block-driven since Phase 13: fetches every active block via `GET storefront/homepage-blocks` and renders each through `HomepageBlockRenderer`, the same registry component the admin builder's canvas uses. No hardcoded sections of its own left (the original Phase 16 hardcoded hero/category-grid/featured-products JSX this table used to describe is gone). |
 | `/products` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had no all-products/search index; search/category/brand/featured filters and sort all live in the URL query string so a filtered link is shareable |
 | `/products/[slug]` | ✅ | 16 (image gallery, variant picker gating "Add to Cart" until a full attribute selection resolves to a real variant, bundle component list + derived availability, out-of-stock state) |
 | `/category/[slug]` | ✅ | 16 (category + its subcategories as quick links, paginated active products) |
@@ -176,6 +176,11 @@ tab nav) around everything that actually needs a signed-in customer.
 | `GET /api/v1/notifications` (own inbox, paginated, `meta.unread_count`), `POST .../read-all`, `POST .../{id}/read` — no order/return write endpoints of their own; a notification fires as a side effect of the order/return endpoints above (see `API_DESIGN.md`'s Notifications note) | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/pages` (admin, store-scoped, gated on the single `pages.manage` permission) | ✅ |
 | `GET /api/v1/storefront/pages` (published-only, backs the footer), `GET .../{slug}` (published-only, 404 on draft or wrong-store) | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/homepage-blocks`, `GET .../preview` (all blocks incl. drafts, resolved), `POST .../reorder`, `.../{id}/duplicate`, `.../{id}/publish`, `.../{id}/unpublish`, `.../{id}/schedule`, `GET .../{id}/revisions`, `POST .../{id}/revisions/{revision}/restore`, `POST .../{id}/save-as-section` | ✅ |
+| `GET/POST/DELETE /api/v1/saved-sections`, `POST .../{id}/insert` | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/testimonials`, `.../blog-posts` | ✅ |
+| `GET/DELETE /api/v1/newsletter-subscribers` | ✅ |
+| `GET /api/v1/storefront/homepage-blocks` (active blocks, resolved), `POST /api/v1/storefront/newsletter/subscribe` (throttled) | ✅ |
 | Everything else under CMS (navigation/media)/blog/SEO/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
