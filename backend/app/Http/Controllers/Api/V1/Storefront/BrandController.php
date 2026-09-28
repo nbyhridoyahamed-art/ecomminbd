@@ -33,6 +33,7 @@ class BrandController extends StorefrontController
             ->where('store_id', $store->id)
             ->where('status', 'active')
             ->where('slug', $slug)
+            ->with('seoMetadata')
             ->firstOrFail();
 
         $perPage = min((int) $request->integer('per_page', 20), 60);

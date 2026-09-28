@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { SeoFields, seoFieldsToPayload, seoToFieldsValue } from "@/components/shared/seo-fields";
 import { ProductImageGallery } from "@/components/settings/product-image-gallery";
 import { ComponentsManager } from "@/components/catalog/components-manager";
 import { VariantsManager } from "@/components/catalog/variants-manager";
@@ -50,9 +51,6 @@ const productSchema = z
     low_stock_threshold: z.string(),
     status: z.enum(["draft", "active", "archived"]),
     featured: z.boolean(),
-    seo_title: z.string(),
-    seo_description: z.string(),
-    focus_keyword: z.string(),
   })
   .refine((data) => data.sale_price === "" || Number(data.sale_price) < Number(data.price), {
     message: "Sale price must be lower than the regular price.",
@@ -95,6 +93,7 @@ export function ProductForm({
   submitLabel,
 }: ProductFormProps) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("General");
+  const [seo, setSeo] = useState(() => seoToFieldsValue(defaultValues?.seo));
 
   const {
     register,
@@ -130,9 +129,6 @@ export function ProductForm({
           : "",
       status: defaultValues?.status ?? "draft",
       featured: defaultValues?.featured ?? false,
-      seo_title: defaultValues?.seo_title ?? "",
-      seo_description: defaultValues?.seo_description ?? "",
-      focus_keyword: defaultValues?.focus_keyword ?? "",
     },
   });
 
@@ -175,9 +171,7 @@ export function ProductForm({
       low_stock_threshold: values.low_stock_threshold ? Number(values.low_stock_threshold) : null,
       status: values.status,
       featured: values.featured,
-      seo_title: values.seo_title || null,
-      seo_description: values.seo_description || null,
-      focus_keyword: values.focus_keyword || null,
+      seo: seoFieldsToPayload(seo),
     });
   });
 
@@ -495,18 +489,7 @@ export function ProductForm({
       </div>
 
       <div className={tab === "SEO" ? "space-y-4" : "hidden"}>
-        <div className="space-y-1.5">
-          <Label htmlFor="seo_title">SEO title</Label>
-          <Input id="seo_title" {...register("seo_title")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="seo_description">Meta description</Label>
-          <Textarea id="seo_description" rows={3} {...register("seo_description")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="focus_keyword">Focus keyword</Label>
-          <Input id="focus_keyword" {...register("focus_keyword")} />
-        </div>
+        <SeoFields value={seo} onChange={setSeo} titlePlaceholder={defaultValues?.name} descriptionPlaceholder={defaultValues?.short_description ?? undefined} />
       </div>
 
       <div className="flex justify-end border-t border-border pt-4">

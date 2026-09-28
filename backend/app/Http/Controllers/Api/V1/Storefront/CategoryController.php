@@ -36,7 +36,10 @@ class CategoryController extends StorefrontController
             ->where('store_id', $store->id)
             ->where('status', 'active')
             ->where('slug', $slug)
-            ->with(['children' => fn ($query) => $query->where('status', 'active')->orderBy('sort_order')->orderBy('name')])
+            ->with([
+                'children' => fn ($query) => $query->where('status', 'active')->orderBy('sort_order')->orderBy('name'),
+                'seoMetadata',
+            ])
             ->firstOrFail();
 
         $perPage = min((int) $request->integer('per_page', 20), 60);

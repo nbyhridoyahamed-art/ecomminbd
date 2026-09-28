@@ -12,8 +12,7 @@ export interface PageFormValues {
   title: string;
   slug: string;
   content?: string | null;
-  meta_title?: string | null;
-  meta_description?: string | null;
+  seo?: Record<string, string | null>;
   status?: "draft" | "published";
 }
 

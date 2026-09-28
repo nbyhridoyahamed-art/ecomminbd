@@ -1,95 +1,76 @@
-"use client";
+import type { Metadata } from "next";
 
-import { use } from "react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-
-import { BlogPostCard } from "@/components/storefront/blog-post-card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useStorefrontBlogPost } from "@/hooks/use-storefront-blog";
+import { articleJsonLd, breadcrumbJsonLd, JsonLd } from "@/lib/json-ld";
+import { storefrontApi } from "@/lib/storefront-api";
+import { buildStorefrontMetadata, resolveRedirectOrNotFound } from "@/lib/storefront-seo";
 import { ApiError } from "@/types/api";
+import type { StorefrontBlogPostDetail, StorefrontBlogPostSummary } from "@/types/storefront";
+import { BlogPostClient } from "./blog-post-client";
 
-export default function BlogPostDetailPage({ params }: PageProps<"/blog/[slug]">) {
-  const { slug } = use(params);
-  const { data, isLoading, error } = useStorefrontBlogPost(slug);
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-  if (error instanceof ApiError && error.status === 404) {
-    notFound();
+async function getBlogPost(slug: string): Promise<StorefrontBlogPostDetail | null> {
+  try {
+    const data = await storefrontApi.get<{
+      post: StorefrontBlogPostDetail;
+      related_posts: StorefrontBlogPostSummary[];
+    }>(`/storefront/blog/${slug}`);
+    return data.post;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function generateMetadata({ params }: PageProps<"/blog/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await getBlogPost(slug);
+
+  if (!post) {
+    return { title: "Post not found" };
   }
 
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-4 px-4 py-8">
-        <Skeleton className="h-8 w-2/3" />
-        <Skeleton className="aspect-[16/9] w-full" />
-        <Skeleton className="h-40 w-full" />
-      </div>
-    );
+  return buildStorefrontMetadata({
+    seo: post.seo,
+    fallbackTitle: post.title,
+    fallbackDescription: post.excerpt,
+    path: `/blog/${post.slug}`,
+    image: post.featured_image_url,
+  });
+}
+
+export default async function BlogPostDetailPage({ params }: PageProps<"/blog/[slug]">) {
+  const { slug } = await params;
+  const post = await getBlogPost(slug);
+
+  if (!post) {
+    await resolveRedirectOrNotFound(`/blog/${slug}`);
+    throw new Error("unreachable");
   }
 
-  if (error || !data) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-        <p className="text-text-secondary">Something went wrong loading this post. Please try again.</p>
-      </div>
-    );
-  }
-
-  const { post, related_posts: relatedPosts } = data;
+  const url = `${SITE_URL}/blog/${post.slug}`;
 
   return (
-    <article className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-      <header className="space-y-3">
-        {post.category ? (
-          <Link
-            href={`/blog/category/${post.category.slug}`}
-            className="text-xs font-semibold uppercase text-primary hover:underline"
-          >
-            {post.category.name}
-          </Link>
-        ) : null}
-        <h1 className="text-page-title font-semibold text-text-primary">{post.title}</h1>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-text-muted">
-          {post.published_at ? <span>{new Date(post.published_at).toLocaleDateString()}</span> : null}
-          <span>&middot;</span>
-          <span>{post.reading_time_minutes} min read</span>
-        </div>
-        {post.tags.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {post.tags.map((tag) => (
-              <Link
-                key={tag.slug}
-                href={`/blog/tag/${tag.slug}`}
-                className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary hover:border-primary hover:text-primary"
-              >
-                {tag.name}
-              </Link>
-            ))}
-          </div>
-        ) : null}
-      </header>
-
-      {post.featured_image_url ? (
-        <div className="overflow-hidden rounded-lg bg-border/20">
-          {/* eslint-disable-next-line @next/next/no-img-element -- remote storage URL, not a static asset */}
-          <img src={post.featured_image_url} alt={post.title} className="w-full object-cover" />
-        </div>
-      ) : null}
-
-      {post.body ? (
-        <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: post.body }} />
-      ) : null}
-
-      {relatedPosts.length > 0 ? (
-        <div className="space-y-4 border-t border-border pt-6">
-          <h2 className="text-lg font-semibold text-text-primary">Related posts</h2>
-          <div className="grid grid-cols-1 gap-4 tablet:grid-cols-3">
-            {relatedPosts.map((related) => (
-              <BlogPostCard key={related.id} post={related} />
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </article>
+    <>
+      <JsonLd
+        data={articleJsonLd({
+          headline: post.title,
+          description: post.excerpt,
+          image: post.featured_image_url,
+          datePublished: post.published_at,
+          url,
+        })}
+      />
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", url: SITE_URL },
+          ...(post.category
+            ? [{ name: post.category.name, url: `${SITE_URL}/blog/category/${post.category.slug}` }]
+            : []),
+          { name: post.title, url },
+        ])}
+      />
+      <BlogPostClient slug={slug} />
+    </>
   );
 }

@@ -31,6 +31,7 @@ class PageController extends StorefrontController
             ->where('store_id', $store->id)
             ->where('status', 'published')
             ->where('slug', $slug)
+            ->with('seoMetadata')
             ->firstOrFail();
 
         return ApiResponse::success(new PageResource($page), 'Page fetched successfully.');

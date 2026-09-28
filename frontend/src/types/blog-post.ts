@@ -1,5 +1,6 @@
 import type { BlogCategory } from "@/types/blog-category";
 import type { BlogTag } from "@/types/blog-tag";
+import type { Seo } from "@/types/seo";
 
 export type BlogPostStatus = "draft" | "published";
 
@@ -15,8 +16,7 @@ export interface BlogPost {
   blog_category_id: number | null;
   category: BlogCategory | null;
   tags: BlogTag[];
-  meta_title: string | null;
-  meta_description: string | null;
+  seo: Seo | null;
   status: BlogPostStatus;
   published_at: string | null;
   author: string | null;

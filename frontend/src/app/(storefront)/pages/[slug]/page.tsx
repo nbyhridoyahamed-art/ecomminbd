@@ -1,41 +1,58 @@
-"use client";
+import type { Metadata } from "next";
 
-import { use } from "react";
-import { notFound } from "next/navigation";
-
+import { breadcrumbJsonLd, JsonLd } from "@/lib/json-ld";
+import { storefrontApi } from "@/lib/storefront-api";
+import { buildStorefrontMetadata, resolveRedirectOrNotFound } from "@/lib/storefront-seo";
 import { ApiError } from "@/types/api";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useStorefrontPage } from "@/hooks/use-storefront-pages";
+import type { StorefrontPage } from "@/types/storefront";
+import { StorefrontPageClient } from "./storefront-page-client";
 
-export default function StorefrontPageDetail({ params }: PageProps<"/pages/[slug]">) {
-  const { slug } = use(params);
-  const { data: page, isLoading, error } = useStorefrontPage(slug);
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-  if (error instanceof ApiError && error.status === 404) {
-    notFound();
+async function getPage(slug: string): Promise<StorefrontPage | null> {
+  try {
+    return await storefrontApi.get<StorefrontPage>(`/storefront/pages/${slug}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function generateMetadata({ params }: PageProps<"/pages/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const page = await getPage(slug);
+
+  if (!page) {
+    return { title: "Page not found" };
   }
 
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-4 px-4 py-8">
-        <Skeleton className="h-8 w-1/2" />
-        <Skeleton className="h-40 w-full" />
-      </div>
-    );
+  return buildStorefrontMetadata({
+    seo: page.seo,
+    fallbackTitle: page.title,
+    path: `/pages/${page.slug}`,
+  });
+}
+
+export default async function StorefrontPageDetail({ params }: PageProps<"/pages/[slug]">) {
+  const { slug } = await params;
+  const page = await getPage(slug);
+
+  if (!page) {
+    await resolveRedirectOrNotFound(`/pages/${slug}`);
+    throw new Error("unreachable");
   }
 
-  if (error || !page) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-        <p className="text-text-secondary">Something went wrong loading this page. Please try again.</p>
-      </div>
-    );
-  }
+  const url = `${SITE_URL}/pages/${page.slug}`;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 px-4 py-8">
-      <h1 className="text-page-title font-semibold text-text-primary">{page.title}</h1>
-      {page.content ? <p className="whitespace-pre-line text-text-secondary">{page.content}</p> : null}
-    </div>
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", url: SITE_URL },
+          { name: page.title, url },
+        ])}
+      />
+      <StorefrontPageClient slug={slug} />
+    </>
   );
 }

@@ -16,8 +16,7 @@ export interface BlogPostFormValues {
   featured_image_url?: string | null;
   blog_category_id?: number | null;
   tag_ids?: number[];
-  meta_title?: string | null;
-  meta_description?: string | null;
+  seo?: Record<string, string | null>;
   status?: BlogPostStatus;
   published_at?: string | null;
 }

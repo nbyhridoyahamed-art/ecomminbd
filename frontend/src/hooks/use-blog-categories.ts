@@ -12,6 +12,7 @@ export interface BlogCategoryFormValues {
   name: string;
   slug: string;
   description?: string | null;
+  seo?: Record<string, string | null>;
 }
 
 export function useBlogCategories(storeId: number | null | undefined) {

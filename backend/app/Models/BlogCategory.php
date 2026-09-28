@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -32,5 +33,10 @@ class BlogCategory extends Model
     public function posts(): HasMany
     {
         return $this->hasMany(BlogPost::class);
+    }
+
+    public function seoMetadata(): MorphOne
+    {
+        return $this->morphOne(SeoMetadata::class, 'entity');
     }
 }

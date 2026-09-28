@@ -1,3 +1,5 @@
+import type { Seo } from "@/types/seo";
+
 export interface Page {
   id: number;
   uuid: string;
@@ -5,8 +7,7 @@ export interface Page {
   title: string;
   slug: string;
   content: string | null;
-  meta_title: string | null;
-  meta_description: string | null;
+  seo: Seo | null;
   status: "draft" | "published";
   created_by?: string | null;
   created_at: string;

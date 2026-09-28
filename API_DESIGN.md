@@ -597,8 +597,10 @@ stamps `now()` server-side on both create and update; an explicit future
 .../{id}/versions/{version}/restore` snapshots the current state first
 (a restore is itself undoable, same rule Homepage Builder's own revision
 restore follows), then applies the target snapshot's
-title/slug/excerpt/body/featured_image_url/meta_title/meta_description/
-status. `GET/POST/PUT/DELETE blog-categories` and `.../blog-tags` are
+title/slug/excerpt/body/featured_image_url/status (an older snapshot's
+`meta_title`/`meta_description` keys, from before Phase 15 dropped those
+columns, are simply ignored — they're no longer in
+`BlogPostController::SNAPSHOT_FIELDS`). `GET/POST/PUT/DELETE blog-categories` and `.../blog-tags` are
 plain per-store CRUD; both a post's `blog_category_id` and every
 `tag_ids` entry validate with `Rule::exists(...)->where('store_id',
 $storeId)`, the same cross-store-reference guard `ProductRequest`'s
@@ -619,5 +621,38 @@ than five copies of the same visibility rule. (Route-ordering note:
 `blog/rss` and `blog/category|tag/{slug}` are registered before the bare
 `blog/{slug}`, or its wildcard would swallow `rss` as a slug first — the
 same gotcha `products/export` already documented.)
+
+SEO (Phase 15, full spec): no dedicated seo-metadata REST resource — every
+SEO-bearing entity's own existing endpoint (`products`, `categories`,
+`brands`, `pages`, `blog-posts`, `blog-categories`, `blog-tags`) now
+accepts an additional `seo` object on create/update (`{title,
+description, focus_keyword, og_title, og_description, og_image,
+twitter_title, twitter_description, twitter_image, canonical_url,
+robots}` — `schema_json` is a power-user field with no request-validation
+entry yet, set directly at the DB layer if ever needed) and returns it as
+a nested `seo` key on read (`null` when the entity has no override), via
+a shared `SyncsSeoMetadata` controller trait — the same "accept extra
+input alongside the model's own fields, sync it separately" shape
+`BlogPostRequest`'s `tag_ids` already established. `GET/PUT store-seo`
+(query/body `?store_id=`, no route-model-binding — it isn't a
+`{store}`-keyed resource) is the one exception: it reads/writes the
+Store's own site-wide `seo` the identical way, but is gated directly on
+the `seo.manage` permission rather than `StorePolicy`'s heavier
+`stores.manage`, so a Content/SEO manager can edit the homepage's SEO
+without needing full store-management access. `GET/POST/PUT/DELETE
+redirects` and `.../seo-templates` are plain per-store CRUD, gated the
+same `seo.manage` way; `redirects.from_path` must start with `/` and is
+unique per store, `seo_templates.entity_type` must be one of the seven
+SEO-bearing model FQCNs and is unique per store (one template per entity
+type per store). One public, unauthenticated, store-scoped endpoint backs
+storefront redirect resolution: `GET storefront/redirects/lookup?path=X`
+— 404 if nothing matches (the frontend then falls through to its own
+`notFound()`), otherwise `{to_path, status_code}` and the row's
+`hits_count` is incremented server-side. `sitemap.xml`/`robots.txt`
+are deliberately NOT Laravel endpoints — see
+`ARCHITECTURE.md` section 9 for why (the frontend owns both natively via
+Next.js's `sitemap.ts`/`robots.ts`, since robots.txt must disallow this
+same Next.js app's own admin/account/cart/checkout paths, information the
+Laravel API has no visibility into).
 
 Section 7 (webhooks) remains documented intent for future phases.

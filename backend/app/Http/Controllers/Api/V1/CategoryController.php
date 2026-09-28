@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\SyncsSeoMetadata;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Category\CategoryRequest;
 use App\Http\Resources\CategoryResource;
@@ -12,6 +13,8 @@ use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
+    use SyncsSeoMetadata;
+
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Category::class);
@@ -35,29 +38,31 @@ class CategoryController extends Controller
         // defaults: create() returns the in-memory model, not a fresh
         // SELECT, so a field left for the DB default would come back
         // null in this response even though the row has the real value.
-        $data = $request->validated();
+        $data = $request->safe()->except('seo');
         $data['status'] ??= 'active';
         $data['sort_order'] ??= 0;
 
         $category = Category::create($data);
+        $this->syncSeoMetadata($category, $request);
 
-        return ApiResponse::success(new CategoryResource($category), 'Category created successfully.', status: 201);
+        return ApiResponse::success(new CategoryResource($category->load('seoMetadata')), 'Category created successfully.', status: 201);
     }
 
     public function show(Category $category): JsonResponse
     {
         $this->authorize('view', $category);
 
-        return ApiResponse::success(new CategoryResource($category->loadCount('products')), 'Category fetched successfully.');
+        return ApiResponse::success(new CategoryResource($category->loadCount('products')->load('seoMetadata')), 'Category fetched successfully.');
     }
 
     public function update(CategoryRequest $request, Category $category): JsonResponse
     {
         $this->authorize('update', $category);
 
-        $category->update($request->validated());
+        $category->update($request->safe()->except('seo'));
+        $this->syncSeoMetadata($category, $request);
 
-        return ApiResponse::success(new CategoryResource($category), 'Category updated successfully.');
+        return ApiResponse::success(new CategoryResource($category->load('seoMetadata')), 'Category updated successfully.');
     }
 
     public function destroy(Category $category): JsonResponse

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\SyncsSeoMetadata;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BlogPost\BlogPostRequest;
 use App\Http\Resources\BlogPostResource;
@@ -13,9 +14,13 @@ use Illuminate\Http\Request;
 
 class BlogPostController extends Controller
 {
+    use SyncsSeoMetadata;
+
     private const SNAPSHOT_FIELDS = [
-        'title', 'slug', 'excerpt', 'body', 'featured_image_url', 'meta_title', 'meta_description', 'status',
+        'title', 'slug', 'excerpt', 'body', 'featured_image_url', 'status',
     ];
+
+    private const RELATIONS = ['category', 'tags', 'author', 'seoMetadata'];
 
     public function index(Request $request): JsonResponse
     {
@@ -37,7 +42,7 @@ class BlogPostController extends Controller
     {
         $this->authorize('create', BlogPost::class);
 
-        $data = $request->safe()->except('tag_ids');
+        $data = $request->safe()->except(['tag_ids', 'seo']);
         $data['created_by'] = $request->user()->id;
         $data['status'] ??= 'draft';
 
@@ -46,19 +51,20 @@ class BlogPostController extends Controller
         }
 
         $post = BlogPost::create($data);
+        $this->syncSeoMetadata($post, $request);
 
         if ($request->filled('tag_ids')) {
             $post->tags()->sync($request->input('tag_ids'));
         }
 
-        return ApiResponse::success(new BlogPostResource($post->load(['category', 'tags', 'author'])), 'Blog post created successfully.', status: 201);
+        return ApiResponse::success(new BlogPostResource($post->load(self::RELATIONS)), 'Blog post created successfully.', status: 201);
     }
 
     public function show(BlogPost $blogPost): JsonResponse
     {
         $this->authorize('view', $blogPost);
 
-        return ApiResponse::success(new BlogPostResource($blogPost->load(['category', 'tags', 'author'])), 'Blog post fetched successfully.');
+        return ApiResponse::success(new BlogPostResource($blogPost->load(self::RELATIONS)), 'Blog post fetched successfully.');
     }
 
     public function update(BlogPostRequest $request, BlogPost $blogPost): JsonResponse
@@ -67,19 +73,20 @@ class BlogPostController extends Controller
 
         $this->snapshot($blogPost, $request->user()->id);
 
-        $data = $request->safe()->except('tag_ids');
+        $data = $request->safe()->except(['tag_ids', 'seo']);
 
         if (($data['status'] ?? $blogPost->status) === 'published' && empty($data['published_at'] ?? $blogPost->published_at)) {
             $data['published_at'] = now();
         }
 
         $blogPost->update($data);
+        $this->syncSeoMetadata($blogPost, $request);
 
         if ($request->has('tag_ids')) {
             $blogPost->tags()->sync($request->input('tag_ids', []));
         }
 
-        return ApiResponse::success(new BlogPostResource($blogPost->load(['category', 'tags', 'author'])), 'Blog post updated successfully.');
+        return ApiResponse::success(new BlogPostResource($blogPost->load(self::RELATIONS)), 'Blog post updated successfully.');
     }
 
     public function destroy(BlogPost $blogPost): JsonResponse

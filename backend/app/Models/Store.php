@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -53,5 +54,11 @@ class Store extends Model
     public function settings(): HasMany
     {
         return $this->hasMany(Setting::class);
+    }
+
+    /** Site-wide SEO defaults (homepage title/description, Organization/WebSite schema, etc). */
+    public function seoMetadata(): MorphOne
+    {
+        return $this->morphOne(SeoMetadata::class, 'entity');
     }
 }

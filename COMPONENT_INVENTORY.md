@@ -26,7 +26,7 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Tooltip | ⏳ | Not needed yet |
 | Modal/Dialog | ✅ | centered dialog (distinct from Sheet); delete confirmations for users/roles/categories/brands/products/warehouses/suppliers/customers/customer addresses, stock adjustment form, purchase-order cancel confirmation, customer address add/edit form, order cancel confirmation, shipment delivered/failed/returned-to-seller confirmations (COD capture on delivery), return reject/receive/refund confirmations (receive has a per-item restock checklist, refund has a suggested-amount-prefilled input), purchase-return reject/credit confirmations (credit has the same suggested-amount-prefilled input as a customer refund) |
 | Tabs | ✅ | Two flavors: a route-driven Link sub-nav (Settings, Catalog — now Products/Categories/Brands/Attributes, Inventory, Purchasing — now Purchase Orders/Purchase Returns/Suppliers, Orders/Customers/Returns, Delivery, Reports — Sales/Product Performance/Low Stock) and a client-state tab switcher inside the product form (General/Pricing/Variants*/Components†/Media/SEO — *shown only when type is Variable, †shown only when type is Bundle) — plain buttons + conditional rendering, not the Radix Tabs primitive, since neither use case needed its accessibility semantics beyond what a nav/button already gives |
-| Accordion | ⏳ | Phase 15 (SEO analysis groups) — not needed by anything shipped yet |
+| Accordion | ✅ | Phase 15 — Radix-based (`@radix-ui/react-accordion`), `type="multiple"`; groups the shared `SeoFields` component's Open Graph/Twitter Card/Advanced sections (see the new SEO section below) |
 | Table / DataTable | ✅ | Server-paginated table w/ loading/empty states. Built as a small dependency-free component rather than on TanStack Table — the installed major version (v9) shipped a completely different, unfamiliar API; safer to write ~100 lines directly than guess at an API with no reliable reference. Now also backs Warehouses, Stock Levels, Movements, Transfers, Suppliers, Purchase Orders, Purchase Returns, Customers, Orders, Couriers, Shipments, COD Settlements, Returns, Attributes, and the Reports suite (Sales' payment-method and courier breakdowns, Product Performance, Low Stock). |
 | Pagination | ✅ | ships with DataTable (prev/next, server-driven) |
 | Breadcrumb | ✅ | topbar |
@@ -108,7 +108,7 @@ click lands.
 
 | Component | Status | Notes |
 |---|---|---|
-| PageForm | ✅ | Phase 12 Wave 1 — title/slug (slug auto-filled from title via the existing `slugify()` helper until manually touched, the exact `CategoryForm` pattern), a plain `Textarea` for content (not TipTap — see the Primitives table's Rich Editor row; a helper line tells the editor line breaks are preserved on the storefront), a draft/published `Select`, and an optional bordered "SEO" section (meta title/description). Lives under `components/content/`, reused by both the admin new-page and edit-page routes exactly like `CategoryForm`. |
+| PageForm | ✅ | Phase 12 Wave 1 — title/slug (slug auto-filled from title via the existing `slugify()` helper until manually touched, the exact `CategoryForm` pattern), a plain `Textarea` for content (not TipTap — see the Primitives table's Rich Editor row; a helper line tells the editor line breaks are preserved on the storefront), a draft/published `Select`, and (since Phase 15) the shared `SeoFields` section in place of the old flat meta title/description inputs. Lives under `components/content/`, reused by both the admin new-page and edit-page routes exactly like `CategoryForm`. |
 
 No new list/table primitive — the admin `/content/pages` list reuses the
 existing `DataTable` + delete-confirmation `Dialog` shell verbatim (Title/
@@ -124,8 +124,8 @@ same boolean.
 
 | Component | Status | Notes |
 |---|---|---|
-| BlogPostForm | ✅ | Phase 14 — title/slug (same auto-fill-until-touched pattern as `PageForm`/`CategoryForm`), a category `Select` (store's `blog_categories`, "No category" default), a tag picker (`Checkbox` per store tag in a wrapped flex row — no combobox/multi-select primitive exists yet, and this store's tag counts don't need one), the shared `RichTextEditor` for `body`, an excerpt `Textarea` with a note that it's auto-generated from the body when left blank, a draft/published `Select` paired with a `datetime-local` publish-date input (blank = publish now, future = real scheduling), and the same optional bordered SEO section `PageForm` uses. Lives under `components/content/`, reused by both the new-post and edit-post routes. |
-| BlogCategoryForm / BlogTagForm | ✅ | Phase 14 — name/slug (BlogCategoryForm adds a description `Textarea`), the same auto-fill-until-touched slug pattern as every other form in the app. Simple enough that, like Category/Brand/Page, each gets its own dedicated create/edit route rather than an inline dialog. |
+| BlogPostForm | ✅ | Phase 14 — title/slug (same auto-fill-until-touched pattern as `PageForm`/`CategoryForm`), a category `Select` (store's `blog_categories`, "No category" default), a tag picker (`Checkbox` per store tag in a wrapped flex row — no combobox/multi-select primitive exists yet, and this store's tag counts don't need one), the shared `RichTextEditor` for `body`, an excerpt `Textarea` with a note that it's auto-generated from the body when left blank, a draft/published `Select` paired with a `datetime-local` publish-date input (blank = publish now, future = real scheduling), and (since Phase 15) the same shared `SeoFields` section `PageForm` uses. Lives under `components/content/`, reused by both the new-post and edit-post routes. |
+| BlogCategoryForm / BlogTagForm | ✅ | Phase 14 — name/slug (BlogCategoryForm adds a description `Textarea`), the same auto-fill-until-touched slug pattern as every other form in the app. Simple enough that, like Category/Brand/Page, each gets its own dedicated create/edit route rather than an inline dialog. Since Phase 15, both also carry a bordered "SEO" section (the shared `SeoFields` component) — a brand-new addition, neither entity had any SEO field before. |
 | BlogPostVersionHistorySheet | ✅ | Phase 14 — a `Sheet` listing a post's server-side `blog_post_versions` (timestamp, editor, the snapshot's title, Restore), opened from the edit page's header. Deliberately simpler than Homepage Builder's `RevisionHistorySheet`: a blog post edit page has no local in-session draft to re-sync on restore (it's a traditional Save-button form, not a live-autosave canvas), so restoring just refetches and the page shows the restored state directly. |
 
 No new list/table primitive — `/content/blog/posts|categories|tags` each
@@ -138,6 +138,40 @@ since `blog.manage` is a single umbrella permission with nothing to
 filter per-tab the way Purchasing's own top-level tabs gate on different
 permissions.
 
+## SEO (`frontend/src/components/shared/`, `frontend/src/components/content/`, `frontend/src/app/(admin)/content/seo/`, `frontend/src/lib/`)
+
+| Component | Status | Notes |
+|---|---|---|
+| SeoFields | ✅ | Phase 15 — the one shared form section behind every entity's SEO editing: title/description inputs each with a live character-count target indicator (30–60/120–160 chars, green/amber against the target), a focus-keyword input, a real rule-based checklist (title/description length, focus-keyword presence in title/description — deterministic pass/fail against plain string checks, never a fabricated AI-style score, per spec rule 178), and an `Accordion` (Open Graph / Twitter Card / Advanced-canonical+robots) for the fields most edits won't touch. A plain controlled `{value, onChange}` component (not wired to any one form's `react-hook-form` instance), the same shape `AdvancedPanel`/homepage-block panels already established, so each of the seven forms below owns its own local `useState` and passes `seoFieldsToPayload()`'s result into its own submit payload. Lives under `components/shared/` — the first component with no single owning domain, used by both `components/settings/` (Product/Category/Brand) and `components/content/` (Page/BlogPost/BlogCategory/BlogTag) forms alike. |
+| RedirectForm / SeoTemplateForm | ✅ | Phase 15 — plain CRUD forms for the two genuinely independent SEO resources, same shape as `PageForm`. `RedirectForm`: from-path/to-path text inputs (from-path validated to start with `/`) plus a status-code `Select` (301/302/307/308). `SeoTemplateForm`: an entity-type `Select` of the seven SEO-bearing model types (locked to plain text once set — changing it after creation would collide with the `unique(store_id, entity_type)` constraint) plus title/description template text inputs (free-text hints like `{{title}} \| {{store_name}}`; no templating engine reads these yet). Both live under `components/content/`, reused by their own new/edit routes under a new `/content/seo/redirects` and `/content/seo/templates`, a 4th tab alongside Pages/Homepage/Blog in the existing Content nav section. |
+
+No new list/table primitive — `/content/seo/redirects|templates` each
+reuse the existing `DataTable` + delete-confirmation `Dialog` shell
+verbatim, the same shape every other flat-list admin resource uses.
+
+Not components, but the frontend-side pieces that make real per-page
+`<head>` metadata and JSON-LD possible — worth recording here since
+they're new architectural surface, not just new UI:
+- `lib/storefront-api.ts` — a server-only fetch client for the public
+  storefront API, used only from Server Components/`generateMetadata()`/
+  `sitemap.ts`. A separate module from the existing `lib/api.ts` because
+  that one imports `auth-token.ts` (a `"use client"` module reading
+  `localStorage`), and a Server Component can't call a function exported
+  from a Client Component module.
+- `lib/storefront-seo.ts` — `buildStorefrontMetadata()` (turns a `Seo`
+  object, or `null`, into a complete Next `Metadata` object with sensible
+  entity-name/excerpt fallbacks) and `resolveRedirectOrNotFound()` (the
+  per-leaf-page redirect check, called only on a 404).
+- `lib/json-ld.tsx` — a `JsonLd` component (a `<script type="application/
+  ld+json">` with the necessary `<` escaping against script-tag-breakout
+  injection from user-generated text) plus builder functions for Product/
+  BreadcrumbList/Article/Organization+WebSite schemas.
+- Every storefront leaf page's own `page.tsx` (Product/Category/Brand/
+  BlogPost/BlogCategory/BlogTag archives/CMS Page/homepage) is now a
+  Server Component pair with a sibling `*-client.tsx` holding the
+  pre-existing interactive body unchanged — see `ARCHITECTURE.md` section
+  9 and `PAGE_INVENTORY.md` for the full per-route breakdown.
+
 ## Homepage Builder (`frontend/src/components/builder/`, `frontend/src/components/homepage-blocks/`)
 
 | Component | Status | Notes |
@@ -146,7 +180,8 @@ permissions.
 | BuilderPanel | ✅ | Phase 13 — the right panel: Content/Design/Layout/Animation/Advanced/SEO tabs (spec's Content/Design/Spacing/Responsive/Animation/Advanced/SEO list, with Spacing+Responsive+per-breakpoint Visibility combined into one Layout tab — they edit one shared JSON shape, see `LayoutPanel`'s own code comment), a Save-status label (Saved/Saving/Unsaved), Undo/Redo, and a Revision History button. Owns one block's local edit session via `useEditableHomepageBlock` (debounced autosave + an in-session undo/redo stack — deliberately separate from server-side revisions below). |
 | BuilderSidebar | ✅ | Phase 13 — the left panel: Blocks (a categorized palette of all ~30 types), Layers (a flat reorderable-by-drag list mirroring the canvas), and Saved (the saved-sections library: insert-to-page, remove). |
 | RevisionHistorySheet | ✅ | Phase 13 — a `Sheet` listing a block's server-side revisions (timestamp, creator, Restore), opened from BuilderPanel's header. Restoring re-syncs the open panel's local draft via `useEditableHomepageBlock.syncFrom()`, since restoring changes a block's content without changing its id (the hook's normal reset is keyed on id changing). Deliberately distinct from BuilderPanel's own Undo/Redo — this is the durable, already-saved history; that's the current editing session's not-yet-saved keystrokes. |
-| DesignPanel / LayoutPanel / AnimationPanel / AdvancedPanel / SeoPanel | ✅ | Phase 13 — the five generic, type-agnostic tabs every block type shares (background/text color/border-radius/shadow; per-breakpoint width/height/padding/margin/font-size/columns/gap/alignment/display + visibility; animation preset; a custom-class escape hatch; an honest SEO placeholder — real per-block SEO metadata/analysis is Phase 15's job, not fabricated here). `BlockStyleScope` is the renderer-side counterpart: it turns this stored JSON into a real scoped `<style>` tag per block (`.hb-{id}`, with `@media` breakpoints), the one place that translation happens. |
+| DesignPanel / LayoutPanel / AnimationPanel / AdvancedPanel | ✅ | Phase 13 — four generic, type-agnostic, per-block tabs every block type shares (background/text color/border-radius/shadow; per-breakpoint width/height/padding/margin/font-size/columns/gap/alignment/display + visibility; animation preset; a custom-class escape hatch). `BlockStyleScope` is the renderer-side counterpart: it turns this stored JSON into a real scoped `<style>` tag per block (`.hb-{id}`, with `@media` breakpoints), the one place that translation happens. |
+| SeoPanel | ✅ | Phase 13 placeholder, wired to real data Phase 15 — unlike the four panels above, this one is deliberately NOT per-block: it edits one site-wide `seo` record (`Store.seoMetadata()`, a new `store-seo` endpoint) regardless of which block is selected on the canvas, with its own Save button rather than joining the selected block's autosave session — matching its own original placeholder copy ("Page-level SEO metadata... arrives with Phase 15"). Renders the shared `SeoFields` component, same as every admin content form. |
 | AutoManualPicker | ✅ | Phase 13 — the shared "auto vs. hand-picked" selector for every catalog/content-sourcing block type (Category Grid/Carousel, Brand Carousel, Featured Products, Testimonials, Reviews): a search-filtered checkbox list, the same pattern `VariantsManager` already established, not a new searchable-combobox primitive. `Product Carousel`'s panel is the one exception — it has a third "from a category" mode `AutoManualPicker`'s binary API can't express, so it's a bespoke inline implementation instead of reusing this component. |
 | Block registry: ~30 renderer + Content-panel pairs | ✅ | Phase 13 — `content-panel-registry.tsx` and `homepage-block-renderer.tsx` are the block registry's entire integration surface (spec section 60: "create a registry, not one giant conditional") — every block type's renderer (`components/homepage-blocks/renderers/`) and Content panel (`components/builder/panels/`) plugs into exactly one of these two files and nothing else. Four were hand-built as the exemplar pattern (Hero, Category Grid, Featured Products, Rich Text); the remaining ~25 followed the identical pattern (verified end to end in a running browser, not just by type-checking — see `DEVELOPMENT_ROADMAP.md`'s Phase 13 scope note for the two real bugs that caught). Not enumerated type-by-type here — the pattern, not any one instance of it, is what's worth documenting. Two pairs are intentionally shared rather than duplicated: `MultiColumnBannerBlock`/`Panel` back both Two- and Three-Column Banner (identical shape, only the array length differs), and `TestimonialsPanel` backs both Testimonials and Reviews (identical settings; only the storefront card — quote-forward vs. star-rating-forward — differs, so those keep separate renderers). |
 

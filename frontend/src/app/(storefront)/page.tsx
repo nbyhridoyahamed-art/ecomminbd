@@ -1,44 +1,49 @@
-"use client";
+import type { Metadata } from "next";
 
-import { LayoutGrid } from "lucide-react";
+import { JsonLd, organizationAndWebsiteJsonLd } from "@/lib/json-ld";
+import { storefrontApi } from "@/lib/storefront-api";
+import { buildStorefrontMetadata } from "@/lib/storefront-seo";
+import type { StorefrontStore } from "@/types/storefront";
+import { StorefrontHomeClient } from "./home-client";
 
-import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { HomepageBlockRenderer } from "@/components/homepage-blocks/homepage-block-renderer";
-import { useStorefrontHomepage } from "@/hooks/use-storefront-homepage";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 /**
- * Fully block-driven (Phase 13): every section here comes from whatever
- * staff published in /content/homepage, rendered through the exact same
- * registry the admin builder's own live preview uses — this page has no
- * hardcoded sections of its own left to maintain.
+ * The homepage has no single SEO-bearing entity — it's site-wide. Unlike
+ * every other storefront page.tsx, there's no 404/redirect concern here (a
+ * homepage can't 404), so a failed store fetch falls back to generic
+ * metadata instead of ever failing the whole page.
  */
-export default function StorefrontHomePage() {
-  const { data: blocks, isLoading } = useStorefrontHomepage();
+async function getStore(): Promise<StorefrontStore | null> {
+  try {
+    return await storefrontApi.get<StorefrontStore>("/storefront/store");
+  } catch {
+    return null;
+  }
+}
 
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-[1400px] space-y-12 px-4 py-8">
-        <Skeleton className="h-64 w-full" />
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
+export async function generateMetadata(): Promise<Metadata> {
+  const store = await getStore();
+
+  if (!store) {
+    return { title: "Home" };
   }
 
-  if (!blocks || blocks.length === 0) {
-    return (
-      <div className="mx-auto max-w-[1400px] px-4 py-16">
-        <EmptyState icon={<LayoutGrid />} title="Nothing published yet" description="Check back soon." />
-      </div>
-    );
-  }
+  return buildStorefrontMetadata({
+    seo: null,
+    fallbackTitle: store.name,
+    fallbackDescription: undefined,
+    path: "/",
+  });
+}
+
+export default async function StorefrontHomePage() {
+  const store = await getStore();
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-12 px-4 py-8">
-      {blocks.map((block) => (
-        <HomepageBlockRenderer key={block.id} block={block} />
-      ))}
-    </div>
+    <>
+      {store ? <JsonLd data={organizationAndWebsiteJsonLd({ name: store.name, url: SITE_URL })} /> : null}
+      <StorefrontHomeClient />
+    </>
   );
 }

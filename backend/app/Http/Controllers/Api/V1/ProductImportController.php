@@ -92,9 +92,6 @@ class ProductImportController extends Controller
                 'weight_unit' => $cell('weight_unit'),
                 'track_stock' => $cell('track_stock'),
                 'low_stock_threshold' => $cell('low_stock_threshold'),
-                'seo_title' => $cell('seo_title'),
-                'seo_description' => $cell('seo_description'),
-                'focus_keyword' => $cell('focus_keyword'),
             ];
 
             $validator = Validator::make($fields, [
@@ -135,9 +132,6 @@ class ProductImportController extends Controller
                         'weight' => $fields['weight'],
                         'weight_unit' => $fields['weight_unit'],
                         'low_stock_threshold' => $fields['low_stock_threshold'],
-                        'seo_title' => $fields['seo_title'],
-                        'seo_description' => $fields['seo_description'],
-                        'focus_keyword' => $fields['focus_keyword'],
                         'updated_by' => $request->user()->id,
                     ];
 

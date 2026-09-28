@@ -1,77 +1,63 @@
-"use client";
+import type { Metadata } from "next";
 
-import { use, useState } from "react";
-import { notFound } from "next/navigation";
-import { Package, PackageSearch } from "lucide-react";
-
+import { breadcrumbJsonLd, JsonLd } from "@/lib/json-ld";
+import { storefrontApi } from "@/lib/storefront-api";
+import { buildStorefrontMetadata, resolveRedirectOrNotFound } from "@/lib/storefront-seo";
 import { ApiError } from "@/types/api";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ProductCard } from "@/components/storefront/product-card";
-import { StorefrontPagination } from "@/components/storefront/storefront-pagination";
-import { useStorefrontBrand } from "@/hooks/use-storefront-catalog";
+import type { StorefrontBrand, StorefrontProduct } from "@/types/storefront";
+import { BrandClient } from "./brand-client";
 
-export default function BrandPage({ params }: PageProps<"/brand/[slug]">) {
-  const { slug } = use(params);
-  const [page, setPage] = useState(1);
-  const { data, isLoading, error } = useStorefrontBrand(slug, page);
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-  if (error instanceof ApiError && error.status === 404) {
-    notFound();
-  }
-
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-[1400px] space-y-6 px-4 py-8">
-        <Skeleton className="h-8 w-1/3" />
-        <div className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton key={index} className="aspect-square w-full" />
-          ))}
-        </div>
-      </div>
+async function getBrand(slug: string): Promise<StorefrontBrand | null> {
+  try {
+    const data = await storefrontApi.get<{ brand: StorefrontBrand; products: StorefrontProduct[] }>(
+      `/storefront/brands/${slug}`,
     );
+    return data.brand;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function generateMetadata({ params }: PageProps<"/brand/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const brand = await getBrand(slug);
+
+  if (!brand) {
+    return { title: "Brand not found" };
   }
 
-  if (error || !data) {
-    return (
-      <div className="mx-auto max-w-[1400px] px-4 py-16 text-center">
-        <p className="text-text-secondary">Something went wrong loading this brand. Please try again.</p>
-      </div>
-    );
+  return buildStorefrontMetadata({
+    seo: brand.seo,
+    fallbackTitle: brand.name,
+    fallbackDescription: brand.description,
+    path: `/brand/${brand.slug}`,
+    image: brand.logo_url,
+  });
+}
+
+export default async function BrandPage({ params }: PageProps<"/brand/[slug]">) {
+  const { slug } = await params;
+  const brand = await getBrand(slug);
+
+  if (!brand) {
+    await resolveRedirectOrNotFound(`/brand/${slug}`);
+    throw new Error("unreachable");
   }
 
-  const { brand, products } = data.data;
+  const url = `${SITE_URL}/brand/${brand.slug}`;
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 px-4 py-8">
-      <div className="flex items-center gap-4">
-        <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-border/20">
-          {brand.logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element -- remote storage URL, not a static asset
-            <img src={brand.logo_url} alt={brand.name} className="size-full object-cover" />
-          ) : (
-            <Package className="size-6 text-text-muted" />
-          )}
-        </div>
-        <div>
-          <h1 className="text-page-title font-semibold text-text-primary">{brand.name}</h1>
-          {brand.description ? <p className="text-text-secondary">{brand.description}</p> : null}
-        </div>
-      </div>
-
-      {products.length === 0 ? (
-        <EmptyState icon={<PackageSearch />} title="No products from this brand yet" />
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-4">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-          <StorefrontPagination meta={data.meta} onPageChange={setPage} />
-        </>
-      )}
-    </div>
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", url: SITE_URL },
+          { name: brand.name, url },
+        ])}
+      />
+      <BrandClient slug={slug} />
+    </>
   );
 }

@@ -1,81 +1,63 @@
-"use client";
+import type { Metadata } from "next";
 
-import { use, useState } from "react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { PackageSearch } from "lucide-react";
-
+import { breadcrumbJsonLd, JsonLd } from "@/lib/json-ld";
+import { storefrontApi } from "@/lib/storefront-api";
+import { buildStorefrontMetadata, resolveRedirectOrNotFound } from "@/lib/storefront-seo";
 import { ApiError } from "@/types/api";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ProductCard } from "@/components/storefront/product-card";
-import { StorefrontPagination } from "@/components/storefront/storefront-pagination";
-import { useStorefrontCategory } from "@/hooks/use-storefront-catalog";
+import type { StorefrontCategory, StorefrontProduct } from "@/types/storefront";
+import { CategoryClient } from "./category-client";
 
-export default function CategoryPage({ params }: PageProps<"/category/[slug]">) {
-  const { slug } = use(params);
-  const [page, setPage] = useState(1);
-  const { data, isLoading, error } = useStorefrontCategory(slug, page);
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-  if (error instanceof ApiError && error.status === 404) {
-    notFound();
-  }
-
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-[1400px] space-y-6 px-4 py-8">
-        <Skeleton className="h-8 w-1/3" />
-        <div className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton key={index} className="aspect-square w-full" />
-          ))}
-        </div>
-      </div>
+async function getCategory(slug: string): Promise<StorefrontCategory | null> {
+  try {
+    const data = await storefrontApi.get<{ category: StorefrontCategory; products: StorefrontProduct[] }>(
+      `/storefront/categories/${slug}`,
     );
+    return data.category;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function generateMetadata({ params }: PageProps<"/category/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const category = await getCategory(slug);
+
+  if (!category) {
+    return { title: "Category not found" };
   }
 
-  if (error || !data) {
-    return (
-      <div className="mx-auto max-w-[1400px] px-4 py-16 text-center">
-        <p className="text-text-secondary">Something went wrong loading this category. Please try again.</p>
-      </div>
-    );
+  return buildStorefrontMetadata({
+    seo: category.seo,
+    fallbackTitle: category.name,
+    fallbackDescription: category.description,
+    path: `/category/${category.slug}`,
+    image: category.image_url,
+  });
+}
+
+export default async function CategoryPage({ params }: PageProps<"/category/[slug]">) {
+  const { slug } = await params;
+  const category = await getCategory(slug);
+
+  if (!category) {
+    await resolveRedirectOrNotFound(`/category/${slug}`);
+    throw new Error("unreachable");
   }
 
-  const { category, products } = data.data;
+  const url = `${SITE_URL}/category/${category.slug}`;
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 px-4 py-8">
-      <div className="space-y-2">
-        <h1 className="text-page-title font-semibold text-text-primary">{category.name}</h1>
-        {category.description ? <p className="text-text-secondary">{category.description}</p> : null}
-        {category.children.length > 0 ? (
-          <div className="flex flex-wrap gap-2 pt-2">
-            {category.children.map((child) => (
-              <Link
-                key={child.id}
-                href={`/category/${child.slug}`}
-                className="rounded-full border border-border px-3 py-1 text-sm text-text-secondary hover:border-primary hover:text-primary"
-              >
-                {child.name}
-              </Link>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      {products.length === 0 ? (
-        <EmptyState icon={<PackageSearch />} title="No products in this category yet" />
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-4">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-          <StorefrontPagination meta={data.meta} onPageChange={setPage} />
-        </>
-      )}
-    </div>
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", url: SITE_URL },
+          { name: category.name, url },
+        ])}
+      />
+      <CategoryClient slug={slug} />
+    </>
   );
 }

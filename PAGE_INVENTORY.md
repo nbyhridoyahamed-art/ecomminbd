@@ -11,11 +11,11 @@ their backing functionality — no dead pages).
 | `/login` | ✅ | 3 (Auth) |
 | `/dashboard` | ✅ | 3/11 (real KPI stat cards, each permission-gated so a card never shows a misleading 0; sales-trend + order-status-breakdown Recharts visuals; recent-orders widget) |
 | `/catalog/products` | ✅ | 5 (search, filter by category/brand/status, pagination); 5 Wave 2b added Export (respects the current filters) and Import (CSV upload dialog with a per-row results summary) |
-| `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5/5-Wave2a/5-Wave2c (tabbed form: General/Pricing/Variants*/Components†/Media/SEO — *Variants tab only shown once type is set to Variable, †Components tab only shown once type is set to Bundle, showing a product+variant+quantity picker, the bundle's derived availability by warehouse, and per-row edit/remove; multi-image upload with primary selection) |
+| `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5/5-Wave2a/5-Wave2c/15 (tabbed form: General/Pricing/Variants*/Components†/Media/SEO — *Variants tab only shown once type is set to Variable, †Components tab only shown once type is set to Bundle, showing a product+variant+quantity picker, the bundle's derived availability by warehouse, and per-row edit/remove; multi-image upload with primary selection; the SEO tab is the shared `SeoFields` component since Phase 15, not the flat seo_title/seo_description/focus_keyword inputs it originally shipped with) |
 | `/catalog/categories` | ✅ | 5 (hierarchical list, unlimited nesting, cycle-safe) |
-| `/catalog/categories/new`, `/catalog/categories/[id]` | ✅ | 5 |
+| `/catalog/categories/new`, `/catalog/categories/[id]` | ✅ | 5 (since Phase 15, also a bordered "SEO" section — the shared `SeoFields` component) |
 | `/catalog/brands` | ✅ | 5 (list, search, pagination) |
-| `/catalog/brands/new`, `/catalog/brands/[id]` | ✅ | 5 |
+| `/catalog/brands/new`, `/catalog/brands/[id]` | ✅ | 5 (since Phase 15, also a bordered "SEO" section — the shared `SeoFields` component) |
 | `/catalog/attributes` | ✅ | 5 Wave 2a (list showing each attribute's values inline) |
 | `/catalog/attributes/new`, `/catalog/attributes/[id]` | ✅ | 5 Wave 2a (edit page also manages the attribute's values inline: add/edit/delete, blocked while a value is still used by a variant) |
 | `/catalog/products/[id]` (Variants tab: Stock column + "Adjust stock" action) | ✅ | variant-aware retrofit — per-variant stock summary and adjustment entry point, since the global `/inventory/stock-levels` list stays product-centric (see `DATABASE_DESIGN.md` section 1c) |
@@ -65,16 +65,19 @@ their backing functionality — no dead pages).
 | `/reports/products` | ✅ | 18 (date range + warehouse filters, units-sold/revenue table ranked by revenue, variant sales rolled up to the parent product, Export dropdown: CSV/PDF) |
 | `/reports/low-stock` | ✅ | 18 (cross-warehouse on-hand/reserved/available vs. threshold, Export dropdown: CSV/PDF) |
 | `/content/pages` | ✅ | 12 — a small, deliberate path change beyond this table's original `/website/pages` sketch, grouping under a new "Content" nav section rather than a "Website" one (list w/ Title/Slug/Status, delete w/ confirmation) |
-| `/content/pages/new`, `/content/pages/[id]` | ✅ | 12 (title/slug w/ auto-fill, plain-text content, draft/published status, optional meta title/description) |
+| `/content/pages/new`, `/content/pages/[id]` | ✅ | 12/15 (title/slug w/ auto-fill, plain-text content, draft/published status, the shared `SeoFields` section since Phase 15 — was flat meta title/description before) |
 | `/content/homepage` | ✅ | 13 — same deliberate `/content/*` grouping as Pages above, not this table's original `/website/homepage` sketch; the tab-nav infrastructure both now share is documented in `COMPONENT_INVENTORY.md`. A real live-WYSIWYG drag-and-drop builder: left sidebar (Blocks palette/Layers/Saved sections), center canvas (dnd-kit sortable, renders every block through the exact same component the live storefront uses, via a new `/homepage-blocks/preview` endpoint), right panel (Content/Design/Layout/Animation/Advanced/SEO tabs, local autosave + undo/redo, a revision-history sheet with restore). All ~30 block types have a real Content-tab editor — see `COMPONENT_INVENTORY.md`. Gated on a granular `builder.view`/`builder.edit`/`builder.publish` split, not one umbrella permission like Pages. |
 | `/website/navigation` | ⏳ | 12 Wave 2 — no `navigation_menus`/`navigation_items` schema yet, see `DATABASE_DESIGN.md` |
 | `/website/media` | ⏳ | 12 Wave 2 — same reusable media library gap Catalog Wave 2 lists |
 | `/website/theme` | ⏳ | 12 Wave 2 |
 | `/content/blog/posts` | ✅ | 14 — a small, deliberate path change beyond this table's original `/blog` sketch, following Pages/Homepage's own `/content/*` grouping; the first Content sub-resource to get its own nested tab-nav (Posts/Categories/Tags, documented in `COMPONENT_INVENTORY.md`) |
-| `/content/blog/posts/new`, `/content/blog/posts/[id]` | ✅ | 14 (title/slug w/ auto-fill, category `Select`, tag checkboxes, TipTap body, excerpt w/ auto-fallback note, featured image URL, draft/published status + a `datetime-local` schedule field, optional SEO section, a Version History sheet on the edit page) |
-| `/content/blog/categories`, `.../new`, `.../[id]` | ✅ | 14 (name/slug w/ auto-fill, description; list shows each category's post count) |
-| `/content/blog/tags`, `.../new`, `.../[id]` | ✅ | 14 (name/slug w/ auto-fill; list shows each tag's post count) |
-| `/seo` | ⏳ | 15 |
+| `/content/blog/posts/new`, `/content/blog/posts/[id]` | ✅ | 14/15 (title/slug w/ auto-fill, category `Select`, tag checkboxes, TipTap body, excerpt w/ auto-fallback note, featured image URL, draft/published status + a `datetime-local` schedule field, the shared `SeoFields` section since Phase 15, a Version History sheet on the edit page) |
+| `/content/blog/categories`, `.../new`, `.../[id]` | ✅ | 14/15 (name/slug w/ auto-fill, description; list shows each category's post count; since Phase 15, also a bordered "SEO" section — a brand-new addition, this entity had no SEO field before) |
+| `/content/blog/tags`, `.../new`, `.../[id]` | ✅ | 14/15 (name/slug w/ auto-fill; list shows each tag's post count; since Phase 15, also a bordered "SEO" section — a brand-new addition) |
+| `/content/seo/redirects` | ✅ | 15 — a 4th tab alongside Pages/Homepage/Blog in the existing Content nav section (list w/ From/To/Status code/Hits columns, delete w/ confirmation) |
+| `/content/seo/redirects/new`, `/content/seo/redirects/[id]` | ✅ | 15 (from-path/to-path text inputs, from-path validated to start with `/`, a status-code `Select` — 301/302/307/308) |
+| `/content/seo/templates` | ✅ | 15 (list w/ Entity type (friendly label)/Title template/Description template columns, delete w/ confirmation) |
+| `/content/seo/templates/new`, `/content/seo/templates/[id]` | ✅ | 15 (an entity-type `Select` of the seven SEO-bearing model types, locked once set; title/description template text inputs — free-text hints, no templating engine reads them yet) |
 | `/settings/general` | ✅ | 4 (store name/domain/currency/timezone/locale/status) |
 | `/settings/users` | ✅ | 4 (list, search, create, edit, role assignment, delete w/ confirmation) |
 | `/settings/users/new`, `/settings/users/[id]` | ✅ | 4 |
@@ -84,21 +87,31 @@ their backing functionality — no dead pages).
 
 ## Storefront (`frontend/src/app/(storefront)/`)
 
+Every leaf route below marked "Phase 15 Server Component" is now a
+`page.tsx` Server Component (real `generateMetadata()`, JSON-LD, and a
+redirect/404 check on its own by-slug lookup failing) wrapping a sibling
+`*-client.tsx` Client Component that keeps doing the exact same
+interactive TanStack Query fetch it always did — see `ARCHITECTURE.md`
+section 9 and `COMPONENT_INVENTORY.md`'s new SEO section. Listing/browse
+pages (`/products`, `/brands`, `/blog` index, `/cart`, `/checkout`) stay
+plain Client Components — they were never missing a per-entity `<title>`.
+
 | Route | Status | Phase |
 |---|---|---|
-| `/` | ✅ | 16/13 — fully block-driven since Phase 13: fetches every active block via `GET storefront/homepage-blocks` and renders each through `HomepageBlockRenderer`, the same registry component the admin builder's canvas uses. No hardcoded sections of its own left (the original Phase 16 hardcoded hero/category-grid/featured-products JSX this table used to describe is gone). |
+| `/` | ✅ | 16/13/15 — fully block-driven since Phase 13: fetches every active block via `GET storefront/homepage-blocks` and renders each through `HomepageBlockRenderer`, the same registry component the admin builder's canvas uses. No hardcoded sections of its own left (the original Phase 16 hardcoded hero/category-grid/featured-products JSX this table used to describe is gone). Phase 15 Server Component: real `<title>`/description from the store's own site-wide SEO override (set via the Homepage Builder's `SeoPanel`) falling back to the store name, plus Organization+WebSite JSON-LD. |
 | `/products` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had no all-products/search index; search/category/brand/featured filters and sort all live in the URL query string so a filtered link is shareable |
-| `/products/[slug]` | ✅ | 16 (image gallery, variant picker gating "Add to Cart" until a full attribute selection resolves to a real variant, bundle component list + derived availability, out-of-stock state) |
-| `/category/[slug]` | ✅ | 16 (category + its subcategories as quick links, paginated active products) |
-| `/brand/[slug]` | ✅ | 16 |
+| `/products/[slug]` | ✅ | 16/15 — Phase 15 Server Component (image gallery, variant picker gating "Add to Cart" until a full attribute selection resolves to a real variant, bundle component list + derived availability, out-of-stock state; Product + BreadcrumbList JSON-LD) |
+| `/category/[slug]` | ✅ | 16/15 — Phase 15 Server Component (category + its subcategories as quick links, paginated active products; BreadcrumbList JSON-LD) |
+| `/brand/[slug]` | ✅ | 16/15 — Phase 15 Server Component (BreadcrumbList JSON-LD) |
 | `/brands` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch (a brand index page for the header/footer's "Brands" link to point at, mirroring `/products`' justification) |
 | `/blog` | ✅ | 14/16 (paginated, `?search=`) |
-| `/blog/[slug]` | ✅ | 14/16 (body rendered from real HTML via `dangerouslySetInnerHTML`, same trust model as the homepage builder's Rich Text/Custom HTML blocks; clickable category/tags; up to 3 related posts sharing its category) |
-| `/blog/category/[slug]`, `/blog/tag/[slug]` | ✅ | 14/16 (paginated archives, mirroring `/category/[slug]`'s shape) |
-| `/pages/[slug]` | ✅ | 12/16 (title + plain-text content rendered `whitespace-pre-line`, matching the product description convention; draft pages and pages from another store both 404) |
+| `/blog/[slug]` | ✅ | 14/16/15 — Phase 15 Server Component (body rendered from real HTML via `dangerouslySetInnerHTML`, same trust model as the homepage builder's Rich Text/Custom HTML blocks; clickable category/tags; up to 3 related posts sharing its category; Article + BreadcrumbList JSON-LD) |
+| `/blog/category/[slug]`, `/blog/tag/[slug]` | ✅ | 14/16/15 — Phase 15 Server Components (paginated archives, mirroring `/category/[slug]`'s shape; BreadcrumbList JSON-LD) |
+| `/pages/[slug]` | ✅ | 12/16/15 — Phase 15 Server Component (title + plain-text content rendered `whitespace-pre-line`, matching the product description convention; draft pages and pages from another store both 404; BreadcrumbList JSON-LD) |
 | `/cart` | ✅ | 16 (line items w/ quantity stepper, subtotal — reused `CartLineItem` also backs the header's cart drawer) |
 | `/checkout` | ✅ | 16 (guest-only: name/phone/email, shipping address w/ live BD division/district/upazila cascade, order summary; payment method is a fixed "Cash on Delivery" label, not a selector — Wave 1 has only the one method, so a picker would be a fake choice) |
 | `/order-confirmation/[uuid]` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had a `/checkout` row but nowhere named where a successful checkout lands; looked up by uuid only, same public-receipt contract as the API route |
+| `/sitemap.xml`, `/robots.txt` | ✅ | 15 — Next.js's own native `app/sitemap.ts` (`force-dynamic`, so it reflects the live catalog rather than a stale build-time snapshot)/`app/robots.ts` special files, not a Laravel endpoint (robots.txt must disallow this same app's own admin/account/cart/checkout paths, which the Laravel API has no visibility into) |
 
 ## Customer Account (`frontend/src/app/account/`)
 
@@ -189,7 +202,11 @@ tab nav) around everything that actually needs a signed-in customer.
 | `GET/POST/PUT/DELETE /api/v1/blog-posts` (Phase 14 takes over the Phase 13 placeholder), `GET .../{id}/versions`, `POST .../{id}/versions/{versionId}/restore` | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/blog-categories`, `.../blog-tags` | ✅ |
 | `GET /api/v1/storefront/blog` (paginated, `?search=`), `GET .../{slug}` (+ related posts), `GET .../category/{slug}`, `.../tag/{slug}` (each paginated), `GET .../rss` (RSS 2.0 XML) | ✅ |
-| Everything else under CMS (navigation/media)/SEO/etc. | ⏳ — added phase by phase |
+| `GET/POST/PUT/DELETE /api/v1/redirects` (store-scoped path-based redirect rules, gated on `seo.manage`) | ✅ — 15 |
+| `GET/POST/PUT/DELETE /api/v1/seo-templates` (per-`entity_type` title/description template, one per type per store) | ✅ — 15 |
+| `GET/PUT /api/v1/store-seo` (site-wide `seo_metadata` row on the `Store` entity itself; gated directly on `seo.manage`, not `stores.manage`, so a Content/SEO manager doesn't need full store-management access) | ✅ — 15 |
+| `GET /api/v1/storefront/redirects/lookup?path=` (no-auth; the Next.js middleware/server-side redirect resolver hits this before falling through to a real page; increments `hits_count` on match) | ✅ — 15 |
+| Everything else under CMS (navigation/media)/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

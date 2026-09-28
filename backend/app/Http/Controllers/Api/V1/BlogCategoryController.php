@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\SyncsSeoMetadata;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BlogCategory\BlogCategoryRequest;
 use App\Http\Resources\BlogCategoryResource;
@@ -12,6 +13,8 @@ use Illuminate\Http\Request;
 
 class BlogCategoryController extends Controller
 {
+    use SyncsSeoMetadata;
+
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', BlogCategory::class);
@@ -29,25 +32,27 @@ class BlogCategoryController extends Controller
     {
         $this->authorize('create', BlogCategory::class);
 
-        $category = BlogCategory::create($request->validated());
+        $category = BlogCategory::create($request->safe()->except('seo'));
+        $this->syncSeoMetadata($category, $request);
 
-        return ApiResponse::success(new BlogCategoryResource($category), 'Blog category created successfully.', status: 201);
+        return ApiResponse::success(new BlogCategoryResource($category->load('seoMetadata')), 'Blog category created successfully.', status: 201);
     }
 
     public function show(BlogCategory $blogCategory): JsonResponse
     {
         $this->authorize('view', $blogCategory);
 
-        return ApiResponse::success(new BlogCategoryResource($blogCategory->loadCount('posts')), 'Blog category fetched successfully.');
+        return ApiResponse::success(new BlogCategoryResource($blogCategory->loadCount('posts')->load('seoMetadata')), 'Blog category fetched successfully.');
     }
 
     public function update(BlogCategoryRequest $request, BlogCategory $blogCategory): JsonResponse
     {
         $this->authorize('update', $blogCategory);
 
-        $blogCategory->update($request->validated());
+        $blogCategory->update($request->safe()->except('seo'));
+        $this->syncSeoMetadata($blogCategory, $request);
 
-        return ApiResponse::success(new BlogCategoryResource($blogCategory), 'Blog category updated successfully.');
+        return ApiResponse::success(new BlogCategoryResource($blogCategory->load('seoMetadata')), 'Blog category updated successfully.');
     }
 
     public function destroy(BlogCategory $blogCategory): JsonResponse

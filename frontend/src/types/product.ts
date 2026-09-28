@@ -1,3 +1,5 @@
+import type { Seo } from "@/types/seo";
+
 export interface ProductImage {
   id: number;
   path: string;
@@ -40,9 +42,7 @@ export interface Product {
   status: "draft" | "active" | "archived";
   featured: boolean;
 
-  seo_title: string | null;
-  seo_description: string | null;
-  focus_keyword: string | null;
+  seo: Seo | null;
 
   images: ProductImage[];
   variants: ProductVariant[];

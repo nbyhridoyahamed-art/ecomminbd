@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\SyncsSeoMetadata;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BlogTag\BlogTagRequest;
 use App\Http\Resources\BlogTagResource;
@@ -12,6 +13,8 @@ use Illuminate\Http\Request;
 
 class BlogTagController extends Controller
 {
+    use SyncsSeoMetadata;
+
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', BlogTag::class);
@@ -29,25 +32,27 @@ class BlogTagController extends Controller
     {
         $this->authorize('create', BlogTag::class);
 
-        $tag = BlogTag::create($request->validated());
+        $tag = BlogTag::create($request->safe()->except('seo'));
+        $this->syncSeoMetadata($tag, $request);
 
-        return ApiResponse::success(new BlogTagResource($tag), 'Blog tag created successfully.', status: 201);
+        return ApiResponse::success(new BlogTagResource($tag->load('seoMetadata')), 'Blog tag created successfully.', status: 201);
     }
 
     public function show(BlogTag $blogTag): JsonResponse
     {
         $this->authorize('view', $blogTag);
 
-        return ApiResponse::success(new BlogTagResource($blogTag->loadCount('posts')), 'Blog tag fetched successfully.');
+        return ApiResponse::success(new BlogTagResource($blogTag->loadCount('posts')->load('seoMetadata')), 'Blog tag fetched successfully.');
     }
 
     public function update(BlogTagRequest $request, BlogTag $blogTag): JsonResponse
     {
         $this->authorize('update', $blogTag);
 
-        $blogTag->update($request->validated());
+        $blogTag->update($request->safe()->except('seo'));
+        $this->syncSeoMetadata($blogTag, $request);
 
-        return ApiResponse::success(new BlogTagResource($blogTag), 'Blog tag updated successfully.');
+        return ApiResponse::success(new BlogTagResource($blogTag->load('seoMetadata')), 'Blog tag updated successfully.');
     }
 
     public function destroy(BlogTag $blogTag): JsonResponse

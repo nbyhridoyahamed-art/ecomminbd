@@ -22,8 +22,6 @@ class BlogPostFactory extends Factory
             'excerpt' => fake()->paragraph(),
             'body' => fake()->paragraphs(4, true),
             'featured_image_url' => null,
-            'meta_title' => null,
-            'meta_description' => null,
             'status' => 'published',
             'published_at' => now(),
         ];

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -14,7 +15,7 @@ use Illuminate\Support\Str;
     'store_id', 'category_id', 'brand_id', 'name', 'slug', 'sku', 'barcode', 'type',
     'description', 'short_description', 'currency_code', 'price_amount', 'sale_price_amount',
     'cost_price_amount', 'compare_at_price_amount', 'weight', 'weight_unit', 'track_stock',
-    'low_stock_threshold', 'status', 'featured', 'seo_title', 'seo_description', 'focus_keyword',
+    'low_stock_threshold', 'status', 'featured',
     'published_at', 'created_by', 'updated_by',
 ])]
 class Product extends Model
@@ -87,5 +88,10 @@ class Product extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function seoMetadata(): MorphOne
+    {
+        return $this->morphOne(SeoMetadata::class, 'entity');
     }
 }

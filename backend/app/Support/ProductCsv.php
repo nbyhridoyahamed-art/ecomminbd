@@ -39,9 +39,6 @@ final class ProductCsv
         'Weight Unit' => 'weight_unit',
         'Track Stock' => 'track_stock',
         'Low Stock Threshold' => 'low_stock_threshold',
-        'SEO Title' => 'seo_title',
-        'SEO Description' => 'seo_description',
-        'Focus Keyword' => 'focus_keyword',
     ];
 
     /**

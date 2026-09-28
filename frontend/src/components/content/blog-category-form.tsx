@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SeoFields, seoFieldsToPayload, seoToFieldsValue } from "@/components/shared/seo-fields";
 import { slugify } from "@/lib/slugify";
 import type { BlogCategoryFormValues } from "@/hooks/use-blog-categories";
 import type { BlogCategory } from "@/types/blog-category";
@@ -42,6 +43,8 @@ export function BlogCategoryForm({
   serverError,
   submitLabel,
 }: BlogCategoryFormProps) {
+  const [seo, setSeo] = useState(() => seoToFieldsValue(defaultValues?.seo));
+
   const {
     register,
     handleSubmit,
@@ -71,6 +74,7 @@ export function BlogCategoryForm({
       name: values.name,
       slug: values.slug,
       description: values.description || null,
+      seo: seoFieldsToPayload(seo),
     });
   });
 
@@ -115,6 +119,16 @@ export function BlogCategoryForm({
       <div className="space-y-1.5">
         <Label htmlFor="description">Description</Label>
         <Textarea id="description" rows={3} {...register("description")} />
+      </div>
+
+      <div className="space-y-4 border-t border-border pt-4">
+        <p className="text-sm font-medium text-text-primary">SEO</p>
+        <SeoFields
+          value={seo}
+          onChange={setSeo}
+          titlePlaceholder={defaultValues?.name}
+          descriptionPlaceholder={defaultValues?.description ?? undefined}
+        />
       </div>
 
       <div className="flex justify-end">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SeoFields, seoFieldsToPayload, seoToFieldsValue } from "@/components/shared/seo-fields";
 import { slugify } from "@/lib/slugify";
 import type { BlogTagFormValues } from "@/hooks/use-blog-tags";
 import type { BlogTag } from "@/types/blog-tag";
@@ -33,6 +34,8 @@ interface BlogTagFormProps {
 }
 
 export function BlogTagForm({ storeId, defaultValues, onSubmit, isPending, serverError, submitLabel }: BlogTagFormProps) {
+  const [seo, setSeo] = useState(() => seoToFieldsValue(defaultValues?.seo));
+
   const {
     register,
     handleSubmit,
@@ -56,7 +59,7 @@ export function BlogTagForm({ storeId, defaultValues, onSubmit, isPending, serve
   const slugField = register("slug");
 
   const submit = handleSubmit((values) => {
-    onSubmit({ store_id: storeId, name: values.name, slug: values.slug });
+    onSubmit({ store_id: storeId, name: values.name, slug: values.slug, seo: seoFieldsToPayload(seo) });
   });
 
   return (
@@ -93,6 +96,11 @@ export function BlogTagForm({ storeId, defaultValues, onSubmit, isPending, serve
           }}
         />
         {errors.slug ? <p className="text-xs text-danger">{errors.slug.message}</p> : null}
+      </div>
+
+      <div className="space-y-4 border-t border-border pt-4">
+        <p className="text-sm font-medium text-text-primary">SEO</p>
+        <SeoFields value={seo} onChange={setSeo} titlePlaceholder={defaultValues?.name} />
       </div>
 
       <div className="flex justify-end">

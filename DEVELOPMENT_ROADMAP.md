@@ -21,7 +21,7 @@ in place and the app still builds/runs.
 | 12 | CMS | ✅ Wave 1 done (page versions/history, navigation menus, hierarchical pages, scheduled publishing deferred — see note) | Yes — simple content pages (About/Terms/Privacy-style) with plain-text content, admin CRUD under a new "Content" nav section, and public storefront rendering at `/pages/[slug]` plus a footer links column |
 | 13 | Homepage Builder | ✅ Full spec done, not a lean wave (see note) | Yes — a real drag-and-drop visual builder: all ~30 block types, a dnd-kit live-preview canvas, full per-block style/responsive/animation overrides, local autosave + undo/redo, server-side revision history with restore, and a reusable saved-sections library |
 | 14 | Blog | ✅ Full spec done, not a lean wave (see note) | Yes — a real Blog CMS: rich TipTap posts with categories/tags/SEO/scheduled publishing, server-side version history with restore, admin CRUD under Content, and public `/blog` index/detail/category/tag pages plus an RSS feed |
-| 15 | SEO | ⏳ Not started | No |
+| 15 | SEO | ✅ Full spec done, not a lean wave (see note) | Yes — polymorphic SEO metadata (nested `seo` object) on every content entity, a real per-block-independent site-wide SEO panel in the Homepage Builder, redirects + SEO templates admin CRUD, real per-page `<head>` metadata + JSON-LD (Server Component conversion), and native `sitemap.xml`/`robots.txt` |
 | 16 | Storefront | ✅ Wave 1 done, homepage now block-driven since Phase 13 (multi-store domain routing, non-COD payment still deferred — see note) | Yes — public unauthenticated catalog browsing (products/categories/brands) and guest COD checkout against the single active store |
 | 17 | Customer Dashboard | ✅ Wave 1 done (wishlist, customer-initiated returns, checkout saved-address integration deferred — see note) | Yes — customer register/login/logout against a new `customers.password` column, guest-checkout orders auto-linked by phone on registration, and an `/account/*` shell (order history + status timeline, saved addresses, profile) |
 | 18 | Reporting | ✅ Wave 1 + Wave 2 (per-courier breakdown, period-over-period comparison, PDF export) done (materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters, vs.-previous-period trend on each KPI card), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV and PDF export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
@@ -875,20 +875,92 @@ walkthrough against the running dev stack — post creation with
 category/tag/body/status, a version-history snapshot-and-restore round
 trip, and all four storefront routes plus the RSS feed.
 
+**Phase 15 scope note:** ships full SEO tooling — explicitly requested in
+full rather than a lean wave, and (like Phase 14) against this project's
+own previously-documented target schema rather than a master-spec section,
+since a dedicated research pass this session re-confirmed the master spec
+was never committed to this repository. The central design move: a single
+polymorphic `seo_metadata` table (`entity_type`/`entity_id`, matching
+`activity_logs`' existing convention, not one nullable-FK-per-entity-type)
+supersedes three earlier ad-hoc SEO field sets entirely rather than running
+alongside them — `products.seo_title`/`seo_description`/`focus_keyword`
+(Phase 5), `pages.meta_title`/`meta_description` (Phase 12), and
+`blog_posts.meta_title`/`meta_description` (Phase 14) are all backfilled
+into `seo_metadata` rows and dropped in one migration, the same
+"supersede, don't parallel" discipline Phase 14 used for
+`is_active`→`status`. Every SEO-bearing entity (Product, Category, Brand,
+Page, BlogPost, BlogCategory, BlogTag, and the Store itself for site-wide
+SEO) gets a `seoMetadata()` morphOne relation and accepts/returns its SEO
+data as a nested `seo` object on its own existing endpoint — mirroring how
+`BlogPost` already accepts `tag_ids` and syncs a pivot as part of one save
+— via a new shared `SyncsSeoMetadata` controller trait, not a dedicated
+seo-metadata REST resource. `redirects` and `seo_templates`, by contrast,
+are genuinely independent resources and get their own standalone admin CRUD
+under a new "SEO" tab in Content (`/content/seo/redirects`,
+`/content/seo/templates`), reusing the `seo.manage` permission the RBAC
+seeder had pre-wired to SEO Manager/Content Manager since Phase 3 — another
+dormant-permission discovery, same pattern as `pages.manage` and
+`blog.manage` before it. A real, deterministic, rule-based SEO checklist
+(title/description length targets, focus-keyword presence) replaces Phase
+13's honest SEO-tab placeholder — never a fabricated AI-style score, per
+spec rule 178. The Homepage Builder's `SeoPanel` now edits one site-wide
+record (via `Store.seoMetadata()`, a new `store-seo` endpoint gated
+directly on `seo.manage` rather than the heavier `stores.manage`
+`StorePolicy` requires) regardless of which block is selected on the
+canvas — matching its own placeholder copy ("Page-level SEO metadata...
+arrives with Phase 15"), not per-block data. The biggest technical risk —
+`ARCHITECTURE.md`'s own Phase 13 note flagged it, and Phase 16's scope note
+tracked it here explicitly — was that every single storefront page is a
+Client Component, so nothing anywhere emitted a real, dynamic `<title>` or
+meta description; fixed via the "fetch twice, once per side" approach both
+notes anticipated: every storefront leaf page (`/products/[slug]`,
+`/category/[slug]`, `/brand/[slug]`, `/blog/[slug]`, `/blog/category/[slug]`,
+`/blog/tag/[slug]`, `/pages/[slug]`, and the homepage) is now a Server
+Component wrapper with a real `generateMetadata()` (a new server-only
+`storefrontApi` client — the existing browser-oriented `api` client
+can't be called from server code, it imports a `"use client"` module) and
+JSON-LD (Product/BreadcrumbList/Article/Organization+WebSite), rendering
+the existing interactive Client Component as its child, completely
+unchanged. Redirect resolution is inline per-leaf-page (checked only when
+the entity-by-slug lookup itself 404s, via a new public
+`GET storefront/redirects/lookup`), not global middleware, so a normal
+request never pays for a redirects-table lookup it doesn't need; Next's
+App Router only ever emits 307/308 for a programmatic redirect (never an
+exact 301/302), so a stored 301/308 maps to `permanentRedirect()` and
+302/307 to `redirect()` — the closest available primitive, not a dropped
+feature. `sitemap.xml`/`robots.txt` are Next.js's own native
+`app/sitemap.ts`/`app/robots.ts` special files, not a Laravel endpoint,
+since robots.txt must disallow this same app's own admin/account/cart/
+checkout paths — routes the Laravel API has no visibility into; both are
+verified working end-to-end against a production build (real XML/txt
+output, real per-product/category/blog-post URLs). New `Accordion` UI
+primitive (Radix-based, `COMPONENT_INVENTORY.md` had already reserved it
+for this phase) groups the SEO checklist and OG/Twitter/Advanced fields in
+the new shared `SeoFields` form section wired into all seven admin forms.
+25 new backend tests (358 → 383), all green, Pint-clean, plus frontend
+typecheck/lint/build clean and real verification (curl + a headless
+browser) against both the dev server and a production build — confirming
+real `<title>`/meta description/canonical/OG/Twitter tags and JSON-LD
+render before any client JavaScript runs, and that a nonexistent slug with
+no matching redirect returns a genuine HTTP 404.
+
 ## Next Session Should Start With
 
 Phase 17 (Customer Dashboard) Wave 1, Phase 19 (Integrations) Wave 1,
-Phase 12 (CMS) Wave 1, the full Phase 13 (Homepage Builder), and now the
-full Phase 14 (Blog) are all done — real customer accounts with guest
+Phase 12 (CMS) Wave 1, the full Phase 13 (Homepage Builder), Phase 14
+(Blog), and now the full Phase 15 (SEO) are all done — real customer accounts with guest
 orders auto-claimed by phone, an `/account/*` shell, real order/return
 lifecycle notifications (mail/SMS to the customer, a database
 notification driving the admin topbar bell), simple content pages
 manageable in the admin and rendered on the storefront, a complete
 drag-and-drop homepage builder with ~30 block types feeding a fully
-block-driven storefront homepage, and a real Blog CMS (categories, tags,
+block-driven storefront homepage, a real Blog CMS (categories, tags,
 version history, scheduled publishing, RSS) with its own storefront
-section; see each phase's own scope note for what they deliberately
-still cut. Phase 13 (and Phase 14 right behind it) shipped out of the
+section, and now full SEO tooling (polymorphic per-entity SEO metadata,
+redirects, SEO templates, real server-rendered `<head>` tags + JSON-LD on
+every storefront page, and native sitemap/robots); see each phase's own
+scope note for what they deliberately still cut. Phase 13 (and Phase 14
+right behind it) shipped out of the
 order rule 176 would otherwise have picked — both explicitly requested
 in full ahead of everything else — so the already-flagged older
 dependency they jumped is still open: Phase 17 finally unblocked Catalog
@@ -897,13 +969,7 @@ customer identity plus a verified order to attach to, and Phase 17 gives
 both — `/account/orders` already shows a signed-in customer their own
 delivered orders), and that has been the clearest rule-176 pickup since
 before Phase 13 was requested; it still is. Reasonable alternative,
-whichever the user prefers: SEO (Phase 15), the one remaining content
-phase Phase 13 was a blocker for (a real storefront exists to render
-per-page/per-post metadata on, Phase 13's own SEO tab is an honest
-placeholder waiting for it, and Phase 14's posts already carry
-`meta_title`/`meta_description` columns with nothing yet reading them
-for real `<head>` tags or a sitemap — see `ARCHITECTURE.md`'s Phase 13
-note and `COMPONENT_INVENTORY.md`); Phase 19 Wave 2 itself (a real BD
+whichever the user prefers: Phase 19 Wave 2 itself (a real BD
 SMS provider, the courier/payment
 gateway adapters section 6 of `ARCHITECTURE.md` documents as
 target-only, a WhatsApp channel, queued delivery — each still blocked on
@@ -912,10 +978,9 @@ exist in this environment); Phase 17 Wave 2 (wishlist, customer-initiated
 returns, checkout saved-address integration — see that scope note);
 Phase 12 Wave 2 (page versioning, navigation menus, hierarchical pages,
 scheduled publishing — see that scope note); Storefront Wave 2
-(multi-store domain routing, non-COD payment, real per-page SEO
-metadata — each still blocked on a second store to route between, Phase
-19 Wave 2's payment adapters, or its own deliberate server-fetch design
-pass, per the Phase 16 Wave 1 scope note); or any already-started
+(multi-store domain routing, non-COD payment — each still blocked on
+a second store to route between or Phase 19 Wave 2's payment adapters;
+real per-page SEO metadata itself shipped with Phase 15); or any already-started
 phase's own remaining Wave 2 (Orders, Delivery, Returns, Dashboard, or
 Purchasing's supplier ledger/PO approval workflow/reorder suggestions).
 Phase 18 Reporting stays fully shipped through Wave 2; only

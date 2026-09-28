@@ -9,10 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
-#[Fillable(['store_id', 'title', 'slug', 'excerpt', 'body', 'featured_image_url', 'blog_category_id', 'created_by', 'meta_title', 'meta_description', 'status', 'published_at'])]
+#[Fillable(['store_id', 'title', 'slug', 'excerpt', 'body', 'featured_image_url', 'blog_category_id', 'created_by', 'status', 'published_at'])]
 class BlogPost extends Model
 {
     use HasFactory, SoftDeletes;
@@ -56,6 +57,11 @@ class BlogPost extends Model
     public function versions(): HasMany
     {
         return $this->hasMany(BlogPostVersion::class)->latest();
+    }
+
+    public function seoMetadata(): MorphOne
+    {
+        return $this->morphOne(SeoMetadata::class, 'entity');
     }
 
     /**

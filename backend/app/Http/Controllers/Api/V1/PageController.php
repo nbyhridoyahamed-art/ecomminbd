@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\SyncsSeoMetadata;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Page\PageRequest;
 use App\Http\Resources\PageResource;
@@ -12,6 +13,8 @@ use Illuminate\Http\Request;
 
 class PageController extends Controller
 {
+    use SyncsSeoMetadata;
+
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Page::class);
@@ -29,29 +32,31 @@ class PageController extends Controller
     {
         $this->authorize('create', Page::class);
 
-        $data = $request->validated();
+        $data = $request->safe()->except('seo');
         $data['status'] ??= 'draft';
         $data['created_by'] = $request->user()->id;
 
         $page = Page::create($data);
+        $this->syncSeoMetadata($page, $request);
 
-        return ApiResponse::success(new PageResource($page), 'Page created successfully.', status: 201);
+        return ApiResponse::success(new PageResource($page->load('seoMetadata')), 'Page created successfully.', status: 201);
     }
 
     public function show(Page $page): JsonResponse
     {
         $this->authorize('view', $page);
 
-        return ApiResponse::success(new PageResource($page->load('creator')), 'Page fetched successfully.');
+        return ApiResponse::success(new PageResource($page->load(['creator', 'seoMetadata'])), 'Page fetched successfully.');
     }
 
     public function update(PageRequest $request, Page $page): JsonResponse
     {
         $this->authorize('update', $page);
 
-        $page->update($request->validated());
+        $page->update($request->safe()->except('seo'));
+        $this->syncSeoMetadata($page, $request);
 
-        return ApiResponse::success(new PageResource($page), 'Page updated successfully.');
+        return ApiResponse::success(new PageResource($page->load('seoMetadata')), 'Page updated successfully.');
     }
 
     public function destroy(Page $page): JsonResponse

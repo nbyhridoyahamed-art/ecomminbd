@@ -68,7 +68,7 @@ class ProductController extends StorefrontController
             ->where('status', 'active')
             ->where('slug', $slug)
             ->with([
-                'category', 'brand', 'images',
+                'category', 'brand', 'images', 'seoMetadata',
                 'variants.attributeValues.attribute', 'variants.stockLevels',
                 'bundleItems.componentProduct',
             ])

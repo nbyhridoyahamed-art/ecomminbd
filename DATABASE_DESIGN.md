@@ -111,7 +111,8 @@ products
   track_stock (bool, default true), low_stock_threshold (nullable — the
     setting only; actual on-hand stock is Phase 6's stock_levels table),
   status (draft/active/archived), featured (bool),
-  seo_title, seo_description, focus_keyword (all nullable),
+  -- seo_title/seo_description/focus_keyword dropped Phase 15 — superseded
+  -- by the polymorphic seo_metadata table, see section 1t
   published_at (nullable, set the first time status becomes 'active'),
   created_by, updated_by (FK→users, nullOnDelete),
   timestamps, deleted_at
@@ -908,8 +909,8 @@ pages
   title
   slug
   content (text, nullable — plain text, not HTML/Markdown)
-  meta_title (nullable)
-  meta_description (nullable)
+  -- meta_title/meta_description dropped Phase 15 — superseded by the
+  -- polymorphic seo_metadata table, see section 1t
   status (varchar, default 'draft' — 'draft'|'published')
   created_by (FK users, nullOnDelete)
   timestamps, soft deletes
@@ -1037,7 +1038,8 @@ blog_posts (altered — absorbs the Phase 13 placeholder, see 1r above)
   body (longtext, nullable — new)
   blog_category_id (FK blog_categories, nullOnDelete — new)
   created_by (FK users, nullOnDelete — new)
-  meta_title, meta_description (nullable — new)
+  -- meta_title/meta_description (added this phase) dropped again Phase 15
+  -- — superseded by the polymorphic seo_metadata table, see section 1t
   status (varchar, default 'draft' — new, supersedes the dropped `is_active`)
   featured_image_url (nullable)
   published_at (nullable — doubles as the scheduling gate, see below)
@@ -1067,7 +1069,11 @@ blog_post_versions
   id
   blog_post_id (FK blog_posts, cascade)
   store_id (FK stores, cascade)
-  snapshot (json — {title, slug, excerpt, body, featured_image_url, meta_title, meta_description, status})
+  snapshot (json — {title, slug, excerpt, body, featured_image_url, status}
+    — meta_title/meta_description were part of this shape before Phase 15
+    dropped the columns; an old snapshot row may still have them in its
+    JSON blob, harmlessly ignored on restore since they're no longer in
+    BlogPostController::SNAPSHOT_FIELDS)
   created_by (FK users, nullOnDelete)
   timestamps
 ```
@@ -1102,6 +1108,76 @@ public submission UI, notification hooks) — not part of this schema's
 own prior design intent below, a genuinely large separate feature that
 would roughly double this phase's size, and real spec-rule-178 risk if
 built without genuine safeguards.
+
+## 1t. SEO Schema (Phase 15)
+
+```
+seo_metadata (polymorphic — entity_type/entity_id, section 1's
+  activity_logs convention, not a nullable FK per entity type)
+  id, store_id (FK stores, cascade)
+  entity_type (FQCN string, e.g. "App\Models\Product" — no morph map
+    registered anywhere in this app, so this is always the raw class name)
+  entity_id (unsignedBigInteger)
+  title, description, focus_keyword (nullable)
+  og_title, og_description, og_image (nullable)
+  twitter_title, twitter_description, twitter_image (nullable)
+  canonical_url, robots (nullable)
+  schema_json (json, nullable — a raw JSON-LD override escape hatch; unset
+    by default, no admin UI yet, matching the Homepage Builder's own
+    Custom HTML/CSS "escape hatch" precedent)
+  timestamps
+  unique(entity_type, entity_id)
+
+redirects
+  id, store_id (FK stores, cascade)
+  from_path, to_path
+  status_code (unsignedSmallInteger, default 301 — 301|302|307|308)
+  hits_count (unsignedInteger, default 0 — incremented by the storefront
+    lookup endpoint each time it matches)
+  timestamps
+  unique(store_id, from_path)
+
+seo_templates
+  id, store_id (FK stores, cascade)
+  entity_type (FQCN string, same convention as seo_metadata.entity_type —
+    one of Product/Category/Brand/Page/BlogPost/BlogCategory/BlogTag)
+  title_template, description_template (nullable — free-text hints like
+    "{{title}} | {{store_name}}"; no templating engine reads these yet)
+  timestamps
+  unique(store_id, entity_type)
+```
+
+One polymorphic table backs every SEO-bearing entity — Product, Category,
+Brand, Page, BlogPost, BlogCategory, BlogTag, and Store itself (for
+site-wide/homepage SEO, via `entity_type = 'App\Models\Store'`) — each via
+a `seoMetadata(): MorphOne` relation (`morphOne(SeoMetadata::class,
+'entity')`, resolving to `entity_type`/`entity_id` by Laravel's own
+default naming convention). This supersedes three ad-hoc SEO field sets
+three earlier phases each grew independently rather than running
+alongside them: `products.seo_title`/`seo_description`/`focus_keyword`
+(section 1b, Phase 5), `pages.meta_title`/`meta_description` (section 1q,
+Phase 12), and `blog_posts.meta_title`/`meta_description` (section 1s,
+Phase 14). A single migration backfills every existing non-null value
+from all three into `seo_metadata` rows, then drops all five legacy
+columns in the same migration — the identical "supersede, don't
+parallel" discipline Phase 14 used for `blog_posts.is_active` → `status`.
+No dedicated seo-metadata REST resource exists: every owning entity's own
+existing controller/request/resource accepts and returns its SEO data as
+a nested `seo` object on its own normal create/update call, via a new
+shared `App\Http\Controllers\Concerns\SyncsSeoMetadata` trait
+(`$entity->seoMetadata()->updateOrCreate([], ['store_id' => ..., ...$request->input('seo')])`)
+— mirroring how `BlogPost` already accepts `tag_ids` and syncs its tags
+pivot as part of one save, not a separate endpoint. `redirects` and
+`seo_templates`, by contrast, are genuinely independent resources with
+their own standalone admin CRUD (`/content/seo/redirects`,
+`/content/seo/templates`), reusing the `seo.manage` permission the RBAC
+seeder had already committed to (SEO Manager/Content Manager roles) since
+Phase 3 — another dormant-permission activation, the same pattern
+`pages.manage` and `blog.manage` each followed. A public
+`GET storefront/redirects/lookup?path=X` endpoint backs redirect
+resolution, checked inline by a storefront leaf page only when its own
+by-slug lookup 404s — never global middleware, so an ordinary request
+never pays for a redirects-table lookup it doesn't need.
 
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
@@ -1197,20 +1273,18 @@ compatible with them.
   `blog_categories`, `blog_tags`, `blog_post_tag`, `blog_post_versions`.
   Deliberately cut, not deferred to a numbered Wave: a comments/
   moderation subsystem (see section 1s's own note on why).
-- **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,
-  description, focus_keyword, og_*, twitter_*, schema_json, canonical,
-  robots), `redirects`, `seo_templates`.
+- **SEO (Phase 15 shipped — section 1t):** `seo_metadata`, `redirects`,
+  `seo_templates` are all built, exactly as originally sketched here.
 - **Storefront Wave 2 (Wave 1 shipped — section 1n):** no new tables
   expected here either. Multi-store domain/slug-based routing needs a
   second seeded store to route between before it can be built against
   anything real (`stores.domain`/`slug` already exist — section 1a); a
   real payment gateway ledger is the same `payments` table Orders Wave 2
   above already lists, just with a storefront producer once Phase 19's
-  adapters exist (Wave 1's checkout is COD-only, no ledger needed yet);
-  and real per-page SEO metadata reuses `products.seo_title`/
-  `seo_description` (already there — section 1b) once a deliberate
-  server-fetch design pass wires `generateMetadata()` up to them (see
-  `DEVELOPMENT_ROADMAP.md`'s Phase 16 Wave 1 scope note).
+  adapters exist (Wave 1's checkout is COD-only, no ledger needed yet).
+  Real per-page SEO metadata itself shipped with Phase 15 (section 1t) —
+  the `generateMetadata()` server-fetch design pass this bullet used to
+  wait on is done for every storefront leaf page.
 - **Customer Dashboard Wave 2 (Wave 1 shipped — section 1o):** a
   `wishlists`/`wishlist_items` pair (no backing table or consumer exists
   anywhere yet), customer-initiated return requests from `/account/orders`

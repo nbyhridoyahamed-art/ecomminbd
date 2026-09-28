@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { SeoFields, seoFieldsToPayload, seoToFieldsValue } from "@/components/shared/seo-fields";
 import { useBlogCategories } from "@/hooks/use-blog-categories";
 import { useBlogTags } from "@/hooks/use-blog-tags";
 import { slugify } from "@/lib/slugify";
@@ -29,8 +30,6 @@ const schema = z.object({
   body: z.string(),
   featured_image_url: z.string(),
   blog_category_id: z.string(),
-  meta_title: z.string(),
-  meta_description: z.string(),
   status: z.enum(["draft", "published"]),
   published_at: z.string(),
 });
@@ -66,6 +65,7 @@ export function BlogPostForm({
   const { data: categories } = useBlogCategories(storeId);
   const { data: tags } = useBlogTags(storeId);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>(defaultValues?.tags.map((tag) => tag.id) ?? []);
+  const [seo, setSeo] = useState(() => seoToFieldsValue(defaultValues?.seo));
 
   const {
     register,
@@ -82,8 +82,6 @@ export function BlogPostForm({
       body: defaultValues?.body ?? "",
       featured_image_url: defaultValues?.featured_image_url ?? "",
       blog_category_id: defaultValues?.blog_category_id ? String(defaultValues.blog_category_id) : "",
-      meta_title: defaultValues?.meta_title ?? "",
-      meta_description: defaultValues?.meta_description ?? "",
       status: defaultValues?.status ?? "draft",
       published_at: toDatetimeLocal(defaultValues?.published_at ?? null),
     },
@@ -116,10 +114,9 @@ export function BlogPostForm({
       featured_image_url: values.featured_image_url || null,
       blog_category_id: values.blog_category_id ? Number(values.blog_category_id) : null,
       tag_ids: selectedTagIds,
-      meta_title: values.meta_title || null,
-      meta_description: values.meta_description || null,
       status: values.status,
       published_at: values.published_at ? new Date(values.published_at).toISOString() : null,
+      seo: seoFieldsToPayload(seo),
     });
   });
 
@@ -244,14 +241,12 @@ export function BlogPostForm({
 
       <div className="space-y-4 rounded-lg border border-border p-4">
         <p className="text-sm font-medium text-text-primary">SEO (optional)</p>
-        <div className="space-y-1.5">
-          <Label htmlFor="meta_title">Meta title</Label>
-          <Input id="meta_title" {...register("meta_title")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="meta_description">Meta description</Label>
-          <Textarea id="meta_description" rows={2} {...register("meta_description")} />
-        </div>
+        <SeoFields
+          value={seo}
+          onChange={setSeo}
+          titlePlaceholder={defaultValues?.title}
+          descriptionPlaceholder={defaultValues?.excerpt ?? undefined}
+        />
       </div>
 
       <div className="flex justify-end">

@@ -41,7 +41,7 @@ class BlogController extends StorefrontController
             ->where('store_id', $store->id)
             ->published()
             ->where('slug', $slug)
-            ->with(['category', 'tags'])
+            ->with(['category', 'tags', 'seoMetadata'])
             ->firstOrFail();
 
         $related = $post->blog_category_id
@@ -67,7 +67,7 @@ class BlogController extends StorefrontController
         $store = $this->currentStore();
         $perPage = min((int) $request->integer('per_page', 10), 60);
 
-        $category = BlogCategory::query()->where('store_id', $store->id)->where('slug', $slug)->firstOrFail();
+        $category = BlogCategory::query()->where('store_id', $store->id)->where('slug', $slug)->with('seoMetadata')->firstOrFail();
 
         $posts = BlogPost::query()
             ->where('store_id', $store->id)
@@ -89,7 +89,7 @@ class BlogController extends StorefrontController
         $store = $this->currentStore();
         $perPage = min((int) $request->integer('per_page', 10), 60);
 
-        $tag = BlogTag::query()->where('store_id', $store->id)->where('slug', $slug)->firstOrFail();
+        $tag = BlogTag::query()->where('store_id', $store->id)->where('slug', $slug)->with('seoMetadata')->firstOrFail();
 
         $posts = $tag->posts()
             ->published()

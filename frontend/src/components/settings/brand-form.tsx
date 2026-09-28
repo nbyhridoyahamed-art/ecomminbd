@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUploadField } from "@/components/settings/image-upload-field";
+import { SeoFields, seoFieldsToPayload, seoToFieldsValue } from "@/components/shared/seo-fields";
 import { slugify } from "@/lib/slugify";
 import type { BrandFormValues } from "@/hooks/use-brands";
 import type { Brand } from "@/types/brand";
@@ -41,6 +42,8 @@ interface BrandFormProps {
 }
 
 export function BrandForm({ storeId, defaultValues, onSubmit, isPending, serverError, submitLabel }: BrandFormProps) {
+  const [seo, setSeo] = useState(() => seoToFieldsValue(defaultValues?.seo));
+
   const {
     register,
     control,
@@ -77,6 +80,7 @@ export function BrandForm({ storeId, defaultValues, onSubmit, isPending, serverE
       description: values.description || null,
       logo_path: values.logo_path || null,
       status: values.status,
+      seo: seoFieldsToPayload(seo),
     });
   });
 
@@ -146,6 +150,16 @@ export function BrandForm({ storeId, defaultValues, onSubmit, isPending, serverE
       <div className="space-y-1.5">
         <Label htmlFor="description">Description</Label>
         <Textarea id="description" {...register("description")} />
+      </div>
+
+      <div className="space-y-4 border-t border-border pt-4">
+        <p className="text-sm font-medium text-text-primary">SEO</p>
+        <SeoFields
+          value={seo}
+          onChange={setSeo}
+          titlePlaceholder={defaultValues?.name}
+          descriptionPlaceholder={defaultValues?.description ?? undefined}
+        />
       </div>
 
       <div className="flex justify-end">

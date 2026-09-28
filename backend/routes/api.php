@@ -31,10 +31,12 @@ use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReceiptController;
 use App\Http\Controllers\Api\V1\PurchaseReturnController;
+use App\Http\Controllers\Api\V1\RedirectController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReturnController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SavedSectionController;
+use App\Http\Controllers\Api\V1\SeoTemplateController;
 use App\Http\Controllers\Api\V1\ShipmentController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockLevelController;
@@ -49,7 +51,9 @@ use App\Http\Controllers\Api\V1\Storefront\HomepageController as StorefrontHomep
 use App\Http\Controllers\Api\V1\Storefront\NewsletterController as StorefrontNewsletterController;
 use App\Http\Controllers\Api\V1\Storefront\PageController as StorefrontPageController;
 use App\Http\Controllers\Api\V1\Storefront\ProductController as StorefrontProductController;
+use App\Http\Controllers\Api\V1\Storefront\RedirectController as StorefrontRedirectController;
 use App\Http\Controllers\Api\V1\Storefront\StoreController as StorefrontStoreController;
+use App\Http\Controllers\Api\V1\StoreSeoController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TestimonialController;
 use App\Http\Controllers\Api\V1\UploadController;
@@ -84,6 +88,7 @@ Route::prefix('v1')->group(function () {
         Route::get('pages', [StorefrontPageController::class, 'index']);
         Route::get('pages/{slug}', [StorefrontPageController::class, 'show']);
         Route::get('homepage-blocks', [StorefrontHomepageController::class, 'index']);
+        Route::get('redirects/lookup', [StorefrontRedirectController::class, 'lookup']);
 
         // Registered before blog/{slug} — otherwise it would swallow "rss"
         // as a post slug first (same gotcha as products/export above).
@@ -167,6 +172,10 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('categories', CategoryController::class);
         Route::apiResource('brands', BrandController::class);
         Route::apiResource('pages', PageController::class);
+        Route::apiResource('redirects', RedirectController::class);
+        Route::apiResource('seo-templates', SeoTemplateController::class);
+        Route::get('store-seo', [StoreSeoController::class, 'show']);
+        Route::put('store-seo', [StoreSeoController::class, 'update']);
 
         // Registered before the apiResource — otherwise its GET
         // homepage-blocks/{homepage_block} route would swallow "preview"

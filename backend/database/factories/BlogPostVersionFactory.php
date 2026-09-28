@@ -25,8 +25,6 @@ class BlogPostVersionFactory extends Factory
                 'excerpt' => fake()->paragraph(),
                 'body' => fake()->paragraphs(2, true),
                 'featured_image_url' => null,
-                'meta_title' => null,
-                'meta_description' => null,
                 'status' => 'draft',
             ],
         ];

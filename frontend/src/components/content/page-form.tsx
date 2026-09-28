@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { SeoFields, seoFieldsToPayload, seoToFieldsValue } from "@/components/shared/seo-fields";
 import { slugify } from "@/lib/slugify";
 import type { PageFormValues } from "@/hooks/use-pages";
 import type { Page } from "@/types/page";
@@ -22,8 +23,6 @@ const pageSchema = z.object({
     .min(1, "Slug is required.")
     .regex(/^[a-z0-9-]+$/, "Slug may only contain lowercase letters, numbers, and hyphens."),
   content: z.string(),
-  meta_title: z.string(),
-  meta_description: z.string(),
   status: z.enum(["draft", "published"]),
 });
 
@@ -41,6 +40,8 @@ interface PageFormProps {
 }
 
 export function PageForm({ storeId, defaultValues, onSubmit, isPending, serverError, submitLabel }: PageFormProps) {
+  const [seo, setSeo] = useState(() => seoToFieldsValue(defaultValues?.seo));
+
   const {
     register,
     control,
@@ -53,8 +54,6 @@ export function PageForm({ storeId, defaultValues, onSubmit, isPending, serverEr
       title: defaultValues?.title ?? "",
       slug: defaultValues?.slug ?? "",
       content: defaultValues?.content ?? "",
-      meta_title: defaultValues?.meta_title ?? "",
-      meta_description: defaultValues?.meta_description ?? "",
       status: defaultValues?.status ?? "draft",
     },
   });
@@ -76,9 +75,8 @@ export function PageForm({ storeId, defaultValues, onSubmit, isPending, serverEr
       title: values.title,
       slug: values.slug,
       content: values.content || null,
-      meta_title: values.meta_title || null,
-      meta_description: values.meta_description || null,
       status: values.status,
+      seo: seoFieldsToPayload(seo),
     });
   });
 
@@ -144,14 +142,7 @@ export function PageForm({ storeId, defaultValues, onSubmit, isPending, serverEr
 
       <div className="space-y-4 rounded-lg border border-border p-4">
         <p className="text-sm font-medium text-text-primary">SEO (optional)</p>
-        <div className="space-y-1.5">
-          <Label htmlFor="meta_title">Meta title</Label>
-          <Input id="meta_title" {...register("meta_title")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="meta_description">Meta description</Label>
-          <Textarea id="meta_description" rows={2} {...register("meta_description")} />
-        </div>
+        <SeoFields value={seo} onChange={setSeo} titlePlaceholder={defaultValues?.title} />
       </div>
 
       <div className="flex justify-end">

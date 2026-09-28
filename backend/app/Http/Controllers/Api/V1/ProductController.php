@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\SyncsSeoMetadata;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Product\ProductRequest;
 use App\Http\Resources\ProductResource;
@@ -16,8 +17,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductController extends Controller
 {
+    use SyncsSeoMetadata;
+
     private const RELATIONS = [
-        'category', 'brand', 'images', 'variants.attributeValues.attribute', 'variants.stockLevels.warehouse',
+        'category', 'brand', 'images', 'seoMetadata', 'variants.attributeValues.attribute', 'variants.stockLevels.warehouse',
         'bundleItems.componentProduct', 'bundleItems.componentVariant',
     ];
 
@@ -83,9 +86,6 @@ class ProductController extends Controller
                     $product->weight_unit,
                     $product->track_stock ? '1' : '0',
                     $product->low_stock_threshold,
-                    $product->seo_title,
-                    $product->seo_description,
-                    $product->focus_keyword,
                 ]);
             }
 
@@ -129,6 +129,7 @@ class ProductController extends Controller
         }
 
         $product = Product::create($data);
+        $this->syncSeoMetadata($product, $request);
 
         return ApiResponse::success(new ProductResource($product->load(self::RELATIONS)), 'Product created successfully.', status: 201);
     }
@@ -154,6 +155,7 @@ class ProductController extends Controller
         }
 
         $product->update($data);
+        $this->syncSeoMetadata($product, $request);
 
         return ApiResponse::success(new ProductResource($product->load(self::RELATIONS)), 'Product updated successfully.');
     }
@@ -183,7 +185,7 @@ class ProductController extends Controller
         $data['cost_price_amount'] = Money::fromDecimal($data['cost_price'] ?? null, $currency)?->amountMinor;
         $data['compare_at_price_amount'] = Money::fromDecimal($data['compare_at_price'] ?? null, $currency)?->amountMinor;
 
-        unset($data['price'], $data['sale_price'], $data['cost_price'], $data['compare_at_price']);
+        unset($data['price'], $data['sale_price'], $data['cost_price'], $data['compare_at_price'], $data['seo']);
 
         return $data;
     }

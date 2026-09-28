@@ -45,8 +45,19 @@ class ProductDetailResource extends JsonResource
                 'total_available' => BundleExpander::availability($this->id)['total_available'],
             ]),
             'in_stock' => (bool) $this->in_stock,
-            'seo_title' => $this->seo_title,
-            'seo_description' => $this->seo_description,
+            'seo' => $this->whenLoaded('seoMetadata', fn () => $this->seoMetadata ? [
+                'title' => $this->seoMetadata->title,
+                'description' => $this->seoMetadata->description,
+                'canonical_url' => $this->seoMetadata->canonical_url,
+                'robots' => $this->seoMetadata->robots,
+                'og_title' => $this->seoMetadata->og_title,
+                'og_description' => $this->seoMetadata->og_description,
+                'og_image' => $this->seoMetadata->og_image,
+                'twitter_title' => $this->seoMetadata->twitter_title,
+                'twitter_description' => $this->seoMetadata->twitter_description,
+                'twitter_image' => $this->seoMetadata->twitter_image,
+                'schema_json' => $this->seoMetadata->schema_json,
+            ] : null),
         ];
     }
 }

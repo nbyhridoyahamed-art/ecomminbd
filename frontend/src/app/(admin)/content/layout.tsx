@@ -11,6 +11,7 @@ const TABS = [
   { label: "Pages", href: "/content/pages", permission: "pages.manage" },
   { label: "Homepage", href: "/content/homepage", permission: "builder.view" },
   { label: "Blog", href: "/content/blog/posts", permission: "blog.manage" },
+  { label: "SEO", href: "/content/seo/redirects", permission: "seo.manage" },
 ];
 
 /**

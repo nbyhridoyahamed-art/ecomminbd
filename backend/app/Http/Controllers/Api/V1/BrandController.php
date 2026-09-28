@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\SyncsSeoMetadata;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Brand\BrandRequest;
 use App\Http\Resources\BrandResource;
@@ -12,6 +13,8 @@ use Illuminate\Http\Request;
 
 class BrandController extends Controller
 {
+    use SyncsSeoMetadata;
+
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Brand::class);
@@ -43,28 +46,30 @@ class BrandController extends Controller
 
         // See CategoryController::store for why this is set explicitly
         // rather than left to the migration's column default.
-        $data = $request->validated();
+        $data = $request->safe()->except('seo');
         $data['status'] ??= 'active';
 
         $brand = Brand::create($data);
+        $this->syncSeoMetadata($brand, $request);
 
-        return ApiResponse::success(new BrandResource($brand), 'Brand created successfully.', status: 201);
+        return ApiResponse::success(new BrandResource($brand->load('seoMetadata')), 'Brand created successfully.', status: 201);
     }
 
     public function show(Brand $brand): JsonResponse
     {
         $this->authorize('view', $brand);
 
-        return ApiResponse::success(new BrandResource($brand->loadCount('products')), 'Brand fetched successfully.');
+        return ApiResponse::success(new BrandResource($brand->loadCount('products')->load('seoMetadata')), 'Brand fetched successfully.');
     }
 
     public function update(BrandRequest $request, Brand $brand): JsonResponse
     {
         $this->authorize('update', $brand);
 
-        $brand->update($request->validated());
+        $brand->update($request->safe()->except('seo'));
+        $this->syncSeoMetadata($brand, $request);
 
-        return ApiResponse::success(new BrandResource($brand), 'Brand updated successfully.');
+        return ApiResponse::success(new BrandResource($brand->load('seoMetadata')), 'Brand updated successfully.');
     }
 
     public function destroy(Brand $brand): JsonResponse

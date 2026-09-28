@@ -1,3 +1,5 @@
+import type { Seo } from "@/types/seo";
+
 export interface StorefrontStore {
   name: string;
   slug: string;
@@ -8,8 +10,7 @@ export interface StorefrontPage {
   title: string;
   slug: string;
   content: string | null;
-  meta_title: string | null;
-  meta_description: string | null;
+  seo: Seo | null;
 }
 
 export interface StorefrontProduct {
@@ -67,8 +68,7 @@ export interface StorefrontProductDetail {
   components: StorefrontBundleComponent[] | null;
   bundle_availability: { total_available: number } | null;
   in_stock: boolean;
-  seo_title: string | null;
-  seo_description: string | null;
+  seo: Seo | null;
 }
 
 export interface StorefrontCategory {
@@ -78,6 +78,7 @@ export interface StorefrontCategory {
   description: string | null;
   image_url: string | null;
   children: StorefrontCategory[];
+  seo?: Seo | null;
 }
 
 export interface StorefrontBrand {
@@ -86,6 +87,7 @@ export interface StorefrontBrand {
   slug: string;
   description: string | null;
   logo_url: string | null;
+  seo?: Seo | null;
 }
 
 export interface BdLocation {
@@ -183,8 +185,7 @@ export interface StorefrontBlogPostDetail {
   category: StorefrontBlogCategoryRef | null;
   tags: StorefrontBlogTagRef[];
   reading_time_minutes: number;
-  meta_title: string | null;
-  meta_description: string | null;
+  seo: Seo | null;
   published_at: string | null;
 }
 
@@ -193,12 +194,14 @@ export interface StorefrontBlogCategory {
   name: string;
   slug: string;
   description: string | null;
+  seo?: Seo | null;
 }
 
 export interface StorefrontBlogTag {
   id: number;
   name: string;
   slug: string;
+  seo?: Seo | null;
 }
 
 export interface StorefrontFlashSaleItem {

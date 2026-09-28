@@ -228,20 +228,49 @@ notification's `via()` — see the Phase 19 Wave 1 scope note in
 ## 9. Frontend Architecture
 
 - Next.js App Router, TypeScript strict mode.
-- **What's actually built, not the original plan:** every page in this
-  app is a Client Component (`"use client"`), including every storefront
-  page added in Phase 16 — not "Server Components by default" as this
-  section originally said. All data fetching goes through TanStack Query
-  hooks calling the JSON API; nothing does a server-side fetch today.
-  This is a real, load-bearing gap for one specific thing: a Client
-  Component page can't export Next.js's `generateMetadata()`, so no page
-  in this app — including storefront product/category pages, which
-  already have `seo_title`/`seo_description` to work with (see
-  `DATABASE_DESIGN.md` section 1b) — sets a real per-page `<title>` or
-  meta description yet. Fixing that means introducing this app's first
-  server-side fetch, which is real, deliberate design work (fetch twice,
-  once per side, or restructure the data flow) tracked against Phase 15
-  (SEO), not a quick add-on to whichever page needs it next.
+- **What's actually built, not the original plan:** every admin
+  (`(admin)/`) and account (`(auth)/`, `account/`) page is a Client
+  Component (`"use client"`), fetching via TanStack Query hooks against
+  the JSON API — not "Server Components by default" as this section
+  originally said, and this part of the gap is unchanged.
+- **Phase 15 closed the storefront half of that gap.** Every storefront
+  *leaf* page (`/products/[slug]`, `/category/[slug]`, `/brand/[slug]`,
+  `/blog/[slug]`, `/blog/category/[slug]`, `/blog/tag/[slug]`,
+  `/pages/[slug]`, and the homepage `/`) is now an `async` Server
+  Component (`page.tsx`) with a real `generateMetadata()` — a genuine
+  server-side fetch, this app's first, via a new server-only
+  `src/lib/storefront-api.ts` client. That client exists as a separate
+  module because the existing browser-oriented `src/lib/api.ts` imports
+  `auth-token.ts` (a `"use client"` module reading `localStorage`), and
+  React Server Components can't call a function exported from a Client
+  Component module — only render it as a component; `storefront-api.ts`
+  has no such import, since the storefront endpoints it calls are all
+  public and unauthenticated. The existing interactive body of each page
+  is unchanged, just renamed into a sibling `*-client.tsx` file that
+  keeps doing its own client-side TanStack Query fetch exactly as
+  before — "fetch twice, once per side," exactly as this section
+  previously named it as the anticipated fix, rather than a full
+  storefront data-flow rewrite. Every leaf page also emits real JSON-LD
+  (`src/lib/json-ld.tsx`: Product/BreadcrumbList/Article/
+  Organization+WebSite) and checks for a configured redirect (via
+  `src/lib/storefront-seo.ts`'s `resolveRedirectOrNotFound()`) only when
+  its own by-slug lookup 404s — never global middleware, so an ordinary
+  request never pays for a redirects-table lookup it doesn't need.
+  Listing/browse pages (`/products`, `/brands`, `/blog` index, `/cart`,
+  `/checkout`, admin/account pages generally) remain plain Client
+  Components; they were never the pages needing per-entity `<title>`/
+  meta description in the first place.
+- `sitemap.xml`/`robots.txt` are Next.js's own native
+  `src/app/sitemap.ts`/`src/app/robots.ts` special files (`force-dynamic`
+  on the sitemap, so it reflects the live catalog rather than a stale
+  build-time snapshot), not a Laravel endpoint — robots.txt must disallow
+  this same Next.js app's own admin/account/cart/checkout paths, which
+  the Laravel API has no visibility into. Those admin/account paths
+  don't share a common URL prefix (no literal `/admin`) — the `(admin)`
+  and `(auth)` route groups add no path segment of their own, so each
+  real top-level segment (`/dashboard`, `/catalog`, `/content`,
+  `/delivery`, `/inventory`, `/orders`, `/purchasing`, `/reports`,
+  `/settings`, `/account`, `/login`) is disallowed by name.
 - Server state via TanStack Query (all API data); Zustand reserved for
   genuine client-only UI state (sidebar collapsed, the storefront cart —
   see `DATABASE_DESIGN.md` section 1n for why the cart itself has no
@@ -529,7 +558,27 @@ including why this phase was designed from `DATABASE_DESIGN.md`'s own
 forward-looking notes rather than a master-spec section, since a
 dedicated research pass established none was ever committed to this
 repository for it.
-SEO, Catalog Wave 2's remaining
+Also built since: **Phase 15** — full SEO tooling. A single polymorphic
+`seo_metadata` table (section 4's `entity_type`/`entity_id` convention,
+matching `activity_logs`) supersedes the three ad-hoc SEO field sets
+Phases 5/12/14 each grew independently (`products.seo_title`/
+`seo_description`/`focus_keyword`, `pages.meta_title`/`meta_description`,
+`blog_posts.meta_title`/`meta_description`) rather than running alongside
+them — one migration backfills every existing value into `seo_metadata`
+rows, then drops all five legacy columns. Every SEO-bearing model
+(Product, Category, Brand, Page, BlogPost, BlogCategory, BlogTag, Store)
+gets a `seoMetadata()` morphOne relation and accepts/returns its SEO data
+as a nested `seo` object on its own existing endpoint via a new shared
+`App\Http\Controllers\Concerns\SyncsSeoMetadata` trait — not a dedicated
+seo-metadata REST resource, mirroring how `BlogPost` already syncs
+`tag_ids` as part of one save. `Redirect` and `SeoTemplate` are genuinely
+independent resources with their own standalone CRUD, reusing the
+`seo.manage` permission the RBAC seeder had pre-wired to SEO Manager/
+Content Manager since Phase 3 (the same dormant-permission pattern
+`pages.manage` and `blog.manage` each followed). Section 9's Client-
+Component gap this section used to describe is now closed for the
+storefront's leaf pages specifically — see the updated section 9 note.
+Catalog Wave 2's remaining
 items (reviews — no longer blocked on anything, just not yet picked, now
 that Phase 17 gives the real customer identity it was waiting on — see
 `DATABASE_DESIGN.md` section 2 — and a reusable media library), Purchasing Wave 2's remaining

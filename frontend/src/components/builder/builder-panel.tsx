@@ -104,7 +104,7 @@ export function BuilderPanel({ block, storeId, activeBreakpoint, onBreakpointCha
         ) : null}
         {tab === "Animation" ? <AnimationPanel value={editable.draft.animation} onChange={editable.setAnimation} /> : null}
         {tab === "Advanced" ? <AdvancedPanel value={editable.draft.styles} onChange={editable.setStyles} /> : null}
-        {tab === "SEO" ? <SeoPanel /> : null}
+        {tab === "SEO" ? <SeoPanel storeId={storeId} /> : null}
       </fieldset>
     </div>
   );

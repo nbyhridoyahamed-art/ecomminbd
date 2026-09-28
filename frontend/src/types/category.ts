@@ -1,3 +1,5 @@
+import type { Seo } from "@/types/seo";
+
 export interface Category {
   id: number;
   uuid: string;
@@ -10,6 +12,7 @@ export interface Category {
   image_url: string | null;
   sort_order: number;
   status: "active" | "inactive";
+  seo: Seo | null;
   products_count?: number;
   created_at: string;
   updated_at: string;
