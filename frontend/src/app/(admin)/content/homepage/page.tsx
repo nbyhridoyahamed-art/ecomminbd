@@ -13,6 +13,7 @@ import {
   useHomepageBlockPreview,
   usePublishHomepageBlock,
   useReorderHomepageBlocks,
+  useSaveHomepageBlockAsSection,
   useUnpublishHomepageBlock,
   type HomepageBlockPreview,
 } from "@/hooks/use-homepage-blocks";
@@ -29,6 +30,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Breakpoint, HomepageBlockType } from "@/types/homepage-block";
 
@@ -41,6 +44,8 @@ export default function HomepageBuilderPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [activeBreakpoint, setActiveBreakpoint] = useState<Breakpoint>("desktop");
   const [blockToDelete, setBlockToDelete] = useState<HomepageBlockPreview | null>(null);
+  const [blockToSaveAsSection, setBlockToSaveAsSection] = useState<HomepageBlockPreview | null>(null);
+  const [sectionName, setSectionName] = useState("");
 
   const { data: blocks, isLoading } = useHomepageBlockPreview(storeId);
   const createBlock = useCreateHomepageBlock();
@@ -49,6 +54,7 @@ export default function HomepageBuilderPage() {
   const reorderBlocks = useReorderHomepageBlocks();
   const publishBlock = usePublishHomepageBlock();
   const unpublishBlock = useUnpublishHomepageBlock();
+  const saveAsSection = useSaveHomepageBlockAsSection();
 
   if (currentUser && !can(currentUser, "builder.view")) {
     return <PermissionDenied />;
@@ -139,6 +145,7 @@ export default function HomepageBuilderPage() {
             if (block) setBlockToDelete(block);
           }}
           onTogglePublish={(block) => (block.is_active ? unpublishBlock.mutate(block.id) : publishBlock.mutate(block.id))}
+          onSaveAsSection={setBlockToSaveAsSection}
           activeBreakpoint={activeBreakpoint}
           canEdit={canEdit}
           canPublish={canPublish}
@@ -186,6 +193,62 @@ export default function HomepageBuilderPage() {
               }}
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(blockToSaveAsSection)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBlockToSaveAsSection(null);
+            setSectionName("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save as section</DialogTitle>
+            <DialogDescription>Reuse this block elsewhere on the homepage, or on future pages, from the Saved tab.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="section-name">Name</Label>
+            <Input
+              id="section-name"
+              value={sectionName}
+              onChange={(event) => setSectionName(event.target.value)}
+              placeholder="e.g. Summer promo banner"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBlockToSaveAsSection(null);
+                setSectionName("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!sectionName.trim()}
+              loading={saveAsSection.isPending}
+              onClick={() => {
+                if (!blockToSaveAsSection) return;
+                saveAsSection.mutate(
+                  { id: blockToSaveAsSection.id, name: sectionName.trim() },
+                  {
+                    onSuccess: () => {
+                      setBlockToSaveAsSection(null);
+                      setSectionName("");
+                    },
+                  },
+                );
+              }}
+            >
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

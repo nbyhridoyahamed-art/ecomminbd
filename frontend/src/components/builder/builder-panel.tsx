@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Redo2, Undo2 } from "lucide-react";
+import { History, Loader2, Redo2, Undo2 } from "lucide-react";
 
 import { AdvancedPanel } from "@/components/builder/panels/advanced-panel";
 import { AnimationPanel } from "@/components/builder/panels/animation-panel";
@@ -9,6 +9,7 @@ import { DesignPanel } from "@/components/builder/panels/design-panel";
 import { LayoutPanel } from "@/components/builder/panels/layout-panel";
 import { SeoPanel } from "@/components/builder/panels/seo-panel";
 import { CONTENT_PANELS } from "@/components/builder/content-panel-registry";
+import { RevisionHistorySheet } from "@/components/builder/revision-history-sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useEditableHomepageBlock, type EditableBlockSource } from "@/hooks/use-editable-homepage-block";
@@ -34,6 +35,7 @@ interface BuilderPanelProps {
  */
 export function BuilderPanel({ block, storeId, activeBreakpoint, onBreakpointChange, canEdit }: BuilderPanelProps) {
   const [tab, setTab] = useState<Tab>("Content");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const editable = useEditableHomepageBlock(block);
   const ContentPanel = CONTENT_PANELS[block.type];
 
@@ -45,6 +47,9 @@ export function BuilderPanel({ block, storeId, activeBreakpoint, onBreakpointCha
           <SaveStatusLabel status={editable.status} />
         </div>
         <div className="flex gap-1">
+          <Button variant="ghost" size="icon" aria-label="Revision history" onClick={() => setHistoryOpen(true)}>
+            <History />
+          </Button>
           <Button variant="ghost" size="icon" aria-label="Undo" disabled={!editable.canUndo || !canEdit} onClick={editable.undo}>
             <Undo2 />
           </Button>
@@ -53,6 +58,14 @@ export function BuilderPanel({ block, storeId, activeBreakpoint, onBreakpointCha
           </Button>
         </div>
       </div>
+
+      <RevisionHistorySheet
+        blockId={block.id}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        canEdit={canEdit}
+        onRestored={editable.syncFrom}
+      />
 
       <div className="flex gap-1 overflow-x-auto border-b border-border px-2 py-2">
         {TABS.map((t) => (

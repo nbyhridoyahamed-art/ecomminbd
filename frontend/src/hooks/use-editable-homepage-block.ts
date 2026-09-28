@@ -135,8 +135,23 @@ export function useEditableHomepageBlock(block: EditableBlockSource) {
     updateMutation.mutate(toPayload(draft), { onSuccess: () => setStatus("saved"), onError: () => setStatus("unsaved") });
   }
 
+  /**
+   * Re-syncs the local draft/history from a server response for *this same*
+   * block — used after restoring a revision, since that changes the block's
+   * content without changing its id, so the block.id-keyed reset above
+   * never fires on its own. Not part of the autosave flow: this is called
+   * with content the server already has, so it skips scheduleSave.
+   */
+  function syncFrom(source: EditableBlockSource) {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setHistory([toDraft(source)]);
+    setIndex(0);
+    setStatus("saved");
+  }
+
   return {
     draft,
+    syncFrom,
     setSettings: (settings: Record<string, unknown>) => commit({ ...draft, settings }),
     setStyles: (styles: HomepageBlockStyles) => commit({ ...draft, styles }),
     setResponsive: (responsive: HomepageBlockResponsive) => commit({ ...draft, responsive }),

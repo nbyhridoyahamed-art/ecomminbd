@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
+import { Bookmark, Copy, Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ interface BuilderCanvasProps {
   onDuplicate: (id: number) => void;
   onDelete: (id: number) => void;
   onTogglePublish: (block: HomepageBlockPreview) => void;
+  onSaveAsSection: (block: HomepageBlockPreview) => void;
   activeBreakpoint: Breakpoint;
   canEdit: boolean;
   canPublish: boolean;
@@ -59,6 +60,7 @@ export function BuilderCanvas({
   onDuplicate,
   onDelete,
   onTogglePublish,
+  onSaveAsSection,
   activeBreakpoint,
   canEdit,
   canPublish,
@@ -114,6 +116,7 @@ export function BuilderCanvas({
                 onDuplicate={() => onDuplicate(block.id)}
                 onDelete={() => onDelete(block.id)}
                 onTogglePublish={() => onTogglePublish(block)}
+                onSaveAsSection={() => onSaveAsSection(block)}
                 canEdit={canEdit}
                 canPublish={canPublish}
               />
@@ -132,11 +135,12 @@ interface CanvasBlockProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onTogglePublish: () => void;
+  onSaveAsSection: () => void;
   canEdit: boolean;
   canPublish: boolean;
 }
 
-function CanvasBlock({ block, selected, onSelect, onDuplicate, onDelete, onTogglePublish, canEdit, canPublish }: CanvasBlockProps) {
+function CanvasBlock({ block, selected, onSelect, onDuplicate, onDelete, onTogglePublish, onSaveAsSection, canEdit, canPublish }: CanvasBlockProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
 
   return (
@@ -167,6 +171,9 @@ function CanvasBlock({ block, selected, onSelect, onDuplicate, onDelete, onToggl
           ) : null}
           {canEdit ? (
             <>
+              <Button type="button" variant="ghost" size="icon" className="size-7" aria-label="Save as section" onClick={onSaveAsSection}>
+                <Bookmark className="size-4" />
+              </Button>
               <Button type="button" variant="ghost" size="icon" className="size-7" aria-label="Duplicate block" onClick={onDuplicate}>
                 <Copy className="size-4" />
               </Button>
