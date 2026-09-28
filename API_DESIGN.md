@@ -210,6 +210,29 @@ is checked directly in `PurchaseReceiptController`, the same
 direct-`$user->can()` pattern as inventory, since receiving is a
 distinct action from editing a PO's terms.
 
+Purchasing returns (Phase 7 Wave 2a): `POST
+/purchase-orders/{id}/returns` requests a return against a purchase
+order with something actually received (`partially_received`/`received`
+only — a 422 otherwise); a line's eligible quantity is capped by
+`quantity_received` minus whatever a non-rejected return already covers
+on it, not `quantity_ordered` (see `DATABASE_DESIGN.md` section 1m).
+`GET /purchase-returns` + `GET .../{id}`, and the status-transition
+actions `POST .../{id}/approve`, `.../reject` (reachable from
+`requested` or `approved`), `.../ship-back` (approved → shipped_back —
+decrements `stock_levels` at the PO's own warehouse and writes a new
+`purchase_return`-type `stock_movements` row, inside a locked
+transaction; a 422 if on-hand stock has since dropped below the return's
+quantity), and `.../credit` (shipped_back → credited — accepts an
+optional `credit_amount`, defaulting to the sum of the covered items'
+original unit cost; a supplier credit note, not a cash refund — nothing
+exists yet to apply it against, since no accounts-payable ledger is
+built). `purchase_returns.*` uses a standard policy (`view`/`create`/
+`update` — the four status actions all check `update`). `GET
+/purchase-orders` and `GET /purchase-orders/{id}` now also return a
+`returns[]` summary (`id`, `return_number`, `status`, `credit_amount`),
+the same lightweight-summary pattern `OrderResource` uses for its own
+`returns[]`.
+
 Orders (Phase 8 Wave 1): full CRUD for `customers`
 (`customers.view/create/update/delete`, standard Eloquent policy,
 soft-deleted) plus nested `POST/PUT/DELETE /customers/{id}/addresses(/{address})`

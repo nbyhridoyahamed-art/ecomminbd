@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\ProductImportController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReceiptController;
+use App\Http\Controllers\Api\V1\PurchaseReturnController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReturnController;
 use App\Http\Controllers\Api\V1\RoleController;
@@ -109,6 +110,13 @@ Route::prefix('v1')->group(function () {
         Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
         Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
         Route::post('purchase-orders/{purchaseOrder}/receipts', [PurchaseReceiptController::class, 'store']);
+        Route::post('purchase-orders/{purchaseOrder}/returns', [PurchaseReturnController::class, 'store']);
+        Route::get('purchase-returns', [PurchaseReturnController::class, 'index']);
+        Route::get('purchase-returns/{purchaseReturn}', [PurchaseReturnController::class, 'show']);
+        Route::post('purchase-returns/{purchaseReturn}/approve', [PurchaseReturnController::class, 'approve']);
+        Route::post('purchase-returns/{purchaseReturn}/reject', [PurchaseReturnController::class, 'reject']);
+        Route::post('purchase-returns/{purchaseReturn}/ship-back', [PurchaseReturnController::class, 'shipBack']);
+        Route::post('purchase-returns/{purchaseReturn}/credit', [PurchaseReturnController::class, 'credit']);
 
         Route::apiResource('customers', CustomerController::class);
         Route::post('customers/{customer}/addresses', [CustomerAddressController::class, 'store']);

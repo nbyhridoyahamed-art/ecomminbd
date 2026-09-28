@@ -259,9 +259,11 @@ further edits) → `partially_received` / `received` (set automatically
 by `PurchaseReceiptController` after each receipt, based on whether
 every line's `quantity_received` has reached its `quantity_ordered`).
 `cancelled` is reachable only from `draft` or `ordered` — once any
-stock has been received against an order, cancelling it would leave
-the received stock unaccounted for, so that's a Wave 2 problem (see
-section 2, purchase returns).
+stock has been received against an order, cancelling the order itself
+is still a Wave 2 problem, deferred for the same reason PO approval is
+(see section 2). Purchase returns (section 1m) solve the adjacent but
+distinct need — sending specific already-received quantities back to
+the supplier without touching the order's own status — not this one.
 
 Recording a receipt is the first real producer of the `purchase_receipt`
 stock-movement type reserved in section 1c: `PurchaseReceiptController`
@@ -713,6 +715,61 @@ rationale and every deliberate scope cut (no nested bundles, Purchasing/
 adjustments/transfers excluded via `App\Rules\ProductIsNotBundle`, Low
 Stock report and Stock Levels list exclusion, CSV import/export unchanged).
 
+## 1m. Purchasing Returns Schema (Phase 7 Wave 2a)
+
+```
+purchase_returns
+  id, uuid, store_id (FK→stores, cascade),
+  purchase_order_id (FK→purchase_orders, cascade — not unique, a PO can
+    have several returns over time),
+  return_number (e.g. PRET-20260928-AB12CD, same scheme as
+    stock_transfers.transfer_number, see section 1c),
+  status (varchar, default 'requested' — requested -> approved ->
+    shipped_back (drives the stock decrement — see
+    PurchaseReturnController::shipBack()) -> credited, or rejected
+    (terminal, from requested/approved)),
+  reason (nullable),
+  credit_amount (bigint, nullable — set only once status becomes
+    credited; a suggested default (sum of the covered items' original
+    unit cost) staff can override, same "computed default, editable"
+    pattern as returns.refund_amount — but a supplier *credit note*, not
+    a cash refund: nothing exists yet to apply it against, since no
+    accounts-payable ledger is built (see section 2, supplier ledger)),
+  credited_at (nullable), note (nullable),
+  created_by (FK→users, nullOnDelete), timestamps
+  unique(store_id, return_number), index(store_id, status),
+  index(purchase_order_id)
+
+purchase_return_items
+  id, purchase_return_id (FK→purchase_returns, cascade),
+  purchase_order_item_id (FK→purchase_order_items, cascade),
+  quantity (unsigned int), timestamps
+  — no restock-decision column like return_items.restock: a purchase
+    return item is definitionally leaving stock, never a condition-based
+    choice to keep or discard it.
+
+purchase_return_status_history
+  id, purchase_return_id (FK→purchase_returns, cascade),
+  from_status (nullable), to_status, note (nullable),
+  created_by (FK→users, nullOnDelete), timestamps
+  index(purchase_return_id)
+```
+
+Mirrors the Returns schema (section 1g) closely, with the goods flow
+reversed: a return here is only eligible against a purchase order with
+something actually received (`partially_received`/`received`), and its
+per-line quantity is capped by `quantity_received` minus whatever a
+non-rejected return already covers on that line — not `quantity_ordered`,
+since goods still in transit can't physically go back. `shipBack()`
+decrements `stock_levels` at the PO's own `warehouse_id` and writes a new
+`purchase_return` stock-movement type (the mirror image of
+`purchase_receipt`), guarded against a negative result the same way
+`OrderController::ship()` is, in case stock moved elsewhere between
+approval and physically packing the return. See
+`DEVELOPMENT_ROADMAP.md`'s Phase 7 Wave 2a scope note for what's still
+deferred (supplier ledger, PO approval workflow, reorder suggestions) and
+why.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -745,14 +802,15 @@ compatible with them.
   returns are also built — see sections 1d/1e/1g. The
   `product_variant_id` item this bullet used to list is no longer
   deferred — see section 1i's "Now variant-aware" note.
-- **Purchasing Wave 2:** `purchase_returns` (returning received goods to
-  a supplier — needs a real trigger from actual usage before its
-  workflow can be designed with confidence), supplier payment
+- **Purchasing Wave 2 (partially shipped):** supplier payment
   terms/ledger and multi-currency POs (accounting-heavy, no consumer
   yet), a PO approval/sign-off workflow (no multi-user approval concept
-  exists yet), and low-stock-driven reorder suggestions (needs Phase 18/20
-  reporting infra). `suppliers`, `purchase_orders`, `purchase_order_items`,
-  `purchase_receipts`, `purchase_receipt_items` are built — see section 1d.
+  exists yet), and low-stock-driven reorder suggestions (Phase 18/20
+  reporting infra is now built, so this is no longer blocked — just not
+  yet picked) remain deferred. `suppliers`, `purchase_orders`,
+  `purchase_order_items`, `purchase_receipts`, `purchase_receipt_items`
+  are built — see section 1d; `purchase_returns`, `purchase_return_items`,
+  `purchase_return_status_history` (Wave 2a) are built — see section 1m.
 - **Orders Wave 2:** `payments` (a real gateway reconciliation ledger for
   non-COD methods — Wave 1's `orders.payment_status` for `cod` orders is
   now set by the Phase 9 shipment-delivered flow, but `bkash`/`nagad`/

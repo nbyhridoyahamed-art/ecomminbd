@@ -313,11 +313,21 @@ class expands a bundle line item into its component rows for every
 stock operation. Deliberately excluded: nested bundles, Purchasing/
 adjustments/transfers (a bundle is never bought or moved directly, only
 its components — `App\Rules\ProductIsNotBundle`), and the Low Stock
-report/Stock Levels list.
+report/Stock Levels list. Also built since: **Phase 7 Wave 2a** —
+purchase returns, mirroring Phase 10's customer-facing Returns almost
+exactly but with the goods flow reversed: `requested` → `approved` →
+`shipped_back` (the stock-decrementing step, a new `purchase_return`
+movement type mirroring `purchase_receipt`) → `credited` (a supplier
+credit note, not a cash refund — nothing exists yet to apply it against),
+or `rejected`. New `purchase_returns`/`purchase_return_items`/
+`purchase_return_status_history` tables (see `DATABASE_DESIGN.md` section
+1m); eligibility is capped by what's actually been received
+(`quantity_received`), not what was ordered.
 CMS/builder, blog, SEO, storefront, customer account, the adapter
 implementations described in section 6, Catalog Wave 2's remaining
-items (reviews, a reusable media library), Purchasing Wave 2 (purchase
-returns, supplier ledger, PO approval workflow), Orders Wave 2 (a
+items (reviews, a reusable media library), Purchasing Wave 2's remaining
+items (supplier ledger, PO approval workflow, reorder suggestions —
+no longer blocked on reporting infra, just not yet picked), Orders Wave 2 (a
 non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery
 zones/rates, multi-shipment orders — the return-driven stock reversal gap
 this used to list is closed, see above), Returns Wave 2 (exchanges, store

@@ -13,7 +13,7 @@ in place and the app still builds/runs.
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
 | 5 | Catalog | ✅ Wave 1 + Wave 2a + Wave 2b (CSV import/export) + Wave 2c (bundles/combos) done — Wave 2 fully closed (reviews/media library still deferred — see note) | Yes — categories (hierarchy), brands, simple + variable + bundle products w/ pricing/SEO/images, attributes + a variant generator, bundle components with derived availability, CSV bulk import/export, full admin UI |
 | 6 | Inventory | ✅ Wave 1 done, now variant-aware (transfer approval workflow deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
-| 7 | Purchasing | ✅ Wave 1 done, now variant-aware (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
+| 7 | Purchasing | ✅ Wave 1 done, now variant-aware, plus Wave 2a (purchase returns) (supplier ledger/PO approval workflow/reorder suggestions still deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements, purchase returns (requested→approved→shipped_back→credited) |
 | 8 | Orders | ✅ Wave 1 done, now variant-aware (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
 | 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
 | 10 | Returns | ✅ Wave 1 done (exchanges/store-credit, cross-return refund reconciliation deferred — see note) | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
@@ -233,6 +233,36 @@ confidence), supplier payment terms/ledger and multi-currency POs
 (accounting-heavy, no consumer yet), a PO approval/sign-off workflow (no
 multi-user approval concept exists yet), and low-stock-driven reorder
 suggestions (needs Phase 18/20 reporting infra).
+
+**Phase 7 Wave 2a scope note:** ships the first Purchasing Wave 2 item —
+purchase returns — mirroring Phase 10's customer-facing Returns almost
+exactly (`requested` → `approved` → `shipped_back` → `credited`, or
+`rejected` from `requested`/`approved`), the strong precedent that
+resolves the "needs a real trigger before its workflow can be designed
+with confidence" reason Wave 1's note above gave for deferring it. New
+`purchase_returns`/`purchase_return_items`/`purchase_return_status_history`
+tables. A return can only be requested against a purchase order with
+something actually received (`partially_received`/`received`), and its
+per-line quantity is capped by `quantity_received` minus whatever's
+already covered by a non-rejected return on that line — not
+`quantity_ordered`, since goods still in transit can't physically be sent
+back. `POST .../{id}/ship-back` is where stock actually decrements (a new
+`purchase_return` stock-movement type, the mirror image of
+`purchase_receipt`), guarded the same way `OrderController::ship()`
+guards against a negative result, in case stock moved elsewhere between
+the return being approved and physically packed. `POST .../{id}/credit`
+records a supplier credit note — not a cash refund, and not applied
+against anything, since no accounts-payable ledger exists yet (that's the
+still-deferred **supplier ledger** item below); it's a bookkeeping record
+of how much credit the return is worth, defaulting to the covered items'
+original unit cost, overridable the same way `ReturnController::refund()`'s
+suggested amount is. Still deferred, for the same reasons Wave 1's note
+already gave: supplier payment terms/ledger and multi-currency POs
+(accounting-heavy, no consumer yet — a credit note existing is not the
+same as a ledger to apply it against), a PO approval/sign-off workflow
+(still no multi-user approval concept anywhere in the app), and
+low-stock-driven reorder suggestions (Phase 18/20 reporting infra is now
+built, so this one is no longer *blocked* — just not yet picked).
 
 **Phase 8 scope note:** Wave 1 ships customers (full CRUD) with saved
 addresses (managed inline on the customer edit page, no separate
@@ -488,9 +518,14 @@ breakdown, period-over-period comparison, PDF export) are shipped;
 only materialized/scheduled aggregate tables remain there, and per
 rule 178 that's infra to build once real data volume demands it, not a
 pick-able feature today. Catalog Wave 2 is now fully closed too —
-bundles/combos (Wave 2c) shipped, the last item on that list. Any
-already-started phase's own Wave 2 (Purchasing, Orders, Delivery,
-Returns, Dashboard) is the clearest next pickup, whichever the user
+bundles/combos (Wave 2c) shipped, the last item on that list. Purchasing
+Wave 2a (purchase returns) is also done; supplier ledger/multi-currency
+POs and a PO approval workflow remain deferred there for lack of a real
+consumer (see the Phase 7 Wave 2a scope note), and low-stock-driven
+reorder suggestions is no longer blocked (Phase 18's reporting infra
+exists now) but hasn't been picked yet. Any already-started phase's own
+remaining Wave 2 (Orders, Delivery, Returns, Dashboard, or Purchasing's
+own remaining items) is the clearest next pickup, whichever the user
 prefers. Customer reviews stays off the table until Phase 16/17
 gives a customer somewhere to actually write one; a reusable media
 library still has no real consumer either (today's

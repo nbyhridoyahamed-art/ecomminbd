@@ -36,6 +36,7 @@ class RoleAndPermissionSeeder extends Seeder
         'suppliers.view', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
         'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
         'purchase_orders.cancel', 'purchase_orders.receive',
+        'purchase_returns.view', 'purchase_returns.create', 'purchase_returns.update',
         'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
         'customers.view', 'customers.create', 'customers.update', 'customers.delete',
 
@@ -69,6 +70,7 @@ class RoleAndPermissionSeeder extends Seeder
             'suppliers.view', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
             'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
             'purchase_orders.cancel', 'purchase_orders.receive',
+            'purchase_returns.view', 'purchase_returns.create', 'purchase_returns.update',
             'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
             'customers.view', 'customers.create', 'customers.update', 'customers.delete', 'reports.view',
             'couriers.view', 'couriers.create', 'couriers.update', 'couriers.delete',
@@ -92,6 +94,7 @@ class RoleAndPermissionSeeder extends Seeder
         ],
         'Warehouse Staff' => [
             'warehouses.view', 'inventory.view', 'inventory.adjust', 'purchase_orders.view', 'purchase_orders.receive',
+            'purchase_returns.view', 'purchase_returns.update',
             'returns.view', 'returns.update',
         ],
         'Purchase Manager' => [
@@ -99,11 +102,13 @@ class RoleAndPermissionSeeder extends Seeder
             'suppliers.view', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
             'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
             'purchase_orders.cancel', 'purchase_orders.receive',
+            'purchase_returns.view', 'purchase_returns.create', 'purchase_returns.update',
         ],
         'Accountant' => [
             'orders.view', 'reports.view', 'settings.manage',
             'couriers.view', 'cod_settlements.view', 'cod_settlements.create',
             'returns.view', 'returns.update',
+            'purchase_returns.view', 'purchase_returns.update',
         ],
         'Marketing Manager' => [
             'products.view', 'categories.view', 'categories.update', 'brands.view', 'brands.update',
@@ -129,7 +134,7 @@ class RoleAndPermissionSeeder extends Seeder
         'Viewer' => [
             'stores.view', 'warehouses.view', 'products.view', 'categories.view', 'brands.view', 'attributes.view',
             'inventory.view', 'suppliers.view', 'purchase_orders.view', 'orders.view', 'customers.view', 'reports.view',
-            'couriers.view', 'shipments.view', 'cod_settlements.view', 'returns.view',
+            'couriers.view', 'shipments.view', 'cod_settlements.view', 'returns.view', 'purchase_returns.view',
         ],
     ];
 

@@ -33,10 +33,12 @@ their backing functionality — no dead pages).
 | `/purchasing` | ✅ | 7 (redirects to Purchase Orders) |
 | `/purchasing/purchase-orders` | ✅ | 7 (status/supplier filters, total shown per order) |
 | `/purchasing/purchase-orders/new` | ✅ | 7 (supplier/warehouse + line-item builder with unit cost) |
-| `/purchasing/purchase-orders/[id]` | ✅ | 7 (items w/ received-so-far, place/cancel actions, record-receipt form, receipt history — drives real `stock_movements`) |
+| `/purchasing/purchase-orders/[id]` | ✅ | 7 (items w/ received-so-far, place/cancel actions, record-receipt form, receipt history, returns summary + request-a-return form — drives real `stock_movements`) |
+| `/purchasing/purchase-returns` | ✅ | 7 Wave 2a (list, filter by status) |
+| `/purchasing/purchase-returns/[id]` | ✅ | 7 Wave 2a (items, status history, approve/reject/ship-back/credit actions) |
 | `/purchasing/suppliers` | ✅ | 7 (list, search, pagination) |
 | `/purchasing/suppliers/new`, `/purchasing/suppliers/[id]` | ✅ | 7 |
-| `/purchasing` (purchase returns, supplier ledger/payment terms, PO approval workflow, reorder suggestions) | ⏳ | 7 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
+| `/purchasing` (supplier ledger/payment terms, PO approval workflow, reorder suggestions) | ⏳ | 7 Wave 2 remaining items — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/orders` | ✅ | 8 (redirects to Orders) |
 | `/orders/orders` | ✅ | 8 (status/customer filters, total shown per order) |
 | `/orders/orders/new` | ✅ | 8 (customer/warehouse/payment method + saved-or-manual shipping address + line-item builder) |

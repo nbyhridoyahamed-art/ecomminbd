@@ -9,6 +9,7 @@ import { useCurrentUser } from "@/hooks/use-auth";
 
 const TABS = [
   { label: "Purchase Orders", href: "/purchasing/purchase-orders", permission: "purchase_orders.view" },
+  { label: "Purchase Returns", href: "/purchasing/purchase-returns", permission: "purchase_returns.view" },
   { label: "Suppliers", href: "/purchasing/suppliers", permission: "suppliers.view" },
 ];
 

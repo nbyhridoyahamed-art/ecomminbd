@@ -12,9 +12,11 @@ import {
   usePurchaseOrder,
   useRecordPurchaseReceipt,
 } from "@/hooks/use-purchase-orders";
+import { useCreatePurchaseReturn } from "@/hooks/use-purchase-returns";
 import { formatMoney } from "@/lib/money";
 import { variantLabel } from "@/lib/variant";
 import { PermissionDenied } from "@/components/permission-denied";
+import { PurchaseReturnRequestForm } from "@/components/purchasing/purchase-return-request-form";
 import { ReceivePurchaseOrderForm } from "@/components/purchasing/receive-purchase-order-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -50,6 +52,22 @@ const STATUS_VARIANTS: Record<PurchaseOrderStatus, BadgeVariant> = {
   cancelled: "danger",
 };
 
+const RETURN_STATUS_LABELS: Record<string, string> = {
+  requested: "Requested",
+  approved: "Approved",
+  rejected: "Rejected",
+  shipped_back: "Shipped back",
+  credited: "Credited",
+};
+
+const RETURN_STATUS_VARIANTS: Record<string, BadgeVariant> = {
+  requested: "neutral",
+  approved: "info",
+  rejected: "danger",
+  shipped_back: "warning",
+  credited: "success",
+};
+
 export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing/purchase-orders/[id]">) {
   const { id } = use(params);
   const orderId = Number(id);
@@ -59,6 +77,7 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
   const placeOrder = usePlacePurchaseOrder(orderId);
   const cancelOrder = useCancelPurchaseOrder(orderId);
   const recordReceipt = useRecordPurchaseReceipt(orderId);
+  const createReturn = useCreatePurchaseReturn(orderId);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   if (currentUser && !can(currentUser, "purchase_orders.view")) {
@@ -81,6 +100,9 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
   const canCancel = can(currentUser, "purchase_orders.cancel");
   const canReceive = can(currentUser, "purchase_orders.receive");
   const canReceiveNow = canReceive && (order.status === "ordered" || order.status === "partially_received");
+  const canRequestReturn =
+    can(currentUser, "purchase_returns.create") && (order.status === "partially_received" || order.status === "received");
+  const returnableItems = order.items.filter((item) => item.quantity_received > 0);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -220,6 +242,52 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
                 </ul>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {order.returns.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Returns</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {order.returns.map((purchaseReturn) => (
+                <li key={purchaseReturn.id} className="flex items-center justify-between">
+                  <Link
+                    href={`/purchasing/purchase-returns/${purchaseReturn.id}`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {purchaseReturn.return_number}
+                  </Link>
+                  <div className="flex items-center gap-3">
+                    {purchaseReturn.credit_amount !== null ? (
+                      <span className="text-text-secondary">{formatMoney(purchaseReturn.credit_amount, order.currency_code)}</span>
+                    ) : null}
+                    <Badge variant={RETURN_STATUS_VARIANTS[purchaseReturn.status]}>
+                      {RETURN_STATUS_LABELS[purchaseReturn.status]}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canRequestReturn && returnableItems.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Request a return</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PurchaseReturnRequestForm
+              items={returnableItems}
+              isPending={createReturn.isPending}
+              serverError={createReturn.error instanceof ApiError ? createReturn.error.message : null}
+              onSubmit={(values) => createReturn.mutate(values)}
+            />
           </CardContent>
         </Card>
       ) : null}

@@ -44,6 +44,7 @@ export interface PurchaseOrder {
   items: PurchaseOrderItem[];
   total_amount: number;
   receipts: PurchaseReceipt[];
+  returns: { id: number; return_number: string; status: string; credit_amount: number | null }[];
   created_by: string | null;
   created_at: string;
 }

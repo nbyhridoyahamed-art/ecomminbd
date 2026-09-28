@@ -24,6 +24,7 @@ class PurchaseOrderController extends Controller
     private const RELATIONS = [
         'warehouse', 'supplier', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator',
         'receipts.items.orderItem.product', 'receipts.items.orderItem.productVariant', 'receipts.receiver',
+        'returns',
     ];
 
     public function index(Request $request): JsonResponse

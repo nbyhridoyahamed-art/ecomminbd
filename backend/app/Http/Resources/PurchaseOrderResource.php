@@ -56,6 +56,12 @@ class PurchaseOrderResource extends JsonResource
                     'quantity_received' => $receiptItem->quantity_received,
                 ]),
             ])),
+            'returns' => $this->whenLoaded('returns', fn () => $this->returns->map(fn ($return) => [
+                'id' => $return->id,
+                'return_number' => $return->return_number,
+                'status' => $return->status,
+                'credit_amount' => $return->credit_amount === null ? null : (new Money($return->credit_amount, $this->currency_code))->toDecimal(),
+            ])),
             'created_by' => $this->creator?->name,
             'created_at' => $this->created_at,
         ];
