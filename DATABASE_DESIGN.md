@@ -770,6 +770,65 @@ approval and physically packing the return. See
 deferred (supplier ledger, PO approval workflow, reorder suggestions) and
 why.
 
+## 1n. Storefront Schema (Phase 16 Wave 1)
+
+```
+orders
+  ... (unchanged from section 1e, plus:)
+  source (varchar, default 'admin' — 'admin' or 'storefront'; lets staff
+    tell a guest-placed order apart from one they entered themselves in
+    the admin Orders list/detail page)
+```
+
+No other new tables. Every storefront read (`GET store`/
+`categories(/{slug})`/`brands(/{slug})`/`products(/{slug})`/
+`locations/*`) is a new query over tables sections 1a/1b/1e/1i/1l already
+built — `stores`, `categories`, `brands`, `products`, `product_variants`,
+`bundle_items`, `bd_divisions`/`bd_districts`/`bd_upazilas` — returned
+through new `App\Http\Resources\Storefront\*` classes rather than the
+admin ones, since the admin resources expose `cost_price`, per-warehouse
+stock breakdowns, `created_by`, and other operator-internal fields a
+public, unauthenticated caller must never see. `in_stock` is a computed
+boolean, not a stored column: one grouped `SUM(quantity -
+quantity_reserved)` query covers every non-bundle product on a listing
+page, falling back to `App\Support\BundleExpander::availability()`
+per-bundle only for the (typically few) bundle rows, so a browsing page
+never pays an N+1 query for it.
+
+A guest checkout (`POST checkout`) writes a normal `orders`/`order_items`/
+`order_status_history` row via the same `App\Support\OrderPlacement`
+(reservation/bundle-snapshot logic) the admin `OrderController` uses —
+see `ARCHITECTURE.md` for why that got extracted — with `source` set to
+`storefront`, `created_by` left `null` (there is no staff user), and
+`payment_method` hardcoded to `cod` (Wave 1 has no other payment method
+to choose from — see section 2). The guest is matched to an existing
+`customers` row by `(store_id, phone)` via `firstOrCreate`, never a new
+identity table: a repeat guest checkout reuses their existing `Customer`
+record and never overwrites its `name`/`email` on a match, so submitting
+someone else's real phone number with a different name can't rewrite
+their record. No `carts`/`cart_items` table — the cart is client-side
+only (`zustand` + `persist`, browser `localStorage`), and `POST checkout`
+always re-resolves and re-prices every line from the live `products`/
+`product_variants` rows regardless of what the client sends, so nothing
+about a stale or tampered client-side cart ever reaches the database (see
+`API_DESIGN.md` for the exact contract). Warehouse selection is
+automatic — the first active warehouse (by `id`) whose `stock_levels`
+can fully cover the resolved cart, expanded through
+`BundleExpander::expand()` the same way `OrderPlacement::reserveItems()`
+does — with no order-level warehouse input from the guest and no
+splitting one order's fulfilment across warehouses (Wave 1 doesn't
+invent a capability the admin flow doesn't have either).
+
+Deliberately still resolves to a single store
+(`StorefrontController::currentStore(): Store::where('status',
+'active')->firstOrFail()`), not by `stores.domain`/`slug` — both columns
+already exist (section 1a) for real multi-tenant routing, but no
+environment this project runs in seeds a second store to route between
+yet, so building that dispatch logic now would have nothing real to test
+it against. See `DEVELOPMENT_ROADMAP.md`'s Phase 16 Wave 1 scope note for
+the rest of what's deliberately deferred (customer accounts, non-COD
+payment, homepage-builder-driven content, per-page SEO metadata) and why.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -778,10 +837,12 @@ deletes, currency as a table not a hardcoded symbol) are already
 compatible with them.
 
 - **Catalog Wave 2 (now fully shipped):** `reviews` (Phase 8's
-  `customers`/`orders` now exist to back "verified purchase", but the
-  reviews table itself isn't built, and nothing lets a customer actually
-  write one before a storefront/account portal exists — Phase 16/17),
-  and a reusable/browsable `media` library with folders and cross-entity
+  `customers`/`orders` now exist to back "verified purchase", and Phase
+  16 Wave 1 gives a real storefront too, but the reviews table itself
+  isn't built, and its checkout is guest-only — nothing yet lets a
+  customer *log back in* to write a review against their own past order,
+  so it still waits on Phase 17's real customer identity), and a
+  reusable/browsable `media` library with folders and cross-entity
   reuse (today, product/category/brand images upload directly against
   their own record — see section 1b) remain the only deferred items, for
   the reasons just given. Everything else this bullet used to list is
@@ -851,6 +912,17 @@ compatible with them.
 - **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,
   description, focus_keyword, og_*, twitter_*, schema_json, canonical,
   robots), `redirects`, `seo_templates`.
+- **Storefront Wave 2 (Wave 1 shipped — section 1n):** no new tables
+  expected here either. Multi-store domain/slug-based routing needs a
+  second seeded store to route between before it can be built against
+  anything real (`stores.domain`/`slug` already exist — section 1a); a
+  real payment gateway ledger is the same `payments` table Orders Wave 2
+  above already lists, just with a storefront producer once Phase 19's
+  adapters exist (Wave 1's checkout is COD-only, no ledger needed yet);
+  and real per-page SEO metadata reuses `products.seo_title`/
+  `seo_description` (already there — section 1b) once a deliberate
+  server-fetch design pass wires `generateMetadata()` up to them (see
+  `DEVELOPMENT_ROADMAP.md`'s Phase 16 Wave 1 scope note).
 - **Reporting/Analytics:** Phase 18 Wave 1 + Wave 2 (section 1k) shipped
   sales/product-performance/low-stock reports plus a by-courier
   breakdown, a period-over-period comparison, and a PDF export twin

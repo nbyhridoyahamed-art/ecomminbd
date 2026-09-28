@@ -49,10 +49,9 @@ shape — controllers never hand-build error JSON.
 - `POST /api/v1/auth/forgot-password` — emails a reset link/token.
 - `POST /api/v1/auth/reset-password` — consumes the token, sets new password.
 
-Every other `/api/v1/*` route requires `auth:sanctum` middleware; the
-storefront's public catalog endpoints (future phases) are the only
-intentional exception and are listed explicitly in their own phase doc,
-never left ungated by omission.
+Every other `/api/v1/*` route requires `auth:sanctum` middleware except
+the `api/v1/storefront/*` prefix (Phase 16 Wave 1 — see section 9),
+listed there explicitly and never left ungated by omission.
 
 ## 4. Authorization
 
@@ -103,9 +102,23 @@ subscriber. Not implemented until an event-producing phase exists.
 
 ## 8. Rate Limiting
 
-`throttle:api` (60 req/min per token) globally; auth endpoints
-(`login`, `forgot-password`) get a tighter `throttle:6,1` to blunt
-credential-stuffing/brute force per spec section 107.
+No global `throttle:api` is actually wired up (verified empirically:
+70 rapid unauthenticated requests to a storefront GET all returned 200
+— this line previously claimed one existed and was wrong; Laravel 11+'s
+`bootstrap/app.php` middleware stack needs it added explicitly, and
+nothing here does). What's real is per-route: `auth/register`,
+`auth/login`, `auth/forgot-password`, and `auth/reset-password` each get
+`throttle:6,1` to blunt credential-stuffing/brute force per spec section
+107, and `POST storefront/checkout` (Phase 16 Wave 1) gets `throttle:15,1`
+— slightly more permissive since a real shopper legitimately retrying a
+declined checkout isn't an attack the way six failed logins is, but
+still bounded, since unlike every other route on the public storefront
+prefix this one writes a real order and reserves real stock. Every other
+route — including the rest of the public storefront prefix — has no
+throttle beyond whatever the deployment's reverse proxy/WAF applies.
+Adding a real global limit is tracked, not forgotten: Phase 21 (Security
+Hardening) is where a deliberate choice of limits per route class
+belongs, not a value invented in passing here.
 
 ## 9. What's Implemented So Far
 
@@ -384,5 +397,60 @@ forced `false` server-side; `GET /stock-levels` additionally filters
 a bundle as a misleading "0 on hand" row); `GET
 /reports/products-performance` is unaffected and shows a bundle as its
 own ranked row, same as any other product.
+
+Storefront (Phase 16 Wave 1): a new `api/v1/storefront/*` prefix, the
+first routes in this app registered outside `auth:sanctum` entirely —
+the exception section 3 said would exist and be listed explicitly, now
+that it does. `GET store` returns the current store's public identity
+(`name`, `slug`, `currency_code`) for header/page-title branding — never
+the full admin `StoreResource`, which exposes `organization_id` and
+operator settings. `GET categories` (top-level, active, with active
+`children`) + `GET categories/{slug}` (that category + its own active
+products, paginated), and `GET brands` + `GET brands/{slug}` mirror each
+other exactly. `GET products` (`search`, `category`, `brand`, `featured`,
+`sort` of `price_asc`/`price_desc`/`newest`, paginated, active-only) and
+`GET products/{slug}` (full PDP: variants with per-variant `in_stock`,
+bundle `components[]` + `bundle_availability`, no `cost_price` anywhere)
+both compute `in_stock` in bulk — one grouped query per page for
+non-bundle products, falling back to `BundleExpander::availability()`
+only for the bundle rows — so a listing page never pays an N+1 query for
+it (see `DATABASE_DESIGN.md` section 1n). `GET locations/divisions`
+`/districts` `/upazilas` are the same `LocationController` the admin app
+uses under `auth:sanctum` below, just also reachable here without a
+token — nationwide BD reference data has no per-store scoping and
+nothing sensitive to gate.
+
+`POST checkout` is the one write path, and the one endpoint in this
+entire API with a different trust model from every other write endpoint:
+its request accepts `customer_name`/`customer_phone`/`customer_email`,
+`shipping_recipient_name`/`shipping_phone`/`shipping_address_line`/
+`shipping_bd_division_id`/`shipping_bd_district_id`/
+`shipping_bd_upazila_id`, optional `notes`, and
+`items[].{product_id, product_variant_id, quantity}` — **no `unit_price`
+field at any level**, unlike `POST/PUT /orders` below where staff may
+legitimately override a line's price. The server always resolves the
+current effective price itself (sale price if set, else regular price,
+variant overrides falling back to the parent product field-by-field —
+the same resolution `VariantResource` uses to decide what a shopper sees
+on the PDP), rejects any `product_id`/`product_variant_id` that isn't
+active and in the current store with a 422, and rejects a duplicate
+product/variant line the same way `POST/PUT /orders` does. Warehouse
+selection is automatic (no `warehouse_id` in the request at all): the
+first active warehouse whose stock, expanded through
+`BundleExpander::expand()`, can fully cover every resolved line; a 422
+("...currently out of stock") if none can. The customer is matched to an
+existing `Customer` by `(store_id, phone)` via `firstOrCreate` — no new
+identity concept, and never renamed on a repeat match. On success it
+returns a public receipt via a storefront-only `OrderResource` (`uuid`,
+`order_number`, `status`, `payment_method` — always `cod` — `items[]`,
+shipping snapshot, `subtotal_amount`/`shipping_amount`/`discount_amount`/
+`total_amount`) that deliberately omits the sequential `id`, `warehouse`,
+`created_by`, and `status_history` the admin `OrderResource` includes.
+`GET orders/{uuid}` re-fetches that same receipt — looked up by `uuid`
+only; the sequential `id` is never a valid lookup key here, even though
+it's the primary key everywhere else in this API. `POST checkout` is
+throttled `throttle:15,1`, the same abuse-guard reasoning as `auth/login`
+in section 8, since unlike every other endpoint on this prefix it writes
+a real order and reserves real stock.
 
 Section 7 (webhooks) remains documented intent for future phases.

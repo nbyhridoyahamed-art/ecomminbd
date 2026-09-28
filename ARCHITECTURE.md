@@ -198,15 +198,30 @@ later phases implement against an agreed shape.
 ## 9. Frontend Architecture
 
 - Next.js App Router, TypeScript strict mode.
-- Server Components by default; Client Components only for interactive
-  forms, charts, drag-and-drop, rich editors, and real-time widgets
-  (spec section 3).
+- **What's actually built, not the original plan:** every page in this
+  app is a Client Component (`"use client"`), including every storefront
+  page added in Phase 16 — not "Server Components by default" as this
+  section originally said. All data fetching goes through TanStack Query
+  hooks calling the JSON API; nothing does a server-side fetch today.
+  This is a real, load-bearing gap for one specific thing: a Client
+  Component page can't export Next.js's `generateMetadata()`, so no page
+  in this app — including storefront product/category pages, which
+  already have `seo_title`/`seo_description` to work with (see
+  `DATABASE_DESIGN.md` section 1b) — sets a real per-page `<title>` or
+  meta description yet. Fixing that means introducing this app's first
+  server-side fetch, which is real, deliberate design work (fetch twice,
+  once per side, or restructure the data flow) tracked against Phase 15
+  (SEO), not a quick add-on to whichever page needs it next.
 - Server state via TanStack Query (all API data); Zustand reserved for
-  genuine client-only UI state (sidebar collapsed, builder canvas state).
-- `frontend/src/features/*` mirrors backend domain boundaries
-  (`auth`, `dashboard`, and later `products`, `orders`, `inventory`, ...
-  as each phase is built) — see `COMPONENT_INVENTORY.md` /
-  `PAGE_INVENTORY.md` for what exists today versus what's planned.
+  genuine client-only UI state (sidebar collapsed, the storefront cart —
+  see `DATABASE_DESIGN.md` section 1n for why the cart itself has no
+  server-side table).
+- Actual layout is flat, not the originally planned
+  `frontend/src/features/*` per-domain folders: route segments under
+  `frontend/src/app/` (`(admin)/`, `(storefront)/`, ...), with
+  `components/`, `hooks/`, `types/`, `lib/`, and `stores/` each holding
+  every domain's files side by side rather than grouped per feature — see
+  `COMPONENT_INVENTORY.md` / `PAGE_INVENTORY.md` for what exists today.
 
 ## 10. What This Session Implements vs. Defers
 
@@ -322,9 +337,32 @@ credit note, not a cash refund — nothing exists yet to apply it against),
 or `rejected`. New `purchase_returns`/`purchase_return_items`/
 `purchase_return_status_history` tables (see `DATABASE_DESIGN.md` section
 1m); eligibility is capped by what's actually been received
-(`quantity_received`), not what was ordered.
-CMS/builder, blog, SEO, storefront, customer account, the adapter
-implementations described in section 6, Catalog Wave 2's remaining
+(`quantity_received`), not what was ordered. Also built since:
+**Phase 16 Wave 1** — the app's first public, unauthenticated API surface
+(`api/v1/storefront/*`, no `auth:sanctum`) and the storefront UI that
+consumes it, at `frontend/src/app/(storefront)/` (see
+`PAGE_INVENTORY.md`). No new tables beyond an `orders.source`
+(`'admin'`/`'storefront'`) column — every browsing endpoint is a new
+`App\Http\Resources\Storefront\*`-shaped read over Catalog's existing
+tables, deliberately never reusing the admin resources (they expose
+`cost_price` and other operator-internal fields). The one write path,
+guest checkout, is where a public endpoint needed a real trust-model
+change the admin side never needed: it has no `unit_price` field at all,
+always computing the charged price server-side, and it matches a guest
+to an existing `Customer` by phone rather than minting a new identity
+concept. `OrderController`'s item-sync/stock-reservation logic moved into
+a shared `App\Support\OrderPlacement` so admin and storefront checkout —
+now two genuinely independent callers — can't drift apart (see
+`DATABASE_DESIGN.md` section 1n for the full contract). Deliberately
+scoped down: guest-only (no accounts — Phase 17), one hardcoded store
+(no domain-based multi-tenant routing yet — Phase 4's `stores.domain`/
+`slug` exist but nothing seeds a second store to route between), COD
+only (no payment gateway — Phase 19), a client-side-only
+(`zustand`/`localStorage`) cart with no server persistence, a hardcoded
+homepage (not block-driven — Phase 13 doesn't exist yet to feed it), and
+no real per-page SEO metadata (see section 9's note on why that's a
+separate, deliberate pass, not a quick add-on here).
+CMS/builder, blog, SEO, customer account, the adapter
 items (reviews, a reusable media library), Purchasing Wave 2's remaining
 items (supplier ledger, PO approval workflow, reorder suggestions —
 no longer blocked on reporting infra, just not yet picked), Orders Wave 2 (a

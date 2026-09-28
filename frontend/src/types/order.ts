@@ -40,6 +40,7 @@ export interface Order {
   status: OrderStatus;
   payment_method: PaymentMethod;
   payment_status: "unpaid" | "paid" | "refunded";
+  source: "admin" | "storefront";
   currency_code: string;
   notes: string | null;
   customer: { id: number; name: string; phone: string };

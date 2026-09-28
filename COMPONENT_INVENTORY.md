@@ -17,8 +17,8 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Skeleton | ✅ | used for dashboard/table loading states |
 | Alert | ✅ | inline error/success/info banners |
 | Dropdown Menu | ✅ | used in topbar (profile, theme); since Phase 18 Wave 2c also backs the Export button on all three Reports pages (CSV/PDF) |
-| Sheet (drawer) | ✅ | mobile sidebar |
-| Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment, product category/brand/status, warehouse pickers, stock adjustment direction, supplier/warehouse pickers on purchase orders, customer/warehouse/payment-method/saved-address pickers on orders, cascading BD division/district/upazila pickers (customer addresses + order shipping), courier pickers on shipments/COD settlements, variant pickers on order/purchase-order/stock-transfer line items and the variant stock-adjustment dialog's warehouse picker, warehouse/granularity filters on the Sales report and warehouse filter on the Product Performance report, bundle component picker (product + `VariantPicker`) on the product form's Components tab |
+| Sheet (drawer) | ✅ | mobile sidebar; since Phase 16 also backs the storefront's mobile nav menu and the cart drawer — a `side="right"` `SheetContent`, no new primitive needed |
+| Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment, product category/brand/status, warehouse pickers, stock adjustment direction, supplier/warehouse pickers on purchase orders, customer/warehouse/payment-method/saved-address pickers on orders, cascading BD division/district/upazila pickers (customer addresses + order shipping), courier pickers on shipments/COD settlements, variant pickers on order/purchase-order/stock-transfer line items and the variant stock-adjustment dialog's warehouse picker, warehouse/granularity filters on the Sales report and warehouse filter on the Product Performance report, bundle component picker (product + `VariantPicker`) on the product form's Components tab; since Phase 16, the identical primitive also backs the storefront checkout's own cascading BD division/district/upazila picker and the `/products` browse page's category/brand/sort filters — same component, no storefront-specific variant, confirming `UI_UX_ARCHITECTURE.md`'s "shared tokens/primitives, different layout" split holds in practice |
 | Textarea | ✅ | category/brand/product descriptions, SEO meta description, warehouse address, transfer note, supplier address, PO notes/receipt note, order notes, shipment delivered/failed/returned notes, COD settlement note, return request reason, return reject/receive notes |
 | Checkbox | ✅ | Radix-based; role permission matrix, user role assignment, product track-stock/featured flags, low-stock-only filter, customer address default flag, COD settlement shipment picker, per-item restock decision on return receive |
 | Radio | ⏳ | Not needed yet |
@@ -52,8 +52,20 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | AdminSidebar | ✅ | collapsible, responsive drawer below 768px |
 | AdminTopbar | ✅ | breadcrumb, theme toggle, profile menu, notifications placeholder (disabled — no notifications backend yet, so the bell is present but intentionally shows an empty state rather than fake data) |
 | AdminShell | ✅ | composes sidebar+topbar+content, persists sidebar collapsed state |
-| StorefrontHeader/Footer | ⏳ | Phase 16 |
 | BuilderCanvas / BuilderPanel | ⏳ | Phase 13 |
+
+## Storefront Components (`frontend/src/components/storefront/`)
+
+| Component | Status | Notes |
+|---|---|---|
+| StorefrontHeader | ✅ | Phase 16 — sticky header: mobile hamburger opening a `Sheet` nav (All Products/Brands/category list), store name (from `GET storefront/store`) as a text logo, `CategoryMegaMenu`, desktop All Products/Brands links, a search form (`router.push`'s to `/products?search=...`, no live-filter debounce needed since it's a full navigation), and a cart button with an item-count badge reading `useCartStore` |
+| CategoryMegaMenu | ✅ | Phase 16 — a `DropdownMenu` sized as a wide grid rather than a narrow list (`w-[min(90vw,720px)]`), one column per top-level category with its `children` listed underneath as links — reuses the existing Dropdown Menu primitive rather than adding a new one, since a bigger `DropdownMenuContent` is all a "mega menu" needs on top of it |
+| StorefrontFooter | ✅ | Phase 16 — store name/tagline, Shop links (All Products/Brands), and up to 5 top-level categories; deliberately no Blog/Pages links yet (spec rule 178 — those routes don't exist until Phase 12/14) |
+| MobileBottomNav | ✅ | Phase 16 — fixed bottom bar, hidden at `desktop:` width: Home, Shop, and a Cart button (badge from `useCartStore`) opening the same drawer the header's cart icon does |
+| CartDrawer | ✅ | Phase 16 — a `Sheet` listing `CartLineItem`s, subtotal, and View Cart/Checkout actions; empty state when the cart has nothing in it |
+| CartLineItem | ✅ | Phase 16 — image/name/variant-label, a quantity stepper, remove button, and line total; shared as-is between `CartDrawer` (compact) and the full `/cart` page, both reading/writing the same `useCartStore` (`zustand` + `persist`, `localStorage`-backed — see `ARCHITECTURE.md` section 9) |
+| ProductCard | ✅ | Phase 16 — the product-grid tile used on the homepage, `/products`, `/category/[slug]`, and `/brand/[slug]`: image (or a `Package` icon placeholder), name, price with a strikethrough original price when on sale, and an Out of Stock/Featured badge. Links to the PDP only — no quick-add-to-cart from a listing card, since a variable product needs a real variant selection first and a bundle needs its own availability check, both of which only the PDP does |
+| StorefrontPagination | ✅ | Phase 16 — the same server-paginated Previous/Next footer, reused identically across `/products`, `/category/[slug]`, and `/brand/[slug]` rather than copied three times |
 
 ## Charts (`frontend/src/components/charts/`)
 

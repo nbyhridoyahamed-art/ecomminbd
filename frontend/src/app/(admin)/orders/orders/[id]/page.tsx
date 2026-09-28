@@ -119,6 +119,9 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
             <CardTitle className="flex items-center gap-2">
               {order.order_number}
               <Badge variant={STATUS_VARIANTS[order.status]}>{STATUS_LABELS[order.status]}</Badge>
+              <Badge variant={order.source === "storefront" ? "info" : "neutral"}>
+                {order.source === "storefront" ? "Storefront" : "Admin"}
+              </Badge>
             </CardTitle>
           </div>
           <div className="flex gap-2">

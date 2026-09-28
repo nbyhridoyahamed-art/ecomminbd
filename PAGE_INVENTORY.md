@@ -40,9 +40,9 @@ their backing functionality — no dead pages).
 | `/purchasing/suppliers/new`, `/purchasing/suppliers/[id]` | ✅ | 7 |
 | `/purchasing` (supplier ledger/payment terms, PO approval workflow, reorder suggestions) | ⏳ | 7 Wave 2 remaining items — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/orders` | ✅ | 8 (redirects to Orders) |
-| `/orders/orders` | ✅ | 8 (status/customer filters, total shown per order) |
+| `/orders/orders` | ✅ | 8 (status/customer filters, total shown per order); 16 added a Source column (Admin/Storefront badge, once guest checkout existed to actually produce the latter) |
 | `/orders/orders/new` | ✅ | 8 (customer/warehouse/payment method + saved-or-manual shipping address + line-item builder) |
-| `/orders/orders/[id]` | ✅ | 8/9/10 (items, shipping address, status badge, Process/Ship/Deliver/Cancel actions gated by status+permission, status history timeline — ship drives real `stock_movements`; courier-assignment + shipment status card from Phase 9; Returns list + "Request a return" form, shown once `delivered`, from Phase 10) |
+| `/orders/orders/[id]` | ✅ | 8/9/10/16 (items, shipping address, status badge, Process/Ship/Deliver/Cancel actions gated by status+permission, status history timeline — ship drives real `stock_movements`; courier-assignment + shipment status card from Phase 9; Returns list + "Request a return" form, shown once `delivered`, from Phase 10; Source badge next to the status badge from Phase 16) |
 | `/orders/customers` | ✅ | 8 (list, search, pagination) |
 | `/orders/customers/new` | ✅ | 8 |
 | `/orders/customers/[id]` | ✅ | 8 (edit customer + inline saved-address manager, no separate address pages) |
@@ -82,13 +82,17 @@ their backing functionality — no dead pages).
 
 | Route | Status | Phase |
 |---|---|---|
-| `/` | ⏳ | 16 |
-| `/products/[slug]` | ⏳ | 16 |
-| `/category/[slug]` | ⏳ | 16 |
-| `/brand/[slug]` | ⏳ | 16 |
+| `/` | ✅ | 16 (hardcoded hero + "Shop by Category" grid + featured products — not block-driven; Phase 13's Homepage Builder doesn't exist yet to feed it, see `DEVELOPMENT_ROADMAP.md`) |
+| `/products` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had no all-products/search index; search/category/brand/featured filters and sort all live in the URL query string so a filtered link is shareable |
+| `/products/[slug]` | ✅ | 16 (image gallery, variant picker gating "Add to Cart" until a full attribute selection resolves to a real variant, bundle component list + derived availability, out-of-stock state) |
+| `/category/[slug]` | ✅ | 16 (category + its subcategories as quick links, paginated active products) |
+| `/brand/[slug]` | ✅ | 16 |
+| `/brands` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch (a brand index page for the header/footer's "Brands" link to point at, mirroring `/products`' justification) |
 | `/blog`, `/blog/[slug]` | ⏳ | 14/16 |
 | `/pages/[slug]` | ⏳ | 12/16 |
-| `/cart`, `/checkout` | ⏳ | 16 |
+| `/cart` | ✅ | 16 (line items w/ quantity stepper, subtotal — reused `CartLineItem` also backs the header's cart drawer) |
+| `/checkout` | ✅ | 16 (guest-only: name/phone/email, shipping address w/ live BD division/district/upazila cascade, order summary; payment method is a fixed "Cash on Delivery" label, not a selector — Wave 1 has only the one method, so a picker would be a fake choice) |
+| `/order-confirmation/[uuid]` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had a `/checkout` row but nowhere named where a successful checkout lands; looked up by uuid only, same public-receipt contract as the API route |
 
 ## Customer Account (`frontend/src/app/(account)/`)
 
@@ -145,7 +149,14 @@ their backing functionality — no dead pages).
 | `POST /api/v1/orders/{id}/returns`, `GET /api/v1/returns`, `GET .../{id}` | ✅ |
 | `POST /api/v1/returns/{id}/approve`, `.../reject`, `.../receive` (drives `stock_movements`/`stock_levels`), `.../refund` | ✅ |
 | `GET /api/v1/dashboard/sales-trend`, `GET /api/v1/dashboard/order-status-breakdown` | ✅ |
-| Everything under CMS/blog/SEO/reports/etc. | ⏳ — added phase by phase |
+| `GET /api/v1/reports/sales`, `.../products-performance`, `.../low-stock` (each with `/export` and `/export-pdf` twins) | ✅ — this row was stale (Phase 18 shipped these but never flipped it) |
+| `GET /api/v1/storefront/store` | ✅ |
+| `GET /api/v1/storefront/categories`, `GET .../{slug}` (+ its products, paginated) | ✅ |
+| `GET /api/v1/storefront/brands`, `GET .../{slug}` (+ its products, paginated) | ✅ |
+| `GET /api/v1/storefront/products` (search/category/brand/featured/sort, paginated), `GET .../{slug}` (PDP: variants, bundle components + availability) | ✅ |
+| `GET /api/v1/storefront/locations/divisions` `/districts` `/upazilas` (same `LocationController` the admin app uses, reachable without a token — nationwide reference data, nothing store-scoped or sensitive) | ✅ |
+| `POST /api/v1/storefront/checkout` (guest-only, server-priced, auto-selects warehouse — see `DATABASE_DESIGN.md` section 1n), `GET /api/v1/storefront/orders/{uuid}` (receipt lookup by uuid only) | ✅ |
+| Everything under CMS/blog/SEO/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

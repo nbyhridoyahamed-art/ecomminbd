@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Storefront;
 
+use App\Models\BdDivision;
 use App\Models\Brand;
 use App\Models\BundleItem;
 use App\Models\Category;
@@ -15,6 +16,17 @@ use Tests\TestCase;
 class StorefrontCatalogTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_the_current_store_identity_is_reachable_without_authentication(): void
+    {
+        Store::factory()->create(['status' => 'active', 'name' => 'Demo Store', 'slug' => 'demo-store']);
+
+        $this->getJson('/api/v1/storefront/store')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Demo Store')
+            ->assertJsonPath('data.slug', 'demo-store')
+            ->assertJsonPath('data.currency_code', 'BDT');
+    }
 
     public function test_product_listing_only_returns_active_products_from_the_active_store(): void
     {
@@ -195,5 +207,14 @@ class StorefrontCatalogTest extends TestCase
         $response->assertJsonPath('data.brand.slug', 'acme')
             ->assertJsonCount(1, 'data.products')
             ->assertJsonPath('data.products.0.id', $visible->id);
+    }
+
+    public function test_the_bd_location_reference_data_is_reachable_without_authentication(): void
+    {
+        BdDivision::create(['name_en' => 'Dhaka', 'name_bn' => 'ঢাকা', 'code' => '30']);
+
+        $this->getJson('/api/v1/storefront/locations/divisions')
+            ->assertOk()
+            ->assertJsonPath('data.0.name_en', 'Dhaka');
     }
 }

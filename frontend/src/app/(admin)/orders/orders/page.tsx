@@ -67,6 +67,15 @@ export default function OrdersPage() {
         </Link>
       ),
     },
+    {
+      id: "source",
+      header: "Source",
+      cell: (row) => (
+        <Badge variant={row.source === "storefront" ? "info" : "neutral"}>
+          {row.source === "storefront" ? "Storefront" : "Admin"}
+        </Badge>
+      ),
+    },
     { id: "customer", header: "Customer", cell: (row) => row.customer.name },
     { id: "warehouse", header: "Warehouse", cell: (row) => row.warehouse.name },
     { id: "items", header: "Items", cell: (row) => row.items.length },

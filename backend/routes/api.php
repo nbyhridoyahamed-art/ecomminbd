@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\Storefront\BrandController as StorefrontBrandCon
 use App\Http\Controllers\Api\V1\Storefront\CategoryController as StorefrontCategoryController;
 use App\Http\Controllers\Api\V1\Storefront\CheckoutController as StorefrontCheckoutController;
 use App\Http\Controllers\Api\V1\Storefront\ProductController as StorefrontProductController;
+use App\Http\Controllers\Api\V1\Storefront\StoreController as StorefrontStoreController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -56,12 +57,24 @@ Route::prefix('v1')->group(function () {
     // serves whichever single store is active (see StorefrontController);
     // real multi-tenant domain routing is a documented Wave 2 concern.
     Route::prefix('storefront')->group(function () {
+        Route::get('store', [StorefrontStoreController::class, 'show']);
         Route::get('products', [StorefrontProductController::class, 'index']);
         Route::get('products/{slug}', [StorefrontProductController::class, 'show']);
         Route::get('categories', [StorefrontCategoryController::class, 'index']);
         Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show']);
         Route::get('brands', [StorefrontBrandController::class, 'index']);
         Route::get('brands/{slug}', [StorefrontBrandController::class, 'show']);
+
+        // Same controller the admin app uses under auth:sanctum below —
+        // Bangladesh division/district/upazila names are nationwide
+        // reference data, not store-scoped or sensitive, so a guest
+        // checkout form needs the identical cascading picker without a
+        // token. Nothing here reads the authenticated user.
+        Route::prefix('locations')->group(function () {
+            Route::get('divisions', [LocationController::class, 'divisions']);
+            Route::get('districts', [LocationController::class, 'districts']);
+            Route::get('upazilas', [LocationController::class, 'upazilas']);
+        });
 
         // Throttled like the other unauthenticated write endpoints
         // (auth/register, auth/login) — this creates a real order and
