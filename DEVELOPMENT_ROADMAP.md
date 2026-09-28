@@ -226,9 +226,10 @@ restocks on-hand quantity and writes a real `return` movement when a
 failed delivery is marked back to the seller, since `Order.ship()` had
 already decremented it before any shipment existed. Deliberately
 deferred to a Wave 2 (see `DATABASE_DESIGN.md` section 2): exchanges
-(swap for a different product/variant — Phase 5 Wave 2a's variant
-catalog data exists now, but no order line item is variant-aware yet,
-so there's nothing to swap *to* within an order), store credit as a
+(swap for a different product/variant — order line items are
+variant-aware now, since the variant-aware retrofit below, so there's
+something to swap *to* within an order, but the exchange workflow
+itself is a separate, unbuilt feature), store credit as a
 refund method (no wallet/ledger concept exists), and reconciling
 `payment_status` across *partial* refunds spread over multiple separate
 return records (today only a full-coverage refund reconciles it — see
