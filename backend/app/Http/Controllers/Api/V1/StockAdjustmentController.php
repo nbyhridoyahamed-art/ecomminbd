@@ -33,8 +33,11 @@ class StockAdjustmentController extends Controller
 
         try {
             $movement = DB::transaction(function () use ($data, $product, $warehouse, $request) {
+                $variantId = $data['product_variant_id'] ?? null;
+
                 $level = StockLevel::query()
                     ->where('product_id', $product->id)
+                    ->where('product_variant_id', $variantId)
                     ->where('warehouse_id', $warehouse->id)
                     ->lockForUpdate()
                     ->first();
@@ -56,12 +59,18 @@ class StockAdjustmentController extends Controller
                 if ($level) {
                     $level->update(['quantity' => $after]);
                 } else {
-                    StockLevel::create(['product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'quantity' => $after]);
+                    StockLevel::create([
+                        'product_id' => $product->id,
+                        'product_variant_id' => $variantId,
+                        'warehouse_id' => $warehouse->id,
+                        'quantity' => $after,
+                    ]);
                 }
 
                 return StockMovement::create([
                     'store_id' => $product->store_id,
                     'product_id' => $product->id,
+                    'product_variant_id' => $variantId,
                     'warehouse_id' => $warehouse->id,
                     'type' => $data['direction'] === 'increase' ? 'adjustment_increase' : 'adjustment_decrease',
                     'quantity' => $data['quantity'],
@@ -76,7 +85,7 @@ class StockAdjustmentController extends Controller
         }
 
         return ApiResponse::success(
-            new StockMovementResource($movement->load(['product', 'warehouse', 'creator'])),
+            new StockMovementResource($movement->load(['product', 'productVariant.attributeValues.attribute', 'warehouse', 'creator'])),
             'Stock adjusted successfully.',
             status: 201,
         );

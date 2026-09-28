@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { PurchaseReceiptPayload } from "@/hooks/use-purchase-orders";
+import { variantLabel } from "@/lib/variant";
 import type { PurchaseOrderItem } from "@/types/purchase-order";
 
 interface FormValues {
@@ -86,7 +87,8 @@ export function ReceivePurchaseOrderForm({ items, onSubmit, isPending, serverErr
             <div className="flex-1">
               <p className="text-sm font-medium text-text-primary">{item.product_name}</p>
               <p className="text-xs text-text-muted">
-                {item.sku} &middot; {item.quantity_remaining} remaining of {item.quantity_ordered}
+                {variantLabel(item.product_variant) ?? item.sku} &middot; {item.quantity_remaining} remaining of{" "}
+                {item.quantity_ordered}
               </p>
             </div>
             <Input

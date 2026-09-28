@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useStockTransfer } from "@/hooks/use-inventory";
+import { variantLabel } from "@/lib/variant";
 import { PermissionDenied } from "@/components/permission-denied";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -88,10 +89,15 @@ export default function StockTransferShowPage({ params }: PageProps<"/inventory/
                   </tr>
                 </thead>
                 <tbody>
-                  {transfer.items.map((item) => (
-                    <tr key={item.product_id} className="border-b border-border last:border-0">
-                      <td className="px-4 py-2 text-text-primary">{item.product_name}</td>
-                      <td className="px-4 py-2 text-text-primary">{item.sku}</td>
+                  {transfer.items.map((item, i) => (
+                    <tr key={`${item.product_id}-${item.product_variant?.id ?? i}`} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2 text-text-primary">
+                        {item.product_name}
+                        {variantLabel(item.product_variant) ? (
+                          <span className="ml-1 text-xs text-text-muted">{variantLabel(item.product_variant)}</span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-2 text-text-primary">{item.product_variant?.sku ?? item.sku}</td>
                       <td className="px-4 py-2 text-text-primary">{item.quantity}</td>
                     </tr>
                   ))}

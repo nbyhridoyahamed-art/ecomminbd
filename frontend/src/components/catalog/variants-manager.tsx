@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Boxes, Plus, Save, Trash2 } from "lucide-react";
+import { Boxes, PackageSearch, Plus, Save, Trash2 } from "lucide-react";
 
 import { useAttributes } from "@/hooks/use-attributes";
 import { useDeleteVariant, useGenerateVariants, useUpdateVariant } from "@/hooks/use-product-variants";
 import { formatMoney } from "@/lib/money";
+import { VariantStockAdjustmentDialog } from "@/components/catalog/variant-stock-adjustment-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -38,6 +39,7 @@ export function VariantsManager({ storeId, productId, currencyCode, basePrice, v
   // shows those pre-checked without needing to sync state from an effect.
   const [toggledValueIds, setToggledValueIds] = useState<Set<number>>(new Set());
   const [variantToDelete, setVariantToDelete] = useState<ProductVariant | null>(null);
+  const [variantToAdjust, setVariantToAdjust] = useState<ProductVariant | null>(null);
 
   const usedValueIds = useMemo(() => {
     const used = new Set<number>();
@@ -121,6 +123,7 @@ export function VariantsManager({ storeId, productId, currencyCode, basePrice, v
                 <th className="px-3 py-2 font-medium text-text-secondary">Variant</th>
                 <th className="px-3 py-2 font-medium text-text-secondary">SKU</th>
                 <th className="px-3 py-2 font-medium text-text-secondary">Price</th>
+                <th className="px-3 py-2 font-medium text-text-secondary">Stock</th>
                 <th className="px-3 py-2 font-medium text-text-secondary">Status</th>
                 <th className="px-3 py-2" />
               </tr>
@@ -135,6 +138,7 @@ export function VariantsManager({ storeId, productId, currencyCode, basePrice, v
                   basePrice={basePrice}
                   canEdit={canEdit}
                   onRequestDelete={() => setVariantToDelete(variant)}
+                  onRequestAdjustStock={() => setVariantToAdjust(variant)}
                 />
               ))}
             </tbody>
@@ -166,6 +170,13 @@ export function VariantsManager({ storeId, productId, currencyCode, basePrice, v
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <VariantStockAdjustmentDialog
+        productId={productId}
+        storeId={storeId}
+        variant={variantToAdjust}
+        onClose={() => setVariantToAdjust(null)}
+      />
     </div>
   );
 }
@@ -177,9 +188,18 @@ interface VariantRowProps {
   basePrice: number;
   canEdit: boolean;
   onRequestDelete: () => void;
+  onRequestAdjustStock: () => void;
 }
 
-function VariantRow({ productId, variant, currencyCode, basePrice, canEdit, onRequestDelete }: VariantRowProps) {
+function VariantRow({
+  productId,
+  variant,
+  currencyCode,
+  basePrice,
+  canEdit,
+  onRequestDelete,
+  onRequestAdjustStock,
+}: VariantRowProps) {
   const [sku, setSku] = useState(variant.sku);
   const [price, setPrice] = useState(variant.price !== null ? String(variant.price) : "");
   const [status, setStatus] = useState(variant.status);
@@ -214,6 +234,19 @@ function VariantRow({ productId, variant, currencyCode, basePrice, canEdit, onRe
           className="h-8 w-36"
         />
       </td>
+      <td className="px-3 py-2 text-text-primary">
+        {variant.stock_summary ? (
+          <div>
+            <p>{variant.stock_summary.total_available} available</p>
+            <p className="text-xs text-text-muted">
+              {variant.stock_summary.total_quantity} on hand
+              {variant.stock_summary.total_reserved > 0 ? `, ${variant.stock_summary.total_reserved} reserved` : ""}
+            </p>
+          </div>
+        ) : (
+          <span className="text-text-muted">—</span>
+        )}
+      </td>
       <td className="px-3 py-2">
         <Select value={status} onValueChange={(v) => setStatus(v as "active" | "inactive")}>
           <SelectTrigger className="h-8 w-28" disabled={!canEdit}>
@@ -230,6 +263,11 @@ function VariantRow({ productId, variant, currencyCode, basePrice, canEdit, onRe
           {canEdit && dirty ? (
             <Button size="icon" variant="ghost" onClick={save} loading={updateVariant.isPending} aria-label="Save variant">
               <Save className="text-success" />
+            </Button>
+          ) : null}
+          {canEdit ? (
+            <Button size="icon" variant="ghost" onClick={onRequestAdjustStock} aria-label="Adjust stock">
+              <PackageSearch />
             </Button>
           ) : null}
           {canEdit ? (

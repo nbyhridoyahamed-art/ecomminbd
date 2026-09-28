@@ -8,6 +8,7 @@ import { z } from "zod";
 import { useCustomer } from "@/hooks/use-customers";
 import { useDistricts, useDivisions, useUpazilas } from "@/hooks/use-locations";
 import type { OrderFormValues } from "@/hooks/use-orders";
+import { VariantPicker } from "@/components/catalog/variant-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ const orderSchema = z
       .array(
         z.object({
           product_id: z.string().min(1, "Select a product."),
+          product_variant_id: z.string(),
           quantity: z
             .string()
             .min(1, "Required.")
@@ -100,6 +102,7 @@ export function OrderForm({
     control,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(orderSchema),
@@ -117,7 +120,7 @@ export function OrderForm({
       shipping_amount: "",
       discount_amount: "",
       notes: "",
-      items: [{ product_id: "", quantity: "", unit_price: "" }],
+      items: [{ product_id: "", product_variant_id: "", quantity: "", unit_price: "" }],
     },
   });
 
@@ -139,6 +142,15 @@ export function OrderForm({
   const { data: upazilas } = useUpazilas(districtId ? Number(districtId) : null);
 
   const submit = handleSubmit((values) => {
+    for (let i = 0; i < values.items.length; i++) {
+      const item = values.items[i];
+      const product = products.find((p) => String(p.id) === item.product_id);
+      if (product && product.type === "variable" && product.variants.length > 0 && !item.product_variant_id) {
+        setError(`items.${i}.product_variant_id`, { message: "Select a variant." });
+        return;
+      }
+    }
+
     const usingSavedAddress = values.customer_address_id !== "manual";
 
     onSubmit({
@@ -162,6 +174,7 @@ export function OrderForm({
           }),
       items: values.items.map((item) => ({
         product_id: Number(item.product_id),
+        product_variant_id: item.product_variant_id ? Number(item.product_variant_id) : null,
         quantity: Number(item.quantity),
         unit_price: item.unit_price,
       })),
@@ -381,16 +394,21 @@ export function OrderForm({
           {fields.map((field, index) => {
             const itemErrors = errors.items?.[index];
             const selectedProductId = items?.[index]?.product_id;
+            const selectedProduct = products.find((p) => String(p.id) === selectedProductId);
+            const selectedVariantId = items?.[index]?.product_variant_id ?? "";
             return (
               <div key={field.id} className="flex items-start gap-2">
                 <div className="flex-1 space-y-1">
                   <Select
                     value={selectedProductId}
-                    onValueChange={(v) => setValue(`items.${index}.product_id`, v, { shouldValidate: true })}
+                    onValueChange={(v) => {
+                      setValue(`items.${index}.product_id`, v, { shouldValidate: true });
+                      setValue(`items.${index}.product_variant_id`, "");
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select product">
-                        {products.find((p) => String(p.id) === selectedProductId)?.name}
+                        {selectedProduct?.name}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -403,6 +421,12 @@ export function OrderForm({
                   </Select>
                   {itemErrors?.product_id ? <p className="text-xs text-danger">{itemErrors.product_id.message}</p> : null}
                 </div>
+                <VariantPicker
+                  product={selectedProduct}
+                  value={selectedVariantId}
+                  onChange={(v) => setValue(`items.${index}.product_variant_id`, v, { shouldValidate: true })}
+                  error={itemErrors?.product_variant_id?.message}
+                />
                 <div className="w-24 space-y-1">
                   <Input
                     type="number"
@@ -444,7 +468,7 @@ export function OrderForm({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => append({ product_id: "", quantity: "", unit_price: "" })}
+          onClick={() => append({ product_id: "", product_variant_id: "", quantity: "", unit_price: "" })}
         >
           <Plus />
           Add item

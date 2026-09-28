@@ -4,8 +4,10 @@ namespace Tests\Feature\Catalog;
 
 use App\Models\Product;
 use App\Models\ProductAttribute;
+use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\User;
+use App\Models\Warehouse;
 use Database\Seeders\RoleAndPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -128,6 +130,52 @@ class ProductVariantTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseMissing('product_variants', ['id' => $variantId]);
+    }
+
+    public function test_a_variant_with_stock_records_cannot_be_deleted(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        ['product' => $product, 'colorRed' => $colorRed] = $this->variableProductWithAttributes($store);
+
+        $variantId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/products/{$product->id}/variants/generate", ['attribute_value_ids' => [$colorRed]])
+            ->assertCreated()
+            ->json('data.0.id');
+
+        StockLevel::create(['product_id' => $product->id, 'product_variant_id' => $variantId, 'warehouse_id' => $warehouse->id, 'quantity' => 0]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->deleteJson("/api/v1/products/{$product->id}/variants/{$variantId}")
+            ->assertStatus(422);
+
+        $this->assertDatabaseHas('product_variants', ['id' => $variantId]);
+    }
+
+    public function test_a_variants_stock_summary_totals_quantity_across_warehouses(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouseA = Warehouse::factory()->for($store)->create();
+        $warehouseB = Warehouse::factory()->for($store)->create();
+        ['product' => $product, 'colorRed' => $colorRed] = $this->variableProductWithAttributes($store);
+
+        $variantId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/products/{$product->id}/variants/generate", ['attribute_value_ids' => [$colorRed]])
+            ->assertCreated()
+            ->json('data.0.id');
+
+        StockLevel::create(['product_id' => $product->id, 'product_variant_id' => $variantId, 'warehouse_id' => $warehouseA->id, 'quantity' => 10, 'quantity_reserved' => 2]);
+        StockLevel::create(['product_id' => $product->id, 'product_variant_id' => $variantId, 'warehouse_id' => $warehouseB->id, 'quantity' => 5, 'quantity_reserved' => 0]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.variants.0.stock_summary.total_quantity', 15)
+            ->assertJsonPath('data.variants.0.stock_summary.total_reserved', 2)
+            ->assertJsonPath('data.variants.0.stock_summary.total_available', 13)
+            ->assertJsonCount(2, 'data.variants.0.stock_summary.by_warehouse');
     }
 
     public function test_variant_skus_must_be_unique_per_store(): void

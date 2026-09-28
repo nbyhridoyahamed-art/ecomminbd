@@ -3,6 +3,8 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\Product;
+use App\Models\ProductAttribute;
+use App\Models\ProductVariant;
 use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\User;
@@ -59,6 +61,60 @@ class StockTransferTest extends TestCase
         ]);
         $this->assertDatabaseHas('stock_movements', [
             'product_id' => $product->id, 'warehouse_id' => $to->id, 'type' => 'transfer_in', 'quantity' => 12,
+        ]);
+    }
+
+    /** @return array{product: Product, variant: ProductVariant} */
+    private function variantProduct(Store $store): array
+    {
+        $product = Product::factory()->for($store)->create(['type' => 'variable']);
+        $attribute = ProductAttribute::create(['store_id' => $store->id, 'name' => 'Color', 'slug' => 'color-'.$product->id]);
+        $value = $attribute->values()->create(['value' => 'Red', 'slug' => 'red-'.$product->id]);
+
+        $variant = ProductVariant::create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'sku' => $product->sku.'-RED',
+            'status' => 'active',
+        ]);
+        $variant->attributeValues()->attach($value->id);
+
+        return compact('product', 'variant');
+    }
+
+    public function test_a_transfer_of_a_variant_moves_only_that_variants_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $from = Warehouse::factory()->for($store)->create();
+        $to = Warehouse::factory()->for($store)->create();
+        ['product' => $product, 'variant' => $variant] = $this->variantProduct($store);
+
+        // A decoy variant-less row for the same product — transferring the
+        // variant must never touch this one.
+        StockLevel::factory()->for($product)->for($from)->create(['quantity' => 999]);
+        StockLevel::create(['product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $from->id, 'quantity' => 30]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/v1/stock-transfers', [
+                'store_id' => $store->id,
+                'from_warehouse_id' => $from->id,
+                'to_warehouse_id' => $to->id,
+                'items' => [
+                    ['product_id' => $product->id, 'product_variant_id' => $variant->id, 'quantity' => 12],
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.product_variant.id', $variant->id);
+
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $from->id, 'quantity' => 18]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $to->id, 'quantity' => 12]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $product->id, 'product_variant_id' => null, 'warehouse_id' => $from->id, 'quantity' => 999]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $from->id, 'type' => 'transfer_out', 'quantity' => 12,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $to->id, 'type' => 'transfer_in', 'quantity' => 12,
         ]);
     }
 

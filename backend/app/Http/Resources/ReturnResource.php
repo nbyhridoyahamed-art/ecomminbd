@@ -33,6 +33,7 @@ class ReturnResource extends JsonResource
                 'order_item_id' => $item->order_item_id,
                 'product_name' => $item->orderItem->product->name,
                 'sku' => $item->orderItem->product->sku,
+                'product_variant_sku' => $item->orderItem->productVariant?->sku,
                 'quantity' => $item->quantity,
                 'unit_price' => (new Money($item->orderItem->unit_price_amount, $currencyCode))->toDecimal(),
                 'line_total' => (new Money($item->quantity * $item->orderItem->unit_price_amount, $currencyCode))->toDecimal(),

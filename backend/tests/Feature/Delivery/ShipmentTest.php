@@ -6,6 +6,8 @@ use App\Models\Courier;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductAttribute;
+use App\Models\ProductVariant;
 use App\Models\Shipment;
 use App\Models\StockLevel;
 use App\Models\Store;
@@ -52,6 +54,73 @@ class ShipmentTest extends TestCase
         $order->items()->create(['product_id' => $product->id, 'quantity' => 2, 'unit_price_amount' => 10000]);
 
         return $order;
+    }
+
+    /** @return array{order: Order, product: Product, variant: ProductVariant} */
+    private function shippedOrderWithVariant(Store $store): array
+    {
+        $customer = Customer::factory()->for($store)->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['type' => 'variable']);
+        $attribute = ProductAttribute::create(['store_id' => $store->id, 'name' => 'Color', 'slug' => 'color-'.$product->id]);
+        $value = $attribute->values()->create(['value' => 'Red', 'slug' => 'red-'.$product->id]);
+        $variant = ProductVariant::create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'sku' => $product->sku.'-RED',
+            'status' => 'active',
+        ]);
+        $variant->attributeValues()->attach($value->id);
+
+        $order = Order::factory()->for($store)->for($customer)->for($warehouse)->create([
+            'status' => 'shipped',
+            'payment_method' => 'cod',
+            'payment_status' => 'unpaid',
+            'shipping_amount' => 5000,
+            'discount_amount' => 0,
+        ]);
+
+        $order->items()->create([
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'quantity' => 2, 'unit_price_amount' => 10000,
+        ]);
+
+        return compact('order', 'product', 'variant');
+    }
+
+    public function test_returning_a_failed_variant_delivery_restocks_only_that_variants_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'product' => $product, 'variant' => $variant] = $this->shippedOrderWithVariant($store);
+        $courier = Courier::factory()->for($store)->create();
+
+        StockLevel::create([
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 8,
+        ]);
+        // A decoy variant-less row for the same product — restocking must
+        // never touch this one.
+        StockLevel::factory()->for($product)->for($order->warehouse)->create(['quantity' => 999]);
+
+        $shipmentId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-VAR-1'])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipmentId}/picked-up")->assertOk();
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/shipments/{$shipmentId}/failed", ['note' => 'Customer not available'])
+            ->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipmentId}/returned")->assertOk();
+
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 10,
+        ]);
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => null, 'warehouse_id' => $order->warehouse_id, 'quantity' => 999,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'type' => 'return', 'quantity' => 2,
+            'reference_type' => Shipment::class, 'reference_id' => $shipmentId,
+        ]);
     }
 
     public function test_a_shipment_can_be_created_for_a_shipped_order_and_defaults_delivery_charge_to_shipping_amount(): void

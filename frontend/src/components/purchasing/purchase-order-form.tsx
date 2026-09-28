@@ -5,6 +5,7 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 
+import { VariantPicker } from "@/components/catalog/variant-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ const purchaseOrderSchema = z.object({
     .array(
       z.object({
         product_id: z.string().min(1, "Select a product."),
+        product_variant_id: z.string(),
         quantity_ordered: z
           .string()
           .min(1, "Required.")
@@ -67,6 +69,7 @@ export function PurchaseOrderForm({
     control,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(purchaseOrderSchema),
@@ -74,7 +77,7 @@ export function PurchaseOrderForm({
       warehouse_id: "",
       supplier_id: "",
       notes: "",
-      items: [{ product_id: "", quantity_ordered: "", unit_cost: "" }],
+      items: [{ product_id: "", product_variant_id: "", quantity_ordered: "", unit_cost: "" }],
     },
   });
 
@@ -84,6 +87,15 @@ export function PurchaseOrderForm({
   const items = useWatch({ control, name: "items" });
 
   const submit = handleSubmit((values) => {
+    for (let i = 0; i < values.items.length; i++) {
+      const item = values.items[i];
+      const product = products.find((p) => String(p.id) === item.product_id);
+      if (product && product.type === "variable" && product.variants.length > 0 && !item.product_variant_id) {
+        setError(`items.${i}.product_variant_id`, { message: "Select a variant." });
+        return;
+      }
+    }
+
     onSubmit({
       store_id: storeId,
       warehouse_id: Number(values.warehouse_id),
@@ -91,6 +103,7 @@ export function PurchaseOrderForm({
       notes: values.notes || null,
       items: values.items.map((item) => ({
         product_id: Number(item.product_id),
+        product_variant_id: item.product_variant_id ? Number(item.product_variant_id) : null,
         quantity_ordered: Number(item.quantity_ordered),
         unit_cost: item.unit_cost,
       })),
@@ -151,17 +164,20 @@ export function PurchaseOrderForm({
           {fields.map((field, index) => {
             const itemErrors = errors.items?.[index];
             const selectedProductId = items?.[index]?.product_id;
+            const selectedProduct = products.find((p) => String(p.id) === selectedProductId);
+            const selectedVariantId = items?.[index]?.product_variant_id ?? "";
             return (
               <div key={field.id} className="flex items-start gap-2">
                 <div className="flex-1 space-y-1">
                   <Select
                     value={selectedProductId}
-                    onValueChange={(v) => setValue(`items.${index}.product_id`, v, { shouldValidate: true })}
+                    onValueChange={(v) => {
+                      setValue(`items.${index}.product_id`, v, { shouldValidate: true });
+                      setValue(`items.${index}.product_variant_id`, "");
+                    }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select product">
-                        {products.find((p) => String(p.id) === selectedProductId)?.name}
-                      </SelectValue>
+                      <SelectValue placeholder="Select product">{selectedProduct?.name}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {products.map((p) => (
@@ -173,6 +189,12 @@ export function PurchaseOrderForm({
                   </Select>
                   {itemErrors?.product_id ? <p className="text-xs text-danger">{itemErrors.product_id.message}</p> : null}
                 </div>
+                <VariantPicker
+                  product={selectedProduct}
+                  value={selectedVariantId}
+                  onChange={(v) => setValue(`items.${index}.product_variant_id`, v, { shouldValidate: true })}
+                  error={itemErrors?.product_variant_id?.message}
+                />
                 <div className="w-24 space-y-1">
                   <Input
                     type="number"
@@ -216,7 +238,7 @@ export function PurchaseOrderForm({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => append({ product_id: "", quantity_ordered: "", unit_cost: "" })}
+          onClick={() => append({ product_id: "", product_variant_id: "", quantity_ordered: "", unit_cost: "" })}
         >
           <Plus />
           Add item

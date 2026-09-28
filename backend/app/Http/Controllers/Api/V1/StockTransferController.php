@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
 
 class StockTransferController extends Controller
 {
-    private const RELATIONS = ['fromWarehouse', 'toWarehouse', 'items.product', 'creator'];
+    private const RELATIONS = ['fromWarehouse', 'toWarehouse', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator'];
 
     public function index(Request $request): JsonResponse
     {
@@ -101,11 +101,12 @@ class StockTransferController extends Controller
                 ]);
 
                 foreach ($data['items'] as $item) {
-                    $this->moveStock($transfer, $item['product_id'], $item['quantity'], $fromWarehouse, $toWarehouse, $request->user()->id);
+                    $this->moveStock($transfer, $item['product_id'], $item['product_variant_id'] ?? null, $item['quantity'], $fromWarehouse, $toWarehouse, $request->user()->id);
 
                     StockTransferItem::create([
                         'stock_transfer_id' => $transfer->id,
                         'product_id' => $item['product_id'],
+                        'product_variant_id' => $item['product_variant_id'] ?? null,
                         'quantity' => $item['quantity'],
                     ]);
                 }
@@ -126,6 +127,7 @@ class StockTransferController extends Controller
     private function moveStock(
         StockTransfer $transfer,
         int $productId,
+        ?int $productVariantId,
         int $quantity,
         Warehouse $from,
         Warehouse $to,
@@ -133,6 +135,7 @@ class StockTransferController extends Controller
     ): void {
         $sourceLevel = StockLevel::query()
             ->where('product_id', $productId)
+            ->where('product_variant_id', $productVariantId)
             ->where('warehouse_id', $from->id)
             ->lockForUpdate()
             ->first();
@@ -154,11 +157,17 @@ class StockTransferController extends Controller
 
         $sourceLevel
             ? $sourceLevel->update(['quantity' => $sourceAfter])
-            : StockLevel::create(['product_id' => $productId, 'warehouse_id' => $from->id, 'quantity' => $sourceAfter]);
+            : StockLevel::create([
+                'product_id' => $productId,
+                'product_variant_id' => $productVariantId,
+                'warehouse_id' => $from->id,
+                'quantity' => $sourceAfter,
+            ]);
 
         StockMovement::create([
             'store_id' => $transfer->store_id,
             'product_id' => $productId,
+            'product_variant_id' => $productVariantId,
             'warehouse_id' => $from->id,
             'type' => 'transfer_out',
             'quantity' => $quantity,
@@ -171,6 +180,7 @@ class StockTransferController extends Controller
 
         $destLevel = StockLevel::query()
             ->where('product_id', $productId)
+            ->where('product_variant_id', $productVariantId)
             ->where('warehouse_id', $to->id)
             ->lockForUpdate()
             ->first();
@@ -180,11 +190,17 @@ class StockTransferController extends Controller
 
         $destLevel
             ? $destLevel->update(['quantity' => $destAfter])
-            : StockLevel::create(['product_id' => $productId, 'warehouse_id' => $to->id, 'quantity' => $destAfter]);
+            : StockLevel::create([
+                'product_id' => $productId,
+                'product_variant_id' => $productVariantId,
+                'warehouse_id' => $to->id,
+                'quantity' => $destAfter,
+            ]);
 
         StockMovement::create([
             'store_id' => $transfer->store_id,
             'product_id' => $productId,
+            'product_variant_id' => $productVariantId,
             'warehouse_id' => $to->id,
             'type' => 'transfer_in',
             'quantity' => $quantity,

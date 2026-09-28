@@ -1,3 +1,5 @@
+import type { ProductVariantSnapshot } from "@/types/product";
+
 export type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled";
 
 export interface PurchaseOrderItem {
@@ -5,6 +7,7 @@ export interface PurchaseOrderItem {
   product_id: number;
   product_name: string;
   sku: string;
+  product_variant: ProductVariantSnapshot | null;
   quantity_ordered: number;
   quantity_received: number;
   quantity_remaining: number;
@@ -14,6 +17,7 @@ export interface PurchaseOrderItem {
 export interface PurchaseReceiptItem {
   product_name: string;
   sku: string;
+  product_variant_sku: string | null;
   quantity_received: number;
 }
 

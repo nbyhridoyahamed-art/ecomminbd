@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Inventory;
 
+use App\Rules\VariantBelongsToProduct;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -21,6 +22,7 @@ class StockTransferRequest extends FormRequest
             'note' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_variant_id' => ['nullable', 'integer', new VariantBelongsToProduct],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
         ];
     }
@@ -28,9 +30,12 @@ class StockTransferRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            $productIds = array_column($this->input('items', []), 'product_id');
-            if (count($productIds) !== count(array_unique($productIds))) {
-                $validator->errors()->add('items', 'Each product may only appear once per transfer.');
+            $lines = array_map(
+                fn (array $item) => ($item['product_id'] ?? '').':'.($item['product_variant_id'] ?? ''),
+                $this->input('items', []),
+            );
+            if (count($lines) !== count(array_unique($lines))) {
+                $validator->errors()->add('items', 'Each product (or product variant) may only appear once per transfer.');
             }
         });
     }

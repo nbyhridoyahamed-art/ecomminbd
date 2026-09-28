@@ -211,6 +211,7 @@ class ShipmentController extends Controller
             foreach ($order->items as $item) {
                 $level = StockLevel::query()
                     ->where('product_id', $item->product_id)
+                    ->where('product_variant_id', $item->product_variant_id)
                     ->where('warehouse_id', $order->warehouse_id)
                     ->lockForUpdate()
                     ->first();
@@ -220,11 +221,17 @@ class ShipmentController extends Controller
 
                 $level
                     ? $level->update(['quantity' => $after])
-                    : StockLevel::create(['product_id' => $item->product_id, 'warehouse_id' => $order->warehouse_id, 'quantity' => $after]);
+                    : StockLevel::create([
+                        'product_id' => $item->product_id,
+                        'product_variant_id' => $item->product_variant_id,
+                        'warehouse_id' => $order->warehouse_id,
+                        'quantity' => $after,
+                    ]);
 
                 StockMovement::create([
                     'store_id' => $shipment->store_id,
                     'product_id' => $item->product_id,
+                    'product_variant_id' => $item->product_variant_id,
                     'warehouse_id' => $order->warehouse_id,
                     'type' => 'return',
                     'quantity' => $item->quantity,

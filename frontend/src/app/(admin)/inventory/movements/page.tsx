@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useAllWarehouses } from "@/hooks/use-warehouses";
 import { useStockMovements } from "@/hooks/use-inventory";
+import { variantLabel } from "@/lib/variant";
 import { PermissionDenied } from "@/components/permission-denied";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
@@ -63,7 +64,7 @@ export default function StockMovementsPage() {
       cell: (row) => (
         <div>
           <p className="font-medium">{row.product.name}</p>
-          <p className="text-xs text-text-muted">{row.product.sku}</p>
+          <p className="text-xs text-text-muted">{variantLabel(row.product_variant) ?? row.product.sku}</p>
         </div>
       ),
     },

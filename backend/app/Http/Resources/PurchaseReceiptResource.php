@@ -19,6 +19,7 @@ class PurchaseReceiptResource extends JsonResource
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'product_name' => $item->orderItem->product->name,
                 'sku' => $item->orderItem->product->sku,
+                'product_variant_sku' => $item->orderItem->productVariant?->sku,
                 'quantity_received' => $item->quantity_received,
             ])),
             'created_at' => $this->created_at,

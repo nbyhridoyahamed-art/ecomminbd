@@ -9,6 +9,7 @@ import type { Order, PaymentMethod } from "@/types/order";
 
 export interface OrderItemInput {
   product_id: number;
+  product_variant_id?: number | null;
   quantity: number;
   unit_price: string;
 }

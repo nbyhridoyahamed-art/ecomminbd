@@ -79,7 +79,7 @@ class PurchaseReceiptController extends Controller
         }
 
         return ApiResponse::success(
-            new PurchaseReceiptResource($receipt->load(['items.orderItem.product', 'receiver'])),
+            new PurchaseReceiptResource($receipt->load(['items.orderItem.product', 'items.orderItem.productVariant', 'receiver'])),
             'Receipt recorded successfully.',
             status: 201,
         );
@@ -95,6 +95,7 @@ class PurchaseReceiptController extends Controller
     ): void {
         $level = StockLevel::query()
             ->where('product_id', $orderItem->product_id)
+            ->where('product_variant_id', $orderItem->product_variant_id)
             ->where('warehouse_id', $purchaseOrder->warehouse_id)
             ->lockForUpdate()
             ->first();
@@ -104,11 +105,17 @@ class PurchaseReceiptController extends Controller
 
         $level
             ? $level->update(['quantity' => $after])
-            : StockLevel::create(['product_id' => $orderItem->product_id, 'warehouse_id' => $purchaseOrder->warehouse_id, 'quantity' => $after]);
+            : StockLevel::create([
+                'product_id' => $orderItem->product_id,
+                'product_variant_id' => $orderItem->product_variant_id,
+                'warehouse_id' => $purchaseOrder->warehouse_id,
+                'quantity' => $after,
+            ]);
 
         StockMovement::create([
             'store_id' => $purchaseOrder->store_id,
             'product_id' => $orderItem->product_id,
+            'product_variant_id' => $orderItem->product_variant_id,
             'warehouse_id' => $purchaseOrder->warehouse_id,
             'type' => 'purchase_receipt',
             'quantity' => $quantity,

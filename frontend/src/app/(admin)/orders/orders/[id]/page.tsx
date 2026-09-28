@@ -10,6 +10,7 @@ import { useCancelOrder, useDeliverOrder, useOrder, useProcessOrder, useShipOrde
 import { useCreateReturn } from "@/hooks/use-returns";
 import { useCreateShipment, useShipment } from "@/hooks/use-shipments";
 import { formatMoney } from "@/lib/money";
+import { variantLabel } from "@/lib/variant";
 import { PermissionDenied } from "@/components/permission-denied";
 import { ShipmentAssignForm } from "@/components/delivery/shipment-assign-form";
 import { ShipmentStatusCard } from "@/components/delivery/shipment-status-card";
@@ -198,7 +199,9 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
                     <tr key={item.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-2 text-text-primary">
                         {item.product_name}
-                        <span className="ml-1 text-xs text-text-muted">({item.sku})</span>
+                        <span className="ml-1 text-xs text-text-muted">
+                          ({item.sku}){variantLabel(item.product_variant) ? ` — ${variantLabel(item.product_variant)}` : ""}
+                        </span>
                       </td>
                       <td className="px-4 py-2 text-text-primary">{item.quantity}</td>
                       <td className="px-4 py-2 text-text-primary">{formatMoney(item.unit_price, order.currency_code)}</td>

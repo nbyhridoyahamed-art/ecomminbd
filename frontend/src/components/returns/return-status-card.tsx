@@ -171,7 +171,7 @@ export function ReturnStatusCard({ orderReturn, currencyCode, canUpdate }: Retur
                   />
                   <Label htmlFor={`restock-${item.id}`} className="flex-1 cursor-pointer font-normal">
                     Restock {item.quantity}x {item.product_name}
-                    <span className="ml-1 text-xs text-text-muted">({item.sku})</span>
+                    <span className="ml-1 text-xs text-text-muted">({item.product_variant_sku ?? item.sku})</span>
                   </Label>
                 </div>
               ))}

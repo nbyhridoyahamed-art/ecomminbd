@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 #[Fillable([
-    'store_id', 'product_id', 'warehouse_id', 'type', 'quantity', 'quantity_before',
+    'store_id', 'product_id', 'product_variant_id', 'warehouse_id', 'type', 'quantity', 'quantity_before',
     'quantity_after', 'reason', 'reference_type', 'reference_id', 'created_by',
 ])]
 class StockMovement extends Model
@@ -33,6 +33,11 @@ class StockMovement extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function productVariant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class);
     }
 
     public function warehouse(): BelongsTo

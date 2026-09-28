@@ -18,7 +18,8 @@ their backing functionality — no dead pages).
 | `/catalog/brands/new`, `/catalog/brands/[id]` | ✅ | 5 |
 | `/catalog/attributes` | ✅ | 5 Wave 2a (list showing each attribute's values inline) |
 | `/catalog/attributes/new`, `/catalog/attributes/[id]` | ✅ | 5 Wave 2a (edit page also manages the attribute's values inline: add/edit/delete, blocked while a value is still used by a variant) |
-| `/catalog/products` (variant generator wired into order line items/stock/purchasing) | ⏳ | 5 Wave 2b — variants exist as catalog data (own SKU/price) but `order_items`/`stock_levels`/`purchase_order_items` are still `product_id`-only, see `DATABASE_DESIGN.md` section 1i |
+| `/catalog/products/[id]` (Variants tab: Stock column + "Adjust stock" action) | ✅ | variant-aware retrofit — per-variant stock summary and adjustment entry point, since the global `/inventory/stock-levels` list stays product-centric (see `DATABASE_DESIGN.md` section 1c) |
+| `/orders/orders/new`, `/purchasing/purchase-orders/new`, `/inventory/transfers/new` (variant picker on line items) | ✅ | variant-aware retrofit — a variable product's row grows a second `Select` for its variant (required client-side before submit, though the API itself still accepts a bare product); `order_items`/`purchase_order_items`/`stock_transfer_items`/`stock_levels`/`stock_movements` are now all variant-aware, see `DATABASE_DESIGN.md` section 1i |
 | `/catalog/products` (bundle/combo types) | ⏳ | 5 Wave 2b — needs Orders-integrated component stock decrement, not just a new `type` value |
 | `/catalog/media` (reusable, browsable media library) | ⏳ | 5 Wave 2b — product/category/brand images upload directly today, no shared library yet |
 | `/inventory` | ✅ | 6 (redirects to Stock Levels) |
@@ -28,7 +29,7 @@ their backing functionality — no dead pages).
 | `/inventory/transfers/new`, `/inventory/transfers/[id]` | ✅ | 6 (multi-item warehouse-to-warehouse transfer) |
 | `/inventory/warehouses` | ✅ | 6 (list, create, edit — backend model existed since Phase 4, admin UI was the Phase 6 gap this closes) |
 | `/inventory/warehouses/new`, `/inventory/warehouses/[id]` | ✅ | 6 |
-| `/inventory/stock-levels` (Reserved/Available columns) | ✅ | 6/8 (stock reservations tied to orders — Phase 8 built the consumer; variant-level stock is still 5 Wave 2) |
+| `/inventory/stock-levels` (Reserved/Available columns) | ✅ | 6/8 (stock reservations tied to orders — Phase 8 built the consumer; each row now sums a variable product's stock across all its variants rather than a single row per variant, see `DATABASE_DESIGN.md` section 1c) |
 | `/purchasing` | ✅ | 7 (redirects to Purchase Orders) |
 | `/purchasing/purchase-orders` | ✅ | 7 (status/supplier filters, total shown per order) |
 | `/purchasing/purchase-orders/new` | ✅ | 7 (supplier/warehouse + line-item builder with unit cost) |

@@ -15,11 +15,15 @@ use Illuminate\Support\Facades\DB;
 class StockLevelController extends Controller
 {
     /**
-     * Current on-hand quantity per product at one warehouse. Products
-     * without a stock_levels row yet (nothing has moved for them there)
-     * still show up with quantity 0 via the left join. "Low stock" (and
-     * the low_stock filter) compares against *available* stock
-     * (quantity - quantity_reserved), not raw on-hand quantity — once
+     * Current on-hand quantity per product at one warehouse, summed across
+     * every variant (a variable product's stock lives entirely in its
+     * variants' own stock_levels rows — this list stays product-centric per
+     * variant granularity is surfaced on the product's own Variants tab
+     * instead, so a product with several variants still shows as one row
+     * here). Products without any stock_levels row yet (nothing has moved
+     * for them there) still show up with quantity 0 via the left join.
+     * "Low stock" (and the low_stock filter) compares against *available*
+     * stock (quantity - quantity_reserved), not raw on-hand quantity — once
      * Phase 8 orders reserve stock, on-hand alone overstates what's
      * actually sellable.
      */
@@ -47,9 +51,10 @@ class StockLevelController extends Controller
             ->where('products.store_id', $storeId)
             ->select(
                 'products.*',
-                DB::raw('COALESCE(stock_levels.quantity, 0) as warehouse_quantity'),
-                DB::raw('COALESCE(stock_levels.quantity_reserved, 0) as warehouse_reserved'),
+                DB::raw('COALESCE(SUM(stock_levels.quantity), 0) as warehouse_quantity'),
+                DB::raw('COALESCE(SUM(stock_levels.quantity_reserved), 0) as warehouse_reserved'),
             )
+            ->groupBy('products.id')
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = '%'.$request->string('search').'%';
                 $query->where(function ($q) use ($term) {
@@ -59,7 +64,7 @@ class StockLevelController extends Controller
             ->when($lowStockOnly, fn ($query) => $query
                 ->where('products.track_stock', true)
                 ->whereNotNull('products.low_stock_threshold')
-                ->whereRaw('(COALESCE(stock_levels.quantity, 0) - COALESCE(stock_levels.quantity_reserved, 0)) <= products.low_stock_threshold'))
+                ->havingRaw('(COALESCE(SUM(stock_levels.quantity), 0) - COALESCE(SUM(stock_levels.quantity_reserved), 0)) <= products.low_stock_threshold'))
             ->orderBy('products.name')
             ->paginate($perPage);
 

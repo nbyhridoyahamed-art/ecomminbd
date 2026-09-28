@@ -26,6 +26,14 @@ class StockTransferResource extends JsonResource
                 'product_id' => $item->product_id,
                 'product_name' => $item->product->name,
                 'sku' => $item->product->sku,
+                'product_variant' => $item->product_variant_id ? [
+                    'id' => $item->productVariant->id,
+                    'sku' => $item->productVariant->sku,
+                    'attribute_values' => $item->productVariant->attributeValues->map(fn ($value) => [
+                        'attribute_name' => $value->attribute->name,
+                        'value' => $value->value,
+                    ]),
+                ] : null,
                 'quantity' => $item->quantity,
             ])),
             'created_by' => $this->creator?->name,

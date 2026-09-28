@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 #[Fillable(['store_id', 'product_id', 'sku', 'barcode', 'price_amount', 'sale_price_amount', 'cost_price_amount', 'status'])]
@@ -39,5 +40,10 @@ class ProductVariant extends Model
             ProductAttributeValue::class,
             'product_variant_attribute_values',
         )->withTimestamps();
+    }
+
+    public function stockLevels(): HasMany
+    {
+        return $this->hasMany(StockLevel::class);
     }
 }

@@ -13,6 +13,7 @@ import {
   useRecordPurchaseReceipt,
 } from "@/hooks/use-purchase-orders";
 import { formatMoney } from "@/lib/money";
+import { variantLabel } from "@/lib/variant";
 import { PermissionDenied } from "@/components/permission-denied";
 import { ReceivePurchaseOrderForm } from "@/components/purchasing/receive-purchase-order-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -158,7 +159,9 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
                     <tr key={item.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-2 text-text-primary">
                         {item.product_name}
-                        <span className="ml-1 text-xs text-text-muted">({item.sku})</span>
+                        <span className="ml-1 text-xs text-text-muted">
+                          ({item.sku}){variantLabel(item.product_variant) ? ` — ${variantLabel(item.product_variant)}` : ""}
+                        </span>
                       </td>
                       <td className="px-4 py-2 text-text-primary">{item.quantity_ordered}</td>
                       <td className="px-4 py-2 text-text-primary">{item.quantity_received}</td>
@@ -211,7 +214,7 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
                 <ul className="mt-2 space-y-1 text-sm text-text-primary">
                   {receipt.items.map((item, i) => (
                     <li key={i}>
-                      {item.product_name} ({item.sku}) &mdash; {item.quantity_received}
+                      {item.product_name} ({item.product_variant_sku ?? item.sku}) &mdash; {item.quantity_received}
                     </li>
                   ))}
                 </ul>

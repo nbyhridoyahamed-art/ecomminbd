@@ -9,6 +9,7 @@ import type { PurchaseOrder, PurchaseReceipt } from "@/types/purchase-order";
 
 export interface PurchaseOrderItemInput {
   product_id: number;
+  product_variant_id?: number | null;
   quantity_ordered: number;
   unit_cost: string;
 }

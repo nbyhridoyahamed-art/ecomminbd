@@ -3,6 +3,8 @@
 namespace Tests\Feature\Purchasing;
 
 use App\Models\Product;
+use App\Models\ProductAttribute;
+use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\Store;
 use App\Models\Supplier;
@@ -29,6 +31,67 @@ class PurchaseOrderTest extends TestCase
         $user->assignRole('Super Admin');
 
         return $user;
+    }
+
+    /** @return array{product: Product, variant: ProductVariant} */
+    private function variantProduct(Store $store): array
+    {
+        $product = Product::factory()->for($store)->create(['type' => 'variable']);
+        $attribute = ProductAttribute::create(['store_id' => $store->id, 'name' => 'Color', 'slug' => 'color-'.$product->id]);
+        $value = $attribute->values()->create(['value' => 'Red', 'slug' => 'red-'.$product->id]);
+
+        $variant = ProductVariant::create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'sku' => $product->sku.'-RED',
+            'status' => 'active',
+        ]);
+        $variant->attributeValues()->attach($value->id);
+
+        return compact('product', 'variant');
+    }
+
+    public function test_a_line_item_can_target_a_specific_variant(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $supplier = Supplier::factory()->for($store)->create();
+        ['product' => $product, 'variant' => $variant] = $this->variantProduct($store);
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/purchase-orders', [
+            'store_id' => $store->id,
+            'warehouse_id' => $warehouse->id,
+            'supplier_id' => $supplier->id,
+            'items' => [
+                ['product_id' => $product->id, 'product_variant_id' => $variant->id, 'quantity_ordered' => 10, 'unit_cost' => '150.50'],
+            ],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.items.0.product_variant.id', $variant->id)
+            ->assertJsonPath('data.items.0.product_variant.sku', $variant->sku);
+
+        $this->assertDatabaseHas('purchase_order_items', ['product_id' => $product->id, 'product_variant_id' => $variant->id]);
+    }
+
+    public function test_a_variant_that_does_not_belong_to_the_selected_product_is_rejected(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $supplier = Supplier::factory()->for($store)->create();
+        ['product' => $product] = $this->variantProduct($store);
+        ['variant' => $otherProductsVariant] = $this->variantProduct($store);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/purchase-orders', [
+            'store_id' => $store->id,
+            'warehouse_id' => $warehouse->id,
+            'supplier_id' => $supplier->id,
+            'items' => [
+                ['product_id' => $product->id, 'product_variant_id' => $otherProductsVariant->id, 'quantity_ordered' => 10, 'unit_cost' => '150.50'],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors('items.0.product_variant_id');
     }
 
     public function test_a_draft_purchase_order_can_be_created_with_items_and_money_converts_correctly(): void

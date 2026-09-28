@@ -32,6 +32,22 @@ class ProductVariantResource extends JsonResource
                 'value_id' => $value->id,
                 'value' => $value->value,
             ])),
+            // Total stock across every warehouse this variant has ever been
+            // stocked, adjusted, or sold at — the global Stock Levels list
+            // stays product-centric, so this is the only place variant-level
+            // stock is visible.
+            'stock_summary' => $this->whenLoaded('stockLevels', fn () => [
+                'total_quantity' => $this->stockLevels->sum('quantity'),
+                'total_reserved' => $this->stockLevels->sum('quantity_reserved'),
+                'total_available' => $this->stockLevels->sum('quantity') - $this->stockLevels->sum('quantity_reserved'),
+                'by_warehouse' => $this->stockLevels->map(fn ($level) => [
+                    'warehouse_id' => $level->warehouse_id,
+                    'warehouse_name' => $level->warehouse->name,
+                    'quantity' => $level->quantity,
+                    'quantity_reserved' => $level->quantity_reserved,
+                    'quantity_available' => $level->quantity - $level->quantity_reserved,
+                ]),
+            ]),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

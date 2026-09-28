@@ -7,6 +7,9 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderReturn;
 use App\Models\Product;
+use App\Models\ProductAttribute;
+use App\Models\ProductVariant;
+use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -58,6 +61,71 @@ class ReturnTest extends TestCase
         $itemB = $order->items()->create(['product_id' => $productB->id, 'quantity' => 2, 'unit_price_amount' => 5000]);
 
         return compact('order', 'itemA', 'itemB', 'productA', 'productB');
+    }
+
+    /** @return array{order: Order, item: OrderItem, product: Product, variant: ProductVariant, warehouse: Warehouse} */
+    private function deliveredOrderWithVariantItem(Store $store): array
+    {
+        $customer = Customer::factory()->for($store)->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['type' => 'variable']);
+        $attribute = ProductAttribute::create(['store_id' => $store->id, 'name' => 'Color', 'slug' => 'color-'.$product->id]);
+        $value = $attribute->values()->create(['value' => 'Red', 'slug' => 'red-'.$product->id]);
+        $variant = ProductVariant::create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'sku' => $product->sku.'-RED',
+            'status' => 'active',
+        ]);
+        $variant->attributeValues()->attach($value->id);
+
+        $order = Order::factory()->for($store)->for($customer)->for($warehouse)->create([
+            'status' => 'delivered',
+            'payment_method' => 'cod',
+            'payment_status' => 'paid',
+            'shipping_amount' => 0,
+            'discount_amount' => 0,
+        ]);
+
+        $item = $order->items()->create([
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => 3,
+            'unit_price_amount' => 10000,
+        ]);
+
+        return compact('order', 'item', 'product', 'variant', 'warehouse');
+    }
+
+    public function test_receiving_a_variant_return_restocks_only_that_variants_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'item' => $item, 'product' => $product, 'variant' => $variant, 'warehouse' => $warehouse] =
+            $this->deliveredOrderWithVariantItem($store);
+
+        // A decoy variant-less row for the same product — receiving the
+        // return must never touch this one.
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 999]);
+
+        $returnId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/returns", [
+                'items' => [['order_item_id' => $item->id, 'quantity' => 2]],
+            ])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/receive")->assertOk();
+
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $warehouse->id, 'quantity' => 2,
+        ]);
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => null, 'warehouse_id' => $warehouse->id, 'quantity' => 999,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'type' => 'return', 'quantity' => 2,
+        ]);
     }
 
     public function test_a_return_can_be_requested_for_a_delivered_order(): void

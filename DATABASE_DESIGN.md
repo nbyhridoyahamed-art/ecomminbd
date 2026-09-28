@@ -146,17 +146,27 @@ uses).
 
 ```
 stock_levels
-  id, product_id (FK→products, cascade), warehouse_id (FK→warehouses, cascade),
+  id, product_id (FK→products, cascade),
+  product_variant_id (FK→product_variants, restrictOnDelete, nullable — null
+    means "the simple product itself"; a variable product's rows always carry
+    one, so its stock is never mixed into a phantom no-variant row),
+  warehouse_id (FK→warehouses, cascade),
   quantity (int, default 0),
   quantity_reserved (unsigned int, default 0 — reserved by pending/processing
     orders; "available to sell" = quantity - quantity_reserved; see section 1e),
   timestamps
-  unique(product_id, warehouse_id)
+  unique(product_id, product_variant_id, warehouse_id) — note that MySQL/SQLite
+    both treat multiple NULLs in a unique index as distinct, so this constraint
+    alone can't stop two concurrent inserts from creating duplicate simple-
+    product rows; the real guarantee is every write path's `lockForUpdate()`
+    read-then-write discipline (see below), not the DB constraint
 
 stock_movements
   id, uuid, store_id (FK→stores, cascade), product_id (FK→products, cascade),
+  product_variant_id (FK→product_variants, nullOnDelete, nullable — an audit
+    row outlives the variant it was about; same reasoning as order_items below),
   warehouse_id (FK→warehouses, cascade),
-  type (varchar: adjustment_increase/adjustment_decrease/transfer_in/transfer_out/purchase_receipt/sale),
+  type (varchar: adjustment_increase/adjustment_decrease/transfer_in/transfer_out/purchase_receipt/sale/return),
   quantity (unsigned int — the delta magnitude, always positive; direction is in `type`),
   quantity_before, quantity_after (int — snapshot either side of this movement),
   reason (nullable), reference_type/reference_id (nullable — points at the
@@ -175,6 +185,7 @@ stock_transfers
 
 stock_transfer_items
   id, stock_transfer_id (FK→stock_transfers, cascade), product_id (FK→products, cascade),
+  product_variant_id (FK→product_variants, nullOnDelete, nullable),
   quantity (unsigned int), timestamps
 ```
 
@@ -188,10 +199,18 @@ destination incremented, one `transfer_out` + one `transfer_in` movement
 written) — there is no draft/pending/in-transit workflow in Wave 1, since
 nothing yet needs multi-step transfer approval (see section 2).
 
-Stock is tracked per **product**, not per variant — `products.type` is
-still only `simple` (Phase 5 Wave 2 hasn't shipped variants). When variants
-land, `stock_levels`/`stock_movements` gain a `product_variant_id` and the
-existing `product_id` rows migrate to "the simple product's only variant."
+Stock is tracked per **product-or-variant**: every stock-touching table
+above carries a nullable `product_variant_id` alongside `product_id` —
+null for a simple product, set for a variable product's variant. A given
+`(product_id, warehouse_id)` pair can now legitimately have several
+`stock_levels` rows (one per variant), which is why the global Stock
+Levels list (`StockLevelController::index()`) sums a variable product's
+rows into one line rather than joining them naively — a plain left join
+without the `GROUP BY`/`SUM()` would silently show the same product
+multiple times, once per variant. Per-variant stock visibility and
+adjustment instead live on the product's own Variants tab (see
+`COMPONENT_INVENTORY.md`'s `VariantsManager` entry), a deliberate scope
+line matching how the list was always product-centric even in Wave 1.
 
 ## 1d. Purchasing Schema (Phase 7 Wave 1)
 
@@ -535,14 +554,21 @@ selecting attributes in the UI and generating variants are the same
 action rather than a selection step that has to stay in sync with a
 separately persisted choice.
 
-**Not yet variant-aware:** `order_items`, `stock_levels`,
-`stock_movements`, and `purchase_order_items` all still key off
-`product_id` alone — a variable product's variants exist as catalog
-data (their own SKU/price/barcode) but can't yet be ordered, stocked, or
-purchased against individually. Adding a nullable `product_variant_id`
-to each of those tables is real, substantial, cross-cutting work left
-for its own future pass — see `DEVELOPMENT_ROADMAP.md`'s Phase 5 Wave 2a
-scope note and "Next Session Should Start With".
+**Now variant-aware:** `order_items`, `purchase_order_items`,
+`stock_transfer_items`, `stock_levels`, and `stock_movements` all carry a
+nullable `product_variant_id` alongside `product_id` (see section 1c) —
+a variable product's variants can be ordered, stocked, transferred, and
+purchased against individually, not just catalogued. A shared
+`App\Rules\VariantBelongsToProduct` validation rule (a `DataAwareRule`)
+checks the submitted variant actually belongs to the submitted product on
+every line-item form that accepts one; `ProductVariantController::destroy()`
+refuses to delete a variant that has any `stock_levels` row at all (even a
+zeroed-out one — same existence check the column's `restrictOnDelete` FK
+would otherwise enforce as a raw SQL error), pointing the user at
+deactivating it (`status = inactive`) instead. See
+`DEVELOPMENT_ROADMAP.md`'s Phase 5 Wave 2a scope note for what motivated
+this retrofit and its own variant-aware-retrofit scope note for what it
+actually shipped.
 
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
@@ -564,18 +590,16 @@ compatible with them.
   `product_images` are built — see section 1b; `product_attributes`,
   `product_attribute_values`, `product_variants`,
   `product_variant_attribute_values` are built — see section 1i.
-- **Inventory Wave 2:** `product_variant_id` on `stock_levels`/
-  `stock_movements` (Phase 5 Wave 2a built the variant catalog data
-  itself — see section 1i — but stock still isn't tracked per variant),
-  a pending/in-transit/received transfer approval workflow, and a
-  `stock_adjustments` header table for grouping a stocktake's many
-  per-product adjustments under one
-  reference (today each adjustment is its own `stock_movements` row —
-  see section 1c). `stock_levels` (incl. `quantity_reserved`),
-  `stock_movements`, `stock_transfers`, `stock_transfer_items` are built
-  — see section 1c. Movements driven by purchase receipts, order
-  reservation/shipment, and returns are also built — see sections
-  1d/1e/1g.
+- **Inventory Wave 2:** a pending/in-transit/received transfer approval
+  workflow, and a `stock_adjustments` header table for grouping a
+  stocktake's many per-product adjustments under one reference (today
+  each adjustment is its own `stock_movements` row — see section 1c).
+  `stock_levels` (incl. `quantity_reserved`), `stock_movements`,
+  `stock_transfers`, `stock_transfer_items` are built — see section 1c.
+  Movements driven by purchase receipts, order reservation/shipment, and
+  returns are also built — see sections 1d/1e/1g. The
+  `product_variant_id` item this bullet used to list is no longer
+  deferred — see section 1i's "Now variant-aware" note.
 - **Purchasing Wave 2:** `purchase_returns` (returning received goods to
   a supplier — needs a real trigger from actual usage before its
   workflow can be designed with confidence), supplier payment
@@ -606,9 +630,11 @@ compatible with them.
   `shipments`, `shipment_status_history`, `cod_settlements`,
   `cod_settlement_shipments` are built — see section 1f.
 - **Returns Wave 2:** `exchanges` (swap for a different product/variant
-  — Phase 5 Wave 2a's variant catalog data exists now, see section 1i,
-  but no order line item is variant-aware yet, so there's nothing to
-  swap *to* within an order), store credit as a
+  — order line items are variant-aware now, see section 1i, so there's
+  something to swap *to* within an order, but the exchange workflow
+  itself — a return that creates a replacement order/line item and moves
+  stock accordingly — is a separate, unbuilt feature, deferred until a
+  real usage pattern exists to design it against), store credit as a
   refund method (no wallet/ledger concept exists), and reconciling
   `orders.payment_status` across *partial* refunds spread over multiple
   separate return records (today only a full-coverage refund reconciles

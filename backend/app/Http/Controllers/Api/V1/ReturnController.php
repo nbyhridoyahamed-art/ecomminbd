@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
 
 class ReturnController extends Controller
 {
-    private const RELATIONS = ['order.customer', 'items.orderItem.product', 'creator', 'statusHistory.creator'];
+    private const RELATIONS = ['order.customer', 'items.orderItem.product', 'items.orderItem.productVariant', 'creator', 'statusHistory.creator'];
 
     public function index(Request $request): JsonResponse
     {
@@ -148,6 +148,7 @@ class ReturnController extends Controller
 
                 $level = StockLevel::query()
                     ->where('product_id', $returnItem->orderItem->product_id)
+                    ->where('product_variant_id', $returnItem->orderItem->product_variant_id)
                     ->where('warehouse_id', $order->warehouse_id)
                     ->lockForUpdate()
                     ->first();
@@ -159,6 +160,7 @@ class ReturnController extends Controller
                     ? $level->update(['quantity' => $after])
                     : StockLevel::create([
                         'product_id' => $returnItem->orderItem->product_id,
+                        'product_variant_id' => $returnItem->orderItem->product_variant_id,
                         'warehouse_id' => $order->warehouse_id,
                         'quantity' => $after,
                     ]);
@@ -166,6 +168,7 @@ class ReturnController extends Controller
                 StockMovement::create([
                     'store_id' => $orderReturn->store_id,
                     'product_id' => $returnItem->orderItem->product_id,
+                    'product_variant_id' => $returnItem->orderItem->product_variant_id,
                     'warehouse_id' => $order->warehouse_id,
                     'type' => 'return',
                     'quantity' => $returnItem->quantity,

@@ -3,6 +3,7 @@
 import { useForm } from "react-hook-form";
 
 import type { ReturnRequestFormValues } from "@/hooks/use-returns";
+import { variantLabel } from "@/lib/variant";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,7 +79,7 @@ export function ReturnRequestForm({ items, onSubmit, isPending, serverError }: R
             <div className="flex-1">
               <p className="text-sm font-medium text-text-primary">{item.product_name}</p>
               <p className="text-xs text-text-muted">
-                {item.sku} &middot; {item.quantity} ordered
+                {variantLabel(item.product_variant) ?? item.sku} &middot; {item.quantity} ordered
               </p>
             </div>
             <Input

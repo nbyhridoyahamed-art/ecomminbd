@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['purchase_order_id', 'product_id', 'quantity_ordered', 'quantity_received', 'unit_cost_amount'])]
+#[Fillable(['purchase_order_id', 'product_id', 'product_variant_id', 'quantity_ordered', 'quantity_received', 'unit_cost_amount'])]
 class PurchaseOrderItem extends Model
 {
     use HasFactory;
@@ -20,6 +20,11 @@ class PurchaseOrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function productVariant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class);
     }
 
     public function quantityRemaining(): int

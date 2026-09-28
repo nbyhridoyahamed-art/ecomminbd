@@ -13,6 +13,7 @@ export interface ReturnItem {
   order_item_id: number;
   product_name: string;
   sku: string;
+  product_variant_sku: string | null;
   quantity: number;
   unit_price: number;
   line_total: number;

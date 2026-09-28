@@ -17,6 +17,14 @@ class StockMovementResource extends JsonResource
                 'name' => $this->product->name,
                 'sku' => $this->product->sku,
             ],
+            'product_variant' => $this->product_variant_id ? [
+                'id' => $this->productVariant->id,
+                'sku' => $this->productVariant->sku,
+                'attribute_values' => $this->productVariant->attributeValues->map(fn ($value) => [
+                    'attribute_name' => $value->attribute->name,
+                    'value' => $value->value,
+                ]),
+            ] : null,
             'warehouse' => [
                 'id' => $this->warehouse->id,
                 'name' => $this->warehouse->name,

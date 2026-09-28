@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['product_id', 'warehouse_id', 'quantity', 'quantity_reserved'])]
+#[Fillable(['product_id', 'product_variant_id', 'warehouse_id', 'quantity', 'quantity_reserved'])]
 class StockLevel extends Model
 {
     use HasFactory;
@@ -15,6 +15,11 @@ class StockLevel extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function productVariant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class);
     }
 
     public function warehouse(): BelongsTo

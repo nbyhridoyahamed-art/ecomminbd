@@ -3,6 +3,8 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\Product;
+use App\Models\ProductAttribute;
+use App\Models\ProductVariant;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
 use App\Models\Store;
@@ -57,6 +59,76 @@ class StockAdjustmentTest extends TestCase
             'quantity' => 50,
         ]);
         $this->assertDatabaseCount('stock_movements', 1);
+    }
+
+    /** @return array{product: Product, variant: ProductVariant} */
+    private function variantProduct(Store $store): array
+    {
+        $product = Product::factory()->for($store)->create(['type' => 'variable']);
+        $attribute = ProductAttribute::create(['store_id' => $store->id, 'name' => 'Color', 'slug' => 'color-'.$product->id]);
+        $value = $attribute->values()->create(['value' => 'Red', 'slug' => 'red-'.$product->id]);
+
+        $variant = ProductVariant::create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'sku' => $product->sku.'-RED',
+            'status' => 'active',
+        ]);
+        $variant->attributeValues()->attach($value->id);
+
+        return compact('product', 'variant');
+    }
+
+    public function test_adjusting_a_variants_stock_creates_a_level_distinct_from_the_products_own(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        ['product' => $product, 'variant' => $variant] = $this->variantProduct($store);
+
+        // A decoy variant-less row for the same product — adjusting the
+        // variant must never touch this one.
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 999]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/v1/stock-adjustments', [
+                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
+                'warehouse_id' => $warehouse->id,
+                'direction' => 'increase',
+                'quantity' => 50,
+                'reason' => 'Initial stock',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.quantity_before', 0)
+            ->assertJsonPath('data.quantity_after', 50)
+            ->assertJsonPath('data.product_variant.id', $variant->id);
+
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $warehouse->id, 'quantity' => 50,
+        ]);
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => null, 'warehouse_id' => $warehouse->id, 'quantity' => 999,
+        ]);
+    }
+
+    public function test_a_variant_that_does_not_belong_to_the_selected_product_is_rejected(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        ['product' => $product] = $this->variantProduct($store);
+        ['variant' => $otherProductsVariant] = $this->variantProduct($store);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/v1/stock-adjustments', [
+                'product_id' => $product->id,
+                'product_variant_id' => $otherProductsVariant->id,
+                'warehouse_id' => $warehouse->id,
+                'direction' => 'increase',
+                'quantity' => 10,
+            ])
+            ->assertUnprocessable()->assertJsonValidationErrors('product_variant_id');
     }
 
     public function test_decreasing_stock_below_zero_is_rejected(): void

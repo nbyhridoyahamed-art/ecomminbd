@@ -12,9 +12,9 @@ in place and the app still builds/runs.
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
 | 5 | Catalog | ✅ Wave 1 + Wave 2a done (bundles/reviews/bulk import-export/media library still deferred — see note) | Yes — categories (hierarchy), brands, simple + variable products w/ pricing/SEO/images, attributes + a variant generator, full admin UI |
-| 6 | Inventory | ✅ Wave 1 done (order reservations/variant-level stock deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
-| 7 | Purchasing | ✅ Wave 1 done (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
-| 8 | Orders | ✅ Wave 1 done (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
+| 6 | Inventory | ✅ Wave 1 done, now variant-aware (transfer approval workflow deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
+| 7 | Purchasing | ✅ Wave 1 done, now variant-aware (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
+| 8 | Orders | ✅ Wave 1 done, now variant-aware (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
 | 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
 | 10 | Returns | ✅ Wave 1 done (exchanges/store-credit, cross-return refund reconciliation deferred — see note) | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
 | 11 | Admin Dashboard (full KPIs/charts) | ✅ Wave 1 done (custom date ranges, per-warehouse/per-courier breakdowns, full reporting suite deferred — see note) | Yes — sales trend (orders + revenue, last 14 days) and order-status-breakdown charts backed by real aggregate endpoints, a recent-orders widget, and every stat card now permission-gated |
@@ -96,18 +96,18 @@ that fall back to the parent product's own price when null). A
 "Generate variants" action computes the cartesian product of the
 selected attribute values and skips any combination that already exists
 as a variant, so re-running it after adding one new value only creates
-the new combinations. This is catalog data only — no order line item,
-stock level, or stock movement is variant-aware yet (`orders`/
-`order_items`/`stock_levels`/`stock_movements` all still key off
-`product_id`); a variable product's variants exist for catalog
-management (distinct SKUs/prices/barcodes) the same way Wave 1's simple
-products existed before Phase 8's orders ever consumed them. Wiring
-Orders/Inventory/Purchasing to be variant-aware (a `product_variant_id`
-on `stock_levels`/`stock_movements`/`order_items`/`purchase_order_items`)
-is real, substantial, cross-cutting work of its own and is left as the
-next Catalog-adjacent pickup rather than attempted alongside this —
-touching every phase built so far in one pass is exactly the kind of
-un-incremental change rule 176 warns against. Bundles/combos (needs
+the new combinations. This shipped catalog data only at the time — no
+order line item, stock level, or stock movement was variant-aware yet;
+a variable product's variants existed for catalog management (distinct
+SKUs/prices/barcodes) the same way Wave 1's simple products existed
+before Phase 8's orders ever consumed them. Wiring Orders/Inventory/
+Purchasing to be variant-aware was flagged as real, substantial,
+cross-cutting work of its own and deliberately left for its own pass
+rather than attempted alongside this one — touching every phase built so
+far in one pass would have been exactly the kind of un-incremental
+change rule 176 warns against. That pass has since been done — see the
+**variant-aware Orders/Inventory/Purchasing retrofit** scope note below.
+Bundles/combos (needs
 Orders-integrated component stock decrement, not just a new `type`
 value), customer reviews, CSV bulk import/export, and a reusable media
 library remain deferred for the reasons Wave 1's note above already
@@ -123,16 +123,15 @@ ever taking quantity negative. It also builds the Warehouses admin UI
 since Phase 4, but there was no screen to add a second warehouse and no
 demo data seeded either, which would have made Inventory unusable out
 of the box. Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md`
-section 2): order *returns* movements (needs Phase 10), variant-level
-stock (Phase 5 Wave 2a built the variant catalog data itself, but
-`stock_levels`/`stock_movements` still key off `product_id` only — see
-its scope note above), a pending/in-transit/received transfer
-approval workflow, and a `stock_adjustments` header table for grouping a
-stocktake's many adjustments. None of these has a real consumer yet —
-spec rule 178. (Purchase-receipt-driven movements and order
-reservation/fulfillment/cancellation movements, the two Wave 2 items
-this note used to list, are no longer deferred — Phase 7 and Phase 8
-built them respectively.)
+section 2): a pending/in-transit/received transfer approval workflow,
+and a `stock_adjustments` header table for grouping a stocktake's many
+adjustments. Neither has a real consumer yet — spec rule 178.
+(Purchase-receipt-driven movements, order reservation/fulfillment/
+cancellation movements, order-*returns* movements, and variant-level
+stock — the Wave 2 items this note used to list — are no longer
+deferred: Phase 7, Phase 8, Phase 10, and the variant-aware retrofit
+built them respectively; see the retrofit's own scope note below for
+that last one.)
 
 **Phase 7 scope note:** Wave 1 ships suppliers (full CRUD) and purchase
 orders with a real state machine: `draft` (items freely editable, a PUT
@@ -260,26 +259,58 @@ scalar already backs the "Low stock alerts" card honestly), CSV/PDF
 export, period-over-period comparisons, and the full reporting suite —
 all of that is Phase 18 Reporting's job, not a dashboard widget's.
 
+**Variant-aware Orders/Inventory/Purchasing retrofit scope note:** closes
+the gap Phase 5 Wave 2a's own scope note (above) flagged and this doc
+used to point "Next Session Should Start With" at. Adds a nullable
+`product_variant_id` alongside `product_id` on `order_items`,
+`purchase_order_items`, `stock_transfer_items`, `stock_levels`, and
+`stock_movements` (see `DATABASE_DESIGN.md` sections 1c/1i), and threads
+it through every write path that touches one of those tables:
+`OrderController` (`syncItems`/`reserveItems`/`releaseReservation`/
+`ship`), `PurchaseOrderController::syncItems()`,
+`PurchaseReceiptController::receiveStock()`,
+`StockAdjustmentController::store()`, and
+`StockTransferController::moveStock()` — plus two gaps beyond the
+original plan, found while auditing every `StockLevel`/`StockMovement`
+call site rather than just the ones initially listed:
+`ReturnController`'s restock-on-receive and `ShipmentController`'s
+restock-on-returned-to-seller were still product-only, so a returned
+variant would have silently restocked the wrong (simple-product)
+row. A shared `App\Rules\VariantBelongsToProduct` rule validates the
+submitted variant actually belongs to the submitted product on every
+line-item form that accepts one. `OrderResource`, `PurchaseOrderResource`,
+`PurchaseReceiptResource`, `StockTransferResource`, `StockMovementResource`,
+and `ReturnResource` all now expose the variant on each line item;
+`ProductVariantResource` gained a `stock_summary` (total + per-warehouse
+breakdown), and `ProductVariantController::destroy()` now refuses to
+delete a variant with any `stock_levels` row (even a zeroed-out one),
+pointing at deactivating it instead. Frontend: a shared `VariantPicker`
+is reused in the Order/Purchase Order/Stock Transfer forms (with a
+client-side guard requiring a variant selection for a variable product,
+stricter than the backend's own nullable rule, so a real 422 round-trip
+never happens for the common case), every page that lists those line
+items now shows the variant, and the product's own Variants tab gained a
+Stock column plus an "Adjust stock" entry point
+(`VariantStockAdjustmentDialog`) — see the deliberate-scope-cut note in
+`DATABASE_DESIGN.md` section 1c for why that's on the Variants tab and
+not the global Stock Levels list. That list needed one real fix along
+the way: it was still joining `stock_levels` to `products` 1:1, which a
+variable product's now-multiple-rows-per-product would have turned into
+duplicate rows per product; it now sums with `GROUP BY`/`SUM()` instead.
+14 new backend tests (141 → 155), all green, plus the existing frontend
+build/lint/typecheck.
+
 ## Next Session Should Start With
 
-Variant-aware Orders/Inventory/Purchasing — Phase 5 Wave 2a shipped the
-variant catalog data (attributes, generated variants with their own
-SKU/price overrides), but `order_items`/`stock_levels`/`stock_movements`/
-`purchase_order_items` all still key off `product_id` alone, so a
-variable product's variants can't actually be sold, stocked, or
-purchased against yet. Adding a nullable `product_variant_id` across
-those tables (and updating `OrderController`'s reservation logic,
-`StockAdjustmentController`/`StockTransferController`, and
-`PurchaseOrderController`/`PurchaseReceiptController` to accept an
-optional variant) is the real unblock several later phases (storefront
-product pages, Returns' exchange feature) still need, and is substantial
-enough to deserve its own focused pass rather than being bolted onto
-Wave 2a — see its scope note above for why. Phase 5 Wave 2b (bundles,
-reviews, bulk import/export, media library) and Phase 18 Reporting are
-the other reasonable pickups. Follow the phase order above; do not skip
-ahead to CMS/SEO/Storefront before catalog variants are actually
-sellable, since storefront product pages depend on that, not just the
-catalog data existing.
+Phase 5 Wave 2b (bundles/combos, customer reviews, CSV bulk
+import/export, a reusable media library) or Phase 18 Reporting are the
+two reasonable pickups now that catalog variants are fully sellable,
+stockable, and purchasable — neither blocks the other, pick whichever
+the user prioritizes. Follow the phase order above; do not skip ahead to
+CMS/SEO/Storefront (Phases 12–17) — nothing currently blocks them
+specifically, but the master spec's own incremental-phases rule (176)
+means they still wait their turn behind Phase 18 Reporting and any
+remaining Wave 2 items on already-started phases.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

@@ -3,6 +3,8 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\Product;
+use App\Models\ProductAttribute;
+use App\Models\ProductVariant;
 use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\User;
@@ -63,6 +65,44 @@ class StockLevelTest extends TestCase
             ->getJson("/api/v1/stock-levels?store_id={$store->id}&warehouse_id={$warehouseB->id}")
             ->assertOk()
             ->assertJsonPath('data.0.quantity', 5);
+    }
+
+    public function test_a_variable_products_stock_is_summed_across_variants_into_a_single_row(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['type' => 'variable', 'name' => 'Variable Widget']);
+        $attribute = ProductAttribute::create(['store_id' => $store->id, 'name' => 'Color', 'slug' => 'color']);
+        $red = $attribute->values()->create(['value' => 'Red', 'slug' => 'red']);
+        $blue = $attribute->values()->create(['value' => 'Blue', 'slug' => 'blue']);
+
+        $variantRed = ProductVariant::create([
+            'store_id' => $store->id, 'product_id' => $product->id, 'sku' => $product->sku.'-RED', 'status' => 'active',
+        ]);
+        $variantRed->attributeValues()->attach($red->id);
+        $variantBlue = ProductVariant::create([
+            'store_id' => $store->id, 'product_id' => $product->id, 'sku' => $product->sku.'-BLUE', 'status' => 'active',
+        ]);
+        $variantBlue->attributeValues()->attach($blue->id);
+
+        StockLevel::create([
+            'product_id' => $product->id, 'product_variant_id' => $variantRed->id, 'warehouse_id' => $warehouse->id,
+            'quantity' => 10, 'quantity_reserved' => 2,
+        ]);
+        StockLevel::create([
+            'product_id' => $product->id, 'product_variant_id' => $variantBlue->id, 'warehouse_id' => $warehouse->id,
+            'quantity' => 5, 'quantity_reserved' => 0,
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/stock-levels?store_id={$store->id}&warehouse_id={$warehouse->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.product_name', 'Variable Widget')
+            ->assertJsonPath('data.0.quantity', 15)
+            ->assertJsonPath('data.0.quantity_reserved', 2)
+            ->assertJsonPath('data.0.quantity_available', 13);
     }
 
     public function test_low_stock_filter_only_returns_products_at_or_below_threshold(): void

@@ -1,3 +1,5 @@
+import type { ProductVariantSnapshot } from "@/types/product";
+
 export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 
 export type PaymentMethod = "cod" | "bkash" | "nagad" | "rocket" | "card" | "bank_transfer";
@@ -7,6 +9,7 @@ export interface OrderItem {
   product_id: number;
   product_name: string;
   sku: string;
+  product_variant: ProductVariantSnapshot | null;
   quantity: number;
   unit_price: number;
   line_total: number;

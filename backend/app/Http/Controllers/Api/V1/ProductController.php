@@ -13,7 +13,7 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-    private const RELATIONS = ['category', 'brand', 'images', 'variants.attributeValues.attribute'];
+    private const RELATIONS = ['category', 'brand', 'images', 'variants.attributeValues.attribute', 'variants.stockLevels.warehouse'];
 
     public function index(Request $request): JsonResponse
     {

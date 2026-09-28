@@ -24,6 +24,14 @@ class PurchaseOrderResource extends JsonResource
                 'product_id' => $item->product_id,
                 'product_name' => $item->product->name,
                 'sku' => $item->product->sku,
+                'product_variant' => $item->product_variant_id ? [
+                    'id' => $item->productVariant->id,
+                    'sku' => $item->productVariant->sku,
+                    'attribute_values' => $item->productVariant->attributeValues->map(fn ($value) => [
+                        'attribute_name' => $value->attribute->name,
+                        'value' => $value->value,
+                    ]),
+                ] : null,
                 'quantity_ordered' => $item->quantity_ordered,
                 'quantity_received' => $item->quantity_received,
                 'quantity_remaining' => $item->quantityRemaining(),
@@ -44,6 +52,7 @@ class PurchaseOrderResource extends JsonResource
                 'created_at' => $receipt->created_at,
                 'items' => $receipt->items->map(fn ($receiptItem) => [
                     'product_name' => $receiptItem->orderItem->product->name,
+                    'product_variant_sku' => $receiptItem->orderItem->productVariant?->sku,
                     'quantity_received' => $receiptItem->quantity_received,
                 ]),
             ])),

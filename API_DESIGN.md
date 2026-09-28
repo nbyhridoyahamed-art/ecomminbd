@@ -129,7 +129,38 @@ remove one. All three variant actions check `products.update` directly
 (the same `$user->can()` pattern as `ProductImageController`, since a
 variant is a product sub-resource, not its own policy). Generating
 variants for a `simple` product, or for attribute values from a
-different store, returns a 422.
+different store, returns a 422. `DELETE /products/{id}/variants/{variantId}`
+now also returns a 422 if the variant has any `stock_levels` row at all
+(even a zeroed-out one) — see the variant-aware retrofit note below.
+
+Variant-aware Orders/Inventory/Purchasing retrofit: every endpoint below
+that accepts a line item (`items[].product_id`) now also accepts an
+optional sibling `items[].product_variant_id` (a flat
+`product_variant_id` for `POST /stock-adjustments`, which only ever
+handles one product at a time) — `POST/PUT /orders`, `POST/PUT
+/purchase-orders`, `POST /stock-adjustments`, and `POST
+/stock-transfers`. A submitted variant is validated (`App\Rules\
+VariantBelongsToProduct`) to actually belong to the submitted product,
+returning a 422 on the relevant `items.N.product_variant_id` field (or
+plain `product_variant_id` for stock-adjustments) if not; omitting it (or
+sending `null`) still means "the simple product itself," so every
+existing integration keeps working unchanged. Every resource that
+returns a line item — `OrderResource`, `PurchaseOrderResource`
+(including its nested `receipts`), `PurchaseReceiptResource`,
+`StockTransferResource`, `StockMovementResource`, and `ReturnResource` —
+now includes the variant it resolved to (`product_variant: {id, sku,
+attribute_values}` for the four line-item resources that carry a full
+snapshot, or a flattened `product_variant_sku` for the two that already
+kept their item shape lighter). `GET /products` and `GET
+/products/{id}`'s `variants[]` now also carry a `stock_summary`
+(`total_quantity`/`total_reserved`/`total_available` plus a
+`by_warehouse[]` breakdown), since the global `GET /stock-levels` list
+deliberately did not gain per-variant rows (see `DATABASE_DESIGN.md`
+section 1c) — this is the one place variant-level stock is visible over
+the API. `GET /stock-levels` itself is unchanged at the wire level (same
+one-row-per-product shape) but for a variable product that row is now
+the *sum* across all its variants' stock at that warehouse, not a single
+arbitrary variant's row.
 
 Inventory (Phase 6 Wave 1): `GET /stock-levels` (per-warehouse on-hand
 quantity per product, `low_stock` filter) + `GET .../low-stock-count`

@@ -25,7 +25,7 @@ class OrderController extends Controller
     // write from any action (place/ship/cancel/...) never drops a field the
     // show() response always includes.
     private const RELATIONS = [
-        'customer', 'warehouse', 'items.product', 'creator',
+        'customer', 'warehouse', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator',
         'shippingDivision', 'shippingDistrict', 'shippingUpazila', 'statusHistory.creator',
         'shipment.courier', 'returns',
     ];
@@ -182,6 +182,7 @@ class OrderController extends Controller
                 foreach ($order->items()->get() as $item) {
                     $level = StockLevel::query()
                         ->where('product_id', $item->product_id)
+                        ->where('product_variant_id', $item->product_variant_id)
                         ->where('warehouse_id', $order->warehouse_id)
                         ->lockForUpdate()
                         ->first();
@@ -202,6 +203,7 @@ class OrderController extends Controller
                     StockMovement::create([
                         'store_id' => $order->store_id,
                         'product_id' => $item->product_id,
+                        'product_variant_id' => $item->product_variant_id,
                         'warehouse_id' => $order->warehouse_id,
                         'type' => 'sale',
                         'quantity' => $item->quantity,
@@ -311,6 +313,7 @@ class OrderController extends Controller
         foreach ($items as $item) {
             $order->items()->create([
                 'product_id' => $item['product_id'],
+                'product_variant_id' => $item['product_variant_id'] ?? null,
                 'quantity' => $item['quantity'],
                 'unit_price_amount' => Money::fromDecimal($item['unit_price'], $currency)->amountMinor,
             ]);
@@ -323,6 +326,7 @@ class OrderController extends Controller
         foreach ($order->items()->get() as $item) {
             $level = StockLevel::query()
                 ->where('product_id', $item->product_id)
+                ->where('product_variant_id', $item->product_variant_id)
                 ->where('warehouse_id', $order->warehouse_id)
                 ->lockForUpdate()
                 ->first();
@@ -344,6 +348,7 @@ class OrderController extends Controller
         foreach ($order->items as $item) {
             $level = StockLevel::query()
                 ->where('product_id', $item->product_id)
+                ->where('product_variant_id', $item->product_variant_id)
                 ->where('warehouse_id', $order->warehouse_id)
                 ->lockForUpdate()
                 ->first();

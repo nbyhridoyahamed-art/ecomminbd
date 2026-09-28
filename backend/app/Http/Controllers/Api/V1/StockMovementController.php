@@ -23,7 +23,7 @@ class StockMovementController extends Controller
         $perPage = min((int) $request->integer('per_page', 20), 100);
 
         $movements = StockMovement::query()
-            ->with(['product', 'warehouse', 'creator'])
+            ->with(['product', 'productVariant.attributeValues.attribute', 'warehouse', 'creator'])
             ->where('store_id', $request->integer('store_id'))
             ->when($request->filled('product_id'), fn ($query) => $query->where('product_id', $request->integer('product_id')))
             ->when($request->filled('warehouse_id'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse_id')))

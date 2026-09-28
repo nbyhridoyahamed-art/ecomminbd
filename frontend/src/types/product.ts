@@ -51,6 +51,21 @@ export interface Product {
   updated_at: string;
 }
 
+export interface ProductVariantStockByWarehouse {
+  warehouse_id: number;
+  warehouse_name: string;
+  quantity: number;
+  quantity_reserved: number;
+  quantity_available: number;
+}
+
+export interface ProductVariantStockSummary {
+  total_quantity: number;
+  total_reserved: number;
+  total_available: number;
+  by_warehouse: ProductVariantStockByWarehouse[];
+}
+
 export interface ProductVariant {
   id: number;
   uuid: string;
@@ -62,6 +77,14 @@ export interface ProductVariant {
   cost_price: number | null;
   status: "active" | "inactive";
   attribute_values: { attribute_id: number; attribute_name: string; value_id: number; value: string }[];
+  stock_summary?: ProductVariantStockSummary;
   created_at: string;
   updated_at: string;
+}
+
+/** The compact shape a variant appears as when snapshotted onto a line item (order/PO/transfer/movement). */
+export interface ProductVariantSnapshot {
+  id: number;
+  sku: string;
+  attribute_values: { attribute_name: string; value: string }[];
 }

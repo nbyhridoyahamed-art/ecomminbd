@@ -73,6 +73,7 @@ export function useStockTransfer(id: number | null | undefined) {
 
 export interface StockAdjustmentPayload {
   product_id: number;
+  product_variant_id?: number | null;
   warehouse_id: number;
   direction: "increase" | "decrease";
   quantity: number;
@@ -87,6 +88,10 @@ export function useCreateStockAdjustment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-levels"] });
       queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      // A variant's stock summary is served on the product detail response,
+      // not stock-levels, so an adjustment made from the product's Variants
+      // tab needs this too.
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Stock adjusted.");
     },
     onError: (error) => {
@@ -100,7 +105,7 @@ export interface StockTransferPayload {
   from_warehouse_id: number;
   to_warehouse_id: number;
   note?: string | null;
-  items: { product_id: number; quantity: number }[];
+  items: { product_id: number; product_variant_id?: number | null; quantity: number }[];
 }
 
 export function useCreateStockTransfer() {

@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 
 class ProductVariantController extends Controller
 {
-    private const RELATIONS = ['attributeValues.attribute', 'product'];
+    private const RELATIONS = ['attributeValues.attribute', 'product', 'stockLevels.warehouse'];
 
     /**
      * Creates the cartesian product of the given attribute values as
@@ -116,6 +116,10 @@ class ProductVariantController extends Controller
 
         if ($variant->product_id !== $product->id) {
             return ApiResponse::error('This variant does not belong to this product.', [], 404);
+        }
+
+        if ($variant->stockLevels()->exists()) {
+            return ApiResponse::error('This variant has stock records and cannot be deleted. Deactivate it instead.', [], 422);
         }
 
         $variant->delete();

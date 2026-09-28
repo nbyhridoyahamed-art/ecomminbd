@@ -113,7 +113,7 @@ export default function ReturnShowPage({ params }: PageProps<"/orders/returns/[i
                   <tr key={item.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-2 text-text-primary">
                       {item.product_name}
-                      <span className="ml-1 text-xs text-text-muted">({item.sku})</span>
+                      <span className="ml-1 text-xs text-text-muted">({item.product_variant_sku ?? item.sku})</span>
                     </td>
                     <td className="px-4 py-2 text-text-primary">{item.quantity}</td>
                     <td className="px-4 py-2 text-text-primary">{formatMoney(item.unit_price, "BDT")}</td>

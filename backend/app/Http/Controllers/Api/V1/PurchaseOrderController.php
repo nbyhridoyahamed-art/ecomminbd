@@ -22,8 +22,8 @@ class PurchaseOrderController extends Controller
     // from that response (e.g. after place()/cancel()) would silently
     // drop a field the show() response always includes.
     private const RELATIONS = [
-        'warehouse', 'supplier', 'items.product', 'creator',
-        'receipts.items.orderItem.product', 'receipts.receiver',
+        'warehouse', 'supplier', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator',
+        'receipts.items.orderItem.product', 'receipts.items.orderItem.productVariant', 'receipts.receiver',
     ];
 
     public function index(Request $request): JsonResponse
@@ -168,6 +168,7 @@ class PurchaseOrderController extends Controller
         foreach ($items as $item) {
             $order->items()->create([
                 'product_id' => $item['product_id'],
+                'product_variant_id' => $item['product_variant_id'] ?? null,
                 'quantity_ordered' => $item['quantity_ordered'],
                 'unit_cost_amount' => Money::fromDecimal($item['unit_cost'], $currency)->amountMinor,
             ]);

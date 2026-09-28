@@ -1,3 +1,5 @@
+import type { ProductVariantSnapshot } from "@/types/product";
+
 export interface StockLevel {
   product_id: number;
   product_name: string;
@@ -23,6 +25,7 @@ export interface StockMovement {
   id: number;
   uuid: string;
   product: { id: number; name: string; sku: string };
+  product_variant: ProductVariantSnapshot | null;
   warehouse: { id: number; name: string };
   type: StockMovementType;
   quantity: number;
@@ -39,6 +42,7 @@ export interface StockTransferItem {
   product_id: number;
   product_name: string;
   sku: string;
+  product_variant: ProductVariantSnapshot | null;
   quantity: number;
 }
 

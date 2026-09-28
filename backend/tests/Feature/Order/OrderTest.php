@@ -8,6 +8,8 @@ use App\Models\BdUpazila;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductAttribute;
+use App\Models\ProductVariant;
 use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\User;
@@ -42,6 +44,26 @@ class OrderTest extends TestCase
             'shipping_phone' => '01712345678',
             'shipping_address_line' => 'House 1, Road 2, Dhaka',
         ];
+    }
+
+    /** @return array{product: Product, variant: ProductVariant} */
+    private function variantProduct(Store $store): array
+    {
+        $product = Product::factory()->for($store)->create(['type' => 'variable']);
+        // Slugs are unique per store, so scope them to this product in case
+        // the caller builds more than one variant product for the same store.
+        $attribute = ProductAttribute::create(['store_id' => $store->id, 'name' => 'Color', 'slug' => 'color-'.$product->id]);
+        $value = $attribute->values()->create(['value' => 'Red', 'slug' => 'red-'.$product->id]);
+
+        $variant = ProductVariant::create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'sku' => $product->sku.'-RED',
+            'status' => 'active',
+        ]);
+        $variant->attributeValues()->attach($value->id);
+
+        return compact('product', 'variant');
     }
 
     public function test_creating_an_order_reserves_stock_without_touching_on_hand_quantity(): void
@@ -98,6 +120,100 @@ class OrderTest extends TestCase
 
         $this->assertDatabaseHas('stock_levels', [
             'product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'quantity' => 10, 'quantity_reserved' => 8,
+        ]);
+    }
+
+    public function test_creating_an_order_with_a_variant_reserves_only_that_variants_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['product' => $product, 'variant' => $variant] = $this->variantProduct($store);
+
+        // A decoy variant-less row for the same product — reserving the
+        // variant must never touch this one.
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 999, 'quantity_reserved' => 0]);
+        StockLevel::create([
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $warehouse->id,
+            'quantity' => 50, 'quantity_reserved' => 0,
+        ]);
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [
+                ['product_id' => $product->id, 'product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => '199.00'],
+            ],
+            ...$this->manualShipping(),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.items.0.product_variant.id', $variant->id)
+            ->assertJsonPath('data.items.0.product_variant.sku', $variant->sku);
+
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $warehouse->id,
+            'quantity' => 50, 'quantity_reserved' => 10,
+        ]);
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => null, 'warehouse_id' => $warehouse->id,
+            'quantity' => 999, 'quantity_reserved' => 0,
+        ]);
+    }
+
+    public function test_a_variant_that_does_not_belong_to_the_selected_product_is_rejected(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['product' => $product] = $this->variantProduct($store);
+        ['variant' => $otherProductsVariant] = $this->variantProduct($store);
+        StockLevel::create(['product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'quantity' => 50]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [
+                ['product_id' => $product->id, 'product_variant_id' => $otherProductsVariant->id, 'quantity' => 1, 'unit_price' => '10.00'],
+            ],
+            ...$this->manualShipping(),
+        ])->assertUnprocessable()->assertJsonValidationErrors('items.0.product_variant_id');
+    }
+
+    public function test_shipping_a_variant_line_item_records_the_variant_on_the_sale_movement(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['product' => $product, 'variant' => $variant] = $this->variantProduct($store);
+        StockLevel::create(['product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $warehouse->id, 'quantity' => 50]);
+
+        $create = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [['product_id' => $product->id, 'product_variant_id' => $variant->id, 'quantity' => 15, 'unit_price' => '10.00']],
+            ...$this->manualShipping(),
+        ])->assertCreated();
+
+        $orderId = $create->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/orders/{$orderId}/ship")->assertOk();
+
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $warehouse->id,
+            'quantity' => 35, 'quantity_reserved' => 0,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id, 'product_variant_id' => $variant->id, 'type' => 'sale', 'quantity' => 15,
         ]);
     }
 

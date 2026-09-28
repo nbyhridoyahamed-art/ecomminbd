@@ -247,18 +247,29 @@ permissions, same shape as categories/brands; `product_variants`/
 `product_variant_attribute_values`, with a "generate the cartesian
 product of selected attribute values" action that skips combinations
 that already exist as a variant — see `DATABASE_DESIGN.md` section 1i.
-Catalog-only: no order line item, stock level, or stock movement is
-variant-aware yet, so a variant can't actually be sold, stocked, or
-purchased against individually — that's the next Catalog-adjacent pass,
-not folded into this one, per rule 176's incremental-phases mandate).
+Shipped catalog-only at the time: no order line item, stock level, or
+stock movement was variant-aware yet, so a variant couldn't actually be
+sold, stocked, or purchased against individually — that was deliberately
+left as its own Catalog-adjacent pass rather than folded into this one,
+per rule 176's incremental-phases mandate, and has since been built (the
+variant-aware Orders/Inventory/Purchasing retrofit, described next).
+Also built since: **the variant-aware Orders/Inventory/Purchasing
+retrofit** — a nullable `product_variant_id` on `order_items`/
+`purchase_order_items`/`stock_transfer_items`/`stock_levels`/
+`stock_movements` (see `DATABASE_DESIGN.md` sections 1c/1i), threaded
+through every controller that mutates one of those tables, plus a
+`stock_summary` on each variant (total + per-warehouse) surfaced on the
+product's own Variants tab — deliberately not on the global Stock Levels
+list, which stays product-centric (one row per product, summing a
+variable product's stock across all its variants) rather than gaining
+per-variant rows. This is the real unblock Catalog Wave 2a's variants
+needed before storefront product pages or Returns' exchange feature can
+use them, neither of which is built yet (their own phases haven't
+started).
 CMS/builder, blog, SEO, storefront, customer account, the full reporting
 suite (Phase 18), the adapter implementations described in section 6,
 Catalog Wave 2b (bundles, reviews, bulk import/export, a reusable media
-library), variant-aware Orders/Inventory/Purchasing (a
-`product_variant_id` on `order_items`/`stock_levels`/`stock_movements`/
-`purchase_order_items` — the real unblock Catalog Wave 2a's variants
-still need before storefront product pages or Returns' exchange
-feature can use them), Purchasing Wave 2 (purchase returns, supplier
+library), Purchasing Wave 2 (purchase returns, supplier
 ledger, PO approval workflow), Orders Wave 2 (a non-COD gateway-payments
 ledger, coupons), Delivery Wave 2 (delivery zones/rates, multi-shipment
 orders — the return-driven stock reversal gap this used to list is
