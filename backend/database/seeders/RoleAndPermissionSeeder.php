@@ -52,6 +52,7 @@ class RoleAndPermissionSeeder extends Seeder
         'blog.manage',
         'seo.manage',
         'reports.view',
+        'analytics.view',
         'builder.view', 'builder.edit', 'builder.publish',
     ];
 
@@ -72,7 +73,7 @@ class RoleAndPermissionSeeder extends Seeder
             'purchase_orders.cancel', 'purchase_orders.receive',
             'purchase_returns.view', 'purchase_returns.create', 'purchase_returns.update',
             'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
-            'customers.view', 'customers.create', 'customers.update', 'customers.delete', 'reports.view',
+            'customers.view', 'customers.create', 'customers.update', 'customers.delete', 'reports.view', 'analytics.view',
             'couriers.view', 'couriers.create', 'couriers.update', 'couriers.delete',
             'shipments.view', 'shipments.create', 'shipments.update',
             'cod_settlements.view', 'cod_settlements.create',
@@ -89,7 +90,7 @@ class RoleAndPermissionSeeder extends Seeder
             'returns.view', 'returns.create', 'returns.update',
         ],
         'Sales Manager' => [
-            'orders.view', 'orders.update', 'customers.view', 'customers.update', 'reports.view',
+            'orders.view', 'orders.update', 'customers.view', 'customers.update', 'reports.view', 'analytics.view',
             'returns.view',
         ],
         'Warehouse Staff' => [
@@ -113,10 +114,10 @@ class RoleAndPermissionSeeder extends Seeder
         'Marketing Manager' => [
             'products.view', 'categories.view', 'categories.update', 'brands.view', 'brands.update',
             'attributes.view', 'attributes.update',
-            'blog.manage', 'reports.view', 'builder.view', 'builder.edit',
+            'blog.manage', 'reports.view', 'analytics.view', 'builder.view', 'builder.edit',
         ],
         'SEO Manager' => [
-            'seo.manage', 'pages.manage', 'blog.manage', 'reports.view',
+            'seo.manage', 'pages.manage', 'blog.manage', 'reports.view', 'analytics.view',
         ],
         'Content Manager' => [
             'pages.manage', 'blog.manage', 'builder.view', 'builder.edit', 'builder.publish',
@@ -133,7 +134,7 @@ class RoleAndPermissionSeeder extends Seeder
         ],
         'Viewer' => [
             'stores.view', 'warehouses.view', 'products.view', 'categories.view', 'brands.view', 'attributes.view',
-            'inventory.view', 'suppliers.view', 'purchase_orders.view', 'orders.view', 'customers.view', 'reports.view',
+            'inventory.view', 'suppliers.view', 'purchase_orders.view', 'orders.view', 'customers.view', 'reports.view', 'analytics.view',
             'couriers.view', 'shipments.view', 'cod_settlements.view', 'returns.view', 'purchase_returns.view',
         ],
     ];

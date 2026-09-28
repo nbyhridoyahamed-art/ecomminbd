@@ -8,6 +8,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  TrendingUp,
   Truck,
 } from "lucide-react";
 
@@ -61,6 +62,12 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/reports/sales",
     icon: BarChart3,
     anyPermission: ["reports.view"],
+  },
+  {
+    label: "Analytics",
+    href: "/analytics/overview",
+    icon: TrendingUp,
+    anyPermission: ["analytics.view"],
   },
   {
     label: "Content",

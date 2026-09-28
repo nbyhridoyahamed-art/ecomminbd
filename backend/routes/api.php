@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Account\AddressController as AccountAddressContr
 use App\Http\Controllers\Api\V1\Account\AuthController as AccountAuthController;
 use App\Http\Controllers\Api\V1\Account\OrderController as AccountOrderController;
 use App\Http\Controllers\Api\V1\Account\ProfileController as AccountProfileController;
+use App\Http\Controllers\Api\V1\AnalyticsController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\BlogCategoryController;
 use App\Http\Controllers\Api\V1\BlogPostController;
@@ -43,6 +44,7 @@ use App\Http\Controllers\Api\V1\StockLevelController;
 use App\Http\Controllers\Api\V1\StockMovementController;
 use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\Storefront\AnalyticsController as StorefrontAnalyticsController;
 use App\Http\Controllers\Api\V1\Storefront\BlogController as StorefrontBlogController;
 use App\Http\Controllers\Api\V1\Storefront\BrandController as StorefrontBrandController;
 use App\Http\Controllers\Api\V1\Storefront\CategoryController as StorefrontCategoryController;
@@ -115,6 +117,11 @@ Route::prefix('v1')->group(function () {
         // reserves real stock, so it needs the same abuse guard.
         Route::post('checkout', [StorefrontCheckoutController::class, 'store'])->middleware('throttle:15,1');
         Route::get('orders/{uuid}', [StorefrontCheckoutController::class, 'show']);
+
+        // A real browsing session fires many more of these than a checkout
+        // (page views, product views, searches) — a higher, still-bounded
+        // ceiling than checkout/newsletter's throttle:15,1.
+        Route::post('analytics/events', [StorefrontAnalyticsController::class, 'track'])->middleware('throttle:120,1');
     });
 
     // Customer account (Phase 17 Wave 1) — a customer's own Sanctum
@@ -295,5 +302,16 @@ Route::prefix('v1')->group(function () {
         Route::get('reports/low-stock', [ReportController::class, 'lowStock']);
         Route::get('reports/low-stock/export', [ReportController::class, 'lowStockExport']);
         Route::get('reports/low-stock/export-pdf', [ReportController::class, 'lowStockExportPdf']);
+
+        Route::get('analytics/overview', [AnalyticsController::class, 'overview']);
+        Route::get('analytics/overview/export', [AnalyticsController::class, 'overviewExport']);
+        Route::get('analytics/overview/export-pdf', [AnalyticsController::class, 'overviewExportPdf']);
+        Route::get('analytics/products', [AnalyticsController::class, 'products']);
+        Route::get('analytics/products/export', [AnalyticsController::class, 'productsExport']);
+        Route::get('analytics/searches', [AnalyticsController::class, 'searches']);
+        Route::get('analytics/searches/export', [AnalyticsController::class, 'searchesExport']);
+        Route::get('analytics/funnel', [AnalyticsController::class, 'funnel']);
+        Route::get('analytics/customers', [AnalyticsController::class, 'customers']);
+        Route::get('analytics/customers/export', [AnalyticsController::class, 'customersExport']);
     });
 });

@@ -1,10 +1,11 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useRef } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
+import { trackEvent } from "@/lib/analytics";
 import { formatMoney } from "@/lib/money";
 import { ApiError } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,14 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 export default function OrderConfirmationPage({ params }: PageProps<"/order-confirmation/[uuid]">) {
   const { uuid } = use(params);
   const { data: order, isLoading, error } = useStorefrontOrder(uuid);
+  const hasTrackedPurchaseRef = useRef(false);
+
+  useEffect(() => {
+    const orderUuid = order?.uuid;
+    if (!orderUuid || hasTrackedPurchaseRef.current) return;
+    hasTrackedPurchaseRef.current = true;
+    trackEvent("purchase", { order_uuid: orderUuid });
+  }, [order?.uuid]);
 
   if (error instanceof ApiError && error.status === 404) {
     notFound();

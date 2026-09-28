@@ -1179,6 +1179,49 @@ resolution, checked inline by a storefront leaf page only when its own
 by-slug lookup 404s — never global middleware, so an ordinary request
 never pays for a redirects-table lookup it doesn't need.
 
+## 1u. Analytics Events (Phase 20)
+
+```
+analytics_events
+  id, store_id (FK→stores, cascade),
+  session_id (string, indexed with store_id — a client-generated,
+    localStorage-persisted UUID; anonymous by design, no FK to customers:
+    no storefront route runs optional Sanctum auth today, so there's
+    nothing real to attribute an event to a logged-in customer with — see
+    the roadmap's Phase 20 scope note),
+  event_type (string: page_view/product_view/category_view/search/
+    add_to_cart/remove_from_cart/checkout_start/purchase),
+  entity_type, entity_id (nullable — same polymorphic convention
+    activity_logs/seo_metadata already use, but unlike seo_metadata this
+    is never client-supplied: the storefront's public ingestion endpoint
+    only ever accepts a plain `product_id`/`category_id`, validated to
+    exist, and resolves entity_type/entity_id server-side, so nothing
+    here ever stores a raw class name a client sent),
+  path (nullable, string — the storefront URL, mainly for page_view),
+  metadata (json, nullable — a search's query/results_count, or a
+    purchase's order_uuid + total_amount; the latter is always the real
+    order's own total_amount, looked up server-side by order_uuid, never
+    a value the client claims — a spoofed purchase ping can inflate a
+    conversion count, the same inherent limitation any client-fired
+    analytics pixel has, but never a reported revenue figure),
+  timestamps()
+  index(store_id, event_type, created_at), index(store_id, session_id),
+  index(entity_type, entity_id)
+  — append-only, no soft deletes; indexed for the two access patterns
+    every report needs (a store+type+date-range scan, and a
+    store+session distinct count for the funnel).
+```
+
+Written by one public, unauthenticated, throttled (`throttle:120,1`)
+endpoint, `POST storefront/analytics/events`, that the storefront's own
+pages call fire-and-forget. Five admin reports read it back (`analytics/
+overview`/`products`/`searches`/`funnel`) — all pure runtime aggregation,
+same "compute it fresh" reasoning as `DashboardController` and
+`ReportController`, no materialized table. The one exception,
+`analytics/customers` ("new vs returning"), reads straight from
+`orders`/`customers` instead — see the Reporting/Analytics bullet in
+section 2 below, now split into its two real halves.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -1295,12 +1338,22 @@ compatible with them.
   1o) into a saved-address picker on checkout (no schema change either —
   a UI/flow pass on top of what section 1n's `CheckoutRequest` already
   accepts).
-- **Reporting/Analytics:** Phase 18 Wave 1 + Wave 2 (section 1k) shipped
-  sales/product-performance/low-stock reports plus a by-courier
-  breakdown, a period-over-period comparison, and a PDF export twin
-  alongside each CSV, all as runtime aggregation — still open:
-  materialized/aggregated tables populated by scheduled jobs, once
-  runtime aggregation actually gets too slow to justify them.
+- **Reporting (Phase 18 Wave 1 + Wave 2 — section 1k):** sales/product-
+  performance/low-stock reports plus a by-courier breakdown, a
+  period-over-period comparison, and a PDF export twin alongside each
+  CSV, all as runtime aggregation — still open: materialized/aggregated
+  tables populated by scheduled jobs, once runtime aggregation actually
+  gets too slow to justify them.
+- **Analytics (Phase 20 shipped — section 1u):** `analytics_events` is
+  built, exactly as sketched here, backing traffic/products/searches/
+  funnel reports; `customers` (new vs returning) reads `orders`/
+  `customers` directly, no event needed. Deliberately cut, not deferred
+  to a numbered Wave: a `customer_id` column on the events table (no
+  storefront route runs optional auth to populate it), real-time/live
+  visitor counts (no WebSocket infra), third-party pixel integrations (no
+  ad platform credentials), and IP-based geolocation (no geo-IP service)
+  — each blocked on real infra this environment doesn't have, not merely
+  unpicked.
 - **Integrations Wave 2 (Wave 1 shipped — section 1p):** no new tables
   expected for the SMS side either — swapping `LogSmsGateway` for a real
   BD provider is a container-binding change, not a schema one. A real

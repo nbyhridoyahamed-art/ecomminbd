@@ -26,7 +26,7 @@ in place and the app still builds/runs.
 | 17 | Customer Dashboard | ✅ Wave 1 done (wishlist, customer-initiated returns, checkout saved-address integration deferred — see note) | Yes — customer register/login/logout against a new `customers.password` column, guest-checkout orders auto-linked by phone on registration, and an `/account/*` shell (order history + status timeline, saved addresses, profile) |
 | 18 | Reporting | ✅ Wave 1 + Wave 2 (per-courier breakdown, period-over-period comparison, PDF export) done (materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters, vs.-previous-period trend on each KPI card), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV and PDF export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
 | 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ✅ Wave 1 done (real payment/courier/WhatsApp providers, real SMS provider, queued delivery deferred — see note) | Yes — the Adapter Pattern's first real instance: a `SmsGateway` contract + log-mock implementation, order/return lifecycle notifications (mail + SMS to the customer, a database notification to staff), and the admin topbar's notification bell finally wired to real data |
-| 20 | Analytics | ⏳ Not started | No |
+| 20 | Analytics | ✅ Full spec done, not a lean wave (see note) | Yes — first-party storefront behavioral tracking (page/product/category views, searches, cart/checkout funnel, purchases) feeding a new admin Analytics dashboard (traffic trend, top viewed products, search terms incl. zero-result flagging, a 4-stage conversion funnel, new-vs-returning customers), each report with CSV export and the Overview also with PDF |
 | 21 | Security Hardening | ⏳ Ongoing baseline only | Partial — Sanctum, policies, rate limiting, validation from day one |
 | 22 | Performance | ⏳ Not started | No |
 | 23 | Accessibility | 🟡 Baseline in design system | Partial |
@@ -944,50 +944,113 @@ real `<title>`/meta description/canonical/OG/Twitter tags and JSON-LD
 render before any client JavaScript runs, and that a nonexistent slug with
 no matching redirect returns a genuine HTTP 404.
 
+**Phase 20 scope note:** ships real first-party behavioral analytics, not
+Reporting (Phase 18) under a new name — Reporting aggregates transactional
+tables that already exist (orders/order_items); Analytics tracks
+behavior nothing else records (a visit, a product view, a search, a cart
+add, a checkout that never finished). A new `analytics_events` table
+(`entity_type`/`entity_id` reusing the same polymorphic convention
+`activity_logs`/`seo_metadata` already use, but only ever populated
+server-side from a validated `product_id`/`category_id` — see below) is
+written by one new public, unauthenticated, throttled endpoint,
+`POST storefront/analytics/events`, that the storefront's own pages call
+fire-and-forget (`fetch(..., {keepalive:true})` — not `navigator.
+sendBeacon`, the usual choice for this: confirmed against a real browser,
+a beacon request's forced-credentialed mode gets silently rejected by
+this API's wildcard-origin CORS *after* `sendBeacon()` already reports
+success, so every event would vanish with no fallback ever running) for
+eight event types: `page_view` (one call in the
+storefront's shared layout covers every page), `product_view`,
+`category_view`, `search` (with its result count — a zero-result search is
+flagged in the report, the single most actionable row in it), `add_to_cart`/
+`remove_from_cart` (hooked directly into the cart Zustand store, covering
+every add-to-cart call site in one place), `checkout_start`, and `purchase`.
+A client-fired analytics ping is inherently spoofable — no tool's isn't —
+but nothing here lets that inflate *revenue*: a `purchase` event stores
+only an `order_uuid`, and the controller looks up that order's real
+`total_amount` server-side rather than trusting anything the client
+claims, so a spoofed event can inflate a conversion *count* at worst, never
+a reported currency figure. Five read-side admin reports (`analytics/
+overview` with a traffic trend + conversion rate, `analytics/products`
+ranking view count with a view-to-cart rate per product, `analytics/
+searches` grouped by query with zero-result flagging, `analytics/funnel`
+— unique sessions reaching each of 4 stages with stage-over-stage
+conversion, no export since it's a 4-row summary not a report — and
+`analytics/customers`, the one exception that reads straight from
+`orders`/`customers` rather than an event, since "new vs returning" is
+order-shaped data Reporting's own conventions already cover) are pure
+runtime aggregation, same "compute it fresh, no materialized table"
+reasoning as Reporting and DashboardController. CSV export on every
+report except the funnel; a richer PDF snapshot (KPIs + trend) on
+Overview only, mirroring exactly how Sales was the one Reporting report
+that earned the richest PDF. Deliberately cut, not deferred to a numbered
+Wave — none has a real consumer yet and each would need infrastructure
+this environment doesn't have: a `customer_id` column on `analytics_events`
+(no storefront route runs optional Sanctum auth today to populate it — a
+future real need, not invented ahead of one), real-time/live visitor
+counts (no WebSocket infra), third-party pixel integrations (no ad
+platform credentials, same reasoning Phase 19's real SMS/payment
+providers are still deferred), and IP-based geolocation (no geo-IP
+service). 16 new backend tests (383 → 399), all green, Pint-clean, plus
+frontend typecheck/lint/build clean.
+
 ## Next Session Should Start With
 
 Phase 17 (Customer Dashboard) Wave 1, Phase 19 (Integrations) Wave 1,
 Phase 12 (CMS) Wave 1, the full Phase 13 (Homepage Builder), Phase 14
-(Blog), and now the full Phase 15 (SEO) are all done — real customer accounts with guest
-orders auto-claimed by phone, an `/account/*` shell, real order/return
-lifecycle notifications (mail/SMS to the customer, a database
-notification driving the admin topbar bell), simple content pages
-manageable in the admin and rendered on the storefront, a complete
-drag-and-drop homepage builder with ~30 block types feeding a fully
-block-driven storefront homepage, a real Blog CMS (categories, tags,
-version history, scheduled publishing, RSS) with its own storefront
-section, and now full SEO tooling (polymorphic per-entity SEO metadata,
-redirects, SEO templates, real server-rendered `<head>` tags + JSON-LD on
-every storefront page, and native sitemap/robots); see each phase's own
-scope note for what they deliberately still cut. Phase 13 (and Phase 14
-right behind it) shipped out of the
-order rule 176 would otherwise have picked — both explicitly requested
-in full ahead of everything else — so the already-flagged older
-dependency they jumped is still open: Phase 17 finally unblocked Catalog
-Wave 2's one remaining item, customer reviews (a review needs a real
-customer identity plus a verified order to attach to, and Phase 17 gives
-both — `/account/orders` already shows a signed-in customer their own
-delivered orders), and that has been the clearest rule-176 pickup since
-before Phase 13 was requested; it still is. Reasonable alternative,
-whichever the user prefers: Phase 19 Wave 2 itself (a real BD
-SMS provider, the courier/payment
-gateway adapters section 6 of `ARCHITECTURE.md` documents as
-target-only, a WhatsApp channel, queued delivery — each still blocked on
-real provider credentials or a running queue worker, neither of which
-exist in this environment); Phase 17 Wave 2 (wishlist, customer-initiated
-returns, checkout saved-address integration — see that scope note);
-Phase 12 Wave 2 (page versioning, navigation menus, hierarchical pages,
-scheduled publishing — see that scope note); Storefront Wave 2
-(multi-store domain routing, non-COD payment — each still blocked on
-a second store to route between or Phase 19 Wave 2's payment adapters;
-real per-page SEO metadata itself shipped with Phase 15); or any already-started
-phase's own remaining Wave 2 (Orders, Delivery, Returns, Dashboard, or
-Purchasing's supplier ledger/PO approval workflow/reorder suggestions).
-Phase 18 Reporting stays fully shipped through Wave 2; only
-materialized/scheduled aggregate tables remain there, still infra to
-build once real data volume demands it, not a pick-able feature today. A
-reusable media library still has no real consumer (today's
-direct-upload-per-record images work fine).
+(Blog), Phase 15 (SEO), and now the full Phase 20 (Analytics) are all
+done — real customer accounts with guest orders auto-claimed by phone, an
+`/account/*` shell, real order/return lifecycle notifications (mail/SMS to
+the customer, a database notification driving the admin topbar bell),
+simple content pages manageable in the admin and rendered on the
+storefront, a complete drag-and-drop homepage builder with ~30 block types
+feeding a fully block-driven storefront homepage, a real Blog CMS
+(categories, tags, version history, scheduled publishing, RSS) with its
+own storefront section, full SEO tooling (polymorphic per-entity SEO
+metadata, redirects, SEO templates, real server-rendered `<head>` tags +
+JSON-LD on every storefront page, and native sitemap/robots), and now
+real first-party behavioral analytics (storefront event tracking feeding
+a traffic/products/searches/funnel/customers admin dashboard); see each
+phase's own scope note for what they deliberately still cut. Phase 13
+(and Phase 14 right behind it) shipped out of the order rule 176 would
+otherwise have picked — both explicitly requested in full ahead of
+everything else — so the already-flagged older dependency they jumped is
+still open: Phase 17 finally unblocked Catalog Wave 2's one remaining
+item, customer reviews (a review needs a real customer identity plus a
+verified order to attach to, and Phase 17 gives both — `/account/orders`
+already shows a signed-in customer their own delivered orders), and that
+has been the clearest rule-176 pickup since before Phase 13 was
+requested; it still is. Phase 20 was likewise requested by number ahead
+of that queue.
+
+Reasonable alternative, whichever the user prefers: **Phase 21 (Security
+Hardening)** — the next not-yet-started numbered phase in the master
+table (rule 176's own order), and no longer just a baseline: a real
+global rate limit per route class (`API_DESIGN.md` section 9 has flagged
+this exact gap since Phase 3) is the one item with a concrete, already-
+identified shape rather than a vague "harden everything" scope. Also
+reasonable: Phase 19 Wave 2 itself (a real BD SMS provider, the
+courier/payment gateway adapters section 6 of `ARCHITECTURE.md`
+documents as target-only, a WhatsApp channel, queued delivery — each
+still blocked on real provider credentials or a running queue worker,
+neither of which exist in this environment); Phase 17 Wave 2 (wishlist,
+customer-initiated returns, checkout saved-address integration — see that
+scope note); Phase 12 Wave 2 (page versioning, navigation menus,
+hierarchical pages, scheduled publishing — see that scope note);
+Storefront Wave 2 (multi-store domain routing, non-COD payment — each
+still blocked on a second store to route between or Phase 19 Wave 2's
+payment adapters; real per-page SEO metadata itself shipped with Phase
+15); or any already-started phase's own remaining Wave 2 (Orders,
+Delivery, Returns, Dashboard, or Purchasing's supplier ledger/PO approval
+workflow/reorder suggestions). Phase 18 Reporting stays fully shipped
+through Wave 2; only materialized/scheduled aggregate tables remain
+there, still infra to build once real data volume demands it, not a
+pick-able feature today. A reusable media library still has no real
+consumer (today's direct-upload-per-record images work fine). Phase 20's
+own deferred items (a `customer_id` column on `analytics_events`,
+real-time visitor counts, third-party pixel integrations, IP geolocation)
+are each blocked on real infra this environment doesn't have, same as
+Phase 19's remaining pieces — not pick-able today either.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

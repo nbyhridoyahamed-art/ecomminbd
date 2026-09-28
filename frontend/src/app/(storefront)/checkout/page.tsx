@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,6 +8,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { ShoppingCart } from "lucide-react";
 import { z } from "zod";
 
+import { trackEvent } from "@/lib/analytics";
 import { formatMoney } from "@/lib/money";
 import { ApiError } from "@/types/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -39,6 +41,15 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { items, clear } = useCartStore();
   const checkout = useStorefrontCheckout();
+
+  // Mount-only: fires once per checkout page visit, reading the cart
+  // imperatively (rather than depending on the reactive `items` above) so
+  // later quantity/line changes never re-trigger it.
+  useEffect(() => {
+    if (useCartStore.getState().items.length > 0) {
+      trackEvent("checkout_start");
+    }
+  }, []);
 
   const {
     register,

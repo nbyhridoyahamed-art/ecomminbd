@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Minus, Package, Plus } from "lucide-react";
 
+import { trackEvent } from "@/lib/analytics";
 import { formatMoney } from "@/lib/money";
 import { ApiError } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +69,12 @@ export function ProductDetailClient({ slug }: { slug: string }) {
     () => (product ? matchVariant(product.variants, selectedAttributes, attributeNames) : null),
     [product, selectedAttributes, attributeNames],
   );
+
+  useEffect(() => {
+    const productId = product?.id;
+    if (!productId) return;
+    trackEvent("product_view", { product_id: productId });
+  }, [product?.id]);
 
   if (error instanceof ApiError && error.status === 404) {
     notFound();

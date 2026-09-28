@@ -25,9 +25,9 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Switch | ⏳ | Not needed yet — every boolean setting so far reads fine as a Checkbox or Select |
 | Tooltip | ⏳ | Not needed yet |
 | Modal/Dialog | ✅ | centered dialog (distinct from Sheet); delete confirmations for users/roles/categories/brands/products/warehouses/suppliers/customers/customer addresses, stock adjustment form, purchase-order cancel confirmation, customer address add/edit form, order cancel confirmation, shipment delivered/failed/returned-to-seller confirmations (COD capture on delivery), return reject/receive/refund confirmations (receive has a per-item restock checklist, refund has a suggested-amount-prefilled input), purchase-return reject/credit confirmations (credit has the same suggested-amount-prefilled input as a customer refund) |
-| Tabs | ✅ | Two flavors: a route-driven Link sub-nav (Settings, Catalog — now Products/Categories/Brands/Attributes, Inventory, Purchasing — now Purchase Orders/Purchase Returns/Suppliers, Orders/Customers/Returns, Delivery, Reports — Sales/Product Performance/Low Stock) and a client-state tab switcher inside the product form (General/Pricing/Variants*/Components†/Media/SEO — *shown only when type is Variable, †shown only when type is Bundle) — plain buttons + conditional rendering, not the Radix Tabs primitive, since neither use case needed its accessibility semantics beyond what a nav/button already gives |
+| Tabs | ✅ | Two flavors: a route-driven Link sub-nav (Settings, Catalog — now Products/Categories/Brands/Attributes, Inventory, Purchasing — now Purchase Orders/Purchase Returns/Suppliers, Orders/Customers/Returns, Delivery, Reports — Sales/Product Performance/Low Stock, and since Phase 20 Analytics — Overview/Products/Searches/Funnel/Customers) and a client-state tab switcher inside the product form (General/Pricing/Variants*/Components†/Media/SEO — *shown only when type is Variable, †shown only when type is Bundle) — plain buttons + conditional rendering, not the Radix Tabs primitive, since neither use case needed its accessibility semantics beyond what a nav/button already gives |
 | Accordion | ✅ | Phase 15 — Radix-based (`@radix-ui/react-accordion`), `type="multiple"`; groups the shared `SeoFields` component's Open Graph/Twitter Card/Advanced sections (see the new SEO section below) |
-| Table / DataTable | ✅ | Server-paginated table w/ loading/empty states. Built as a small dependency-free component rather than on TanStack Table — the installed major version (v9) shipped a completely different, unfamiliar API; safer to write ~100 lines directly than guess at an API with no reliable reference. Now also backs Warehouses, Stock Levels, Movements, Transfers, Suppliers, Purchase Orders, Purchase Returns, Customers, Orders, Couriers, Shipments, COD Settlements, Returns, Attributes, and the Reports suite (Sales' payment-method and courier breakdowns, Product Performance, Low Stock). |
+| Table / DataTable | ✅ | Server-paginated table w/ loading/empty states. Built as a small dependency-free component rather than on TanStack Table — the installed major version (v9) shipped a completely different, unfamiliar API; safer to write ~100 lines directly than guess at an API with no reliable reference. Now also backs Warehouses, Stock Levels, Movements, Transfers, Suppliers, Purchase Orders, Purchase Returns, Customers, Orders, Couriers, Shipments, COD Settlements, Returns, Attributes, the Reports suite (Sales' payment-method and courier breakdowns, Product Performance, Low Stock), and since Phase 20 the Analytics suite (Products, Searches, Customers' by-period table). |
 | Pagination | ✅ | ships with DataTable (prev/next, server-driven) |
 | Breadcrumb | ✅ | topbar |
 | Toast | ✅ | global toaster for mutations |
@@ -191,9 +191,38 @@ they're new architectural surface, not just new UI:
 |---|---|---|
 | SalesTrendChart | ✅ | Recharts `ComposedChart` — an `Area` for revenue (left axis) + a dashed `Line` for order count (right axis), colored from CSS custom properties (`var(--color-primary)` etc.) so it repaints for dark mode automatically, same mechanism as every other themed component. Its heading was a hardcoded "last N days" until Phase 18 generalized the `days: number` prop to a plain `title: string`, since the Sales report reuses the same chart over a user-chosen date range/granularity instead of a fixed trailing window (dashboard call site now passes `title="Sales trend (last 14 days)"` — same text, now just a string instead of computed). |
 | OrderStatusChart | ✅ | Recharts `BarChart`, one bar per order status, each `Cell` colored to match the same status badge variant used everywhere else (pending/processing/shipped/delivered/cancelled) |
+| TrafficTrendChart | ✅ | Phase 20 — the identical `ComposedChart` shape as `SalesTrendChart` (`Area` + dashed `Line`, dual axes, CSS-variable colors), but for `page_views`/`unique_sessions` instead of revenue/orders. A new, separate component rather than a further-generalized `SalesTrendChart` — the two datasets' shapes (money+count vs. two plain counts) didn't share enough to be worth a shared abstraction beyond copying the proven visual pattern, same reasoning the "no generic `Chart` wrapper" note below already gives. Adds an explicit empty state ("No traffic recorded for this range") alongside the loading skeleton, which the original didn't need since a store always has at least one order by the time Reporting shipped. |
 
-Both were the first Phase 11 consumers of Recharts. A generic reusable
-`Chart` wrapper wasn't built — see the Primitives table above for why.
+All three were the Recharts consumers so far (Phase 11 for the first
+two). A generic reusable `Chart` wrapper wasn't built — see the
+Primitives table above for why.
+
+## Analytics (`frontend/src/components/charts/`, `frontend/src/app/(admin)/analytics/`, `frontend/src/components/storefront/`, `frontend/src/lib/`)
+
+Not components in the traditional sense, but the new architectural
+surface Phase 20 adds — worth recording here since it's the storefront's
+first behavioral-tracking client, distinct from every existing `lib/*`
+fetch client:
+- `lib/analytics.ts` — `trackEvent(eventType, payload)`, a fire-and-forget
+  client called from the storefront (never awaited, never throws).
+  Deliberately `fetch(..., {keepalive: true})`, not `navigator.
+  sendBeacon` — see `ARCHITECTURE.md` section 9 for why sendBeacon's
+  forced-credentialed mode silently fails against this API's CORS config,
+  confirmed against a real browser, not assumed. A per-browser anonymous
+  session id is generated once and persisted to `localStorage`.
+- `components/storefront/AnalyticsPageViewTracker` — a single invisible
+  (`return null`) component mounted once in the storefront layout; a
+  `usePathname()`-keyed effect fires `page_view` on every route change,
+  covering every storefront page without each one wiring it individually.
+- Five admin report pages under `(admin)/analytics/` (Overview/Products/
+  Searches/Funnel/Customers), each following the exact structural pattern
+  Reports (`(admin)/reports/`) already established — date-range filters, a
+  `PermissionDenied` gate on `analytics.view`, loading skeletons, empty
+  states, and CSV/PDF export via `use-analytics.ts`'s hooks. No new form
+  components: Funnel's 4-stage view is a plain `Card` stack (spec rule 21:
+  don't reach for a chart where a short list communicates better), and
+  Searches' "No results" flag reuses the existing `Badge` primitive
+  (`variant="danger"`) rather than a bespoke indicator.
 
 ## Rule Followed
 

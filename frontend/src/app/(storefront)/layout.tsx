@@ -1,3 +1,4 @@
+import { AnalyticsPageViewTracker } from "@/components/storefront/analytics-page-view-tracker";
 import { CartDrawer } from "@/components/storefront/cart-drawer";
 import { MobileBottomNav } from "@/components/storefront/mobile-bottom-nav";
 import { StorefrontFooter } from "@/components/storefront/storefront-footer";
@@ -11,6 +12,7 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
       <StorefrontFooter />
       <MobileBottomNav />
       <CartDrawer />
+      <AnalyticsPageViewTracker />
     </div>
   );
 }

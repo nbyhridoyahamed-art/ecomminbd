@@ -655,4 +655,39 @@ Next.js's `sitemap.ts`/`robots.ts`, since robots.txt must disallow this
 same Next.js app's own admin/account/cart/checkout paths, information the
 Laravel API has no visibility into).
 
+Analytics (Phase 20, full spec): one public, unauthenticated,
+throttled (`throttle:120,1` — a real browsing session fires many more of
+these than a checkout ever would) write endpoint, `POST
+storefront/analytics/events`, accepts `{session_id, event_type, path?,
+product_id?, category_id?, query?, results_count?, order_uuid?}` —
+deliberately narrow, typed fields rather than a freeform `metadata`
+object taken straight from the client. `event_type` is one of
+`page_view`/`product_view`/`category_view`/`search`/`add_to_cart`/
+`remove_from_cart`/`checkout_start`/`purchase`; the controller builds the
+stored `entity_type`/`entity_id`/`metadata` itself from whichever fields
+apply, and for `purchase` specifically resolves the matching `orders` row
+by `order_uuid` server-side and stores *that* row's own `total_amount` —
+never a figure the client sends — so a spoofed purchase ping can inflate
+a conversion count but never a reported revenue number. Five admin
+endpoints, each gated on the new `analytics.view` permission and taking
+the same `store_id`/`date_from`/`date_to` filters `reports/*` already
+established (no `warehouse_id` — analytics events aren't warehouse-scoped):
+`GET analytics/overview` (traffic totals + a `by_period` trend +
+period-over-period comparison, the same shape `reports/sales` already
+uses, plus `.../export` CSV and `.../export-pdf` — the only Analytics
+report that earns a PDF, same "richest snapshot" reasoning as
+`reports/sales`), `GET analytics/products` (top viewed products with a
+view-to-cart rate per row, paginated + `.../export` CSV — a
+merchandising signal Reporting's own product-performance report, which
+only sees real sales, can't show), `GET analytics/searches` (search terms
+grouped case-insensitively with an average result count and a
+`zero_results` flag — the single most actionable row in the whole phase,
+paginated + `.../export` CSV), `GET analytics/funnel` (unique sessions
+reaching each of 4 stages — product_view/add_to_cart/checkout_start/
+purchase — with stage-over-stage conversion; no export, it's a 4-row
+summary object, not a report), and `GET analytics/customers` (new vs
+returning customers by period, computed straight from `orders`/
+`customers` rather than an event, plus a repeat-purchase-rate headline
+stat + `.../export` CSV).
+
 Section 7 (webhooks) remains documented intent for future phases.

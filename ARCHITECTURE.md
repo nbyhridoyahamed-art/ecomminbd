@@ -271,6 +271,26 @@ notification's `via()` — see the Phase 19 Wave 1 scope note in
   real top-level segment (`/dashboard`, `/catalog`, `/content`,
   `/delivery`, `/inventory`, `/orders`, `/purchasing`, `/reports`,
   `/settings`, `/account`, `/login`) is disallowed by name.
+- **Phase 20 adds one small, deliberately separate client:**
+  `src/lib/analytics.ts`'s `trackEvent()`, called from the storefront
+  (a page-view tracker mounted once in the storefront layout, the cart
+  store's own add/remove actions, and a handful of page-load effects) to
+  fire behavioral events at `POST storefront/analytics/events`. It's
+  fire-and-forget by design — `fetch(..., {keepalive: true})`, so a
+  `page_view` fired right before navigating away still lands, wrapped so
+  it can never throw or return a promise a caller needs to await.
+  Deliberately not `navigator.sendBeacon`, the usual textbook choice for
+  this: sendBeacon always sends with credentials included and its return
+  value only means "queued," not "accepted" — confirmed against a real
+  browser, a credentialed beacon request is silently rejected by this
+  API's wildcard-origin CORS config *after* `sendBeacon()` already
+  returned `true`, so every event would vanish with no fallback ever
+  running; `keepalive: true` fetch gives the identical survives-
+  navigation guarantee without that failure mode. It doesn't reuse `api.ts` or
+  `storefront-api.ts`: neither fits — `api.ts` is request/response
+  shaped for TanStack Query, and `storefront-api.ts` is server-only (see
+  the Phase 15 bullet above); a tracking call is neither, so it gets its
+  own minimal client rather than being forced into either existing one.
 - Server state via TanStack Query (all API data); Zustand reserved for
   genuine client-only UI state (sidebar collapsed, the storefront cart —
   see `DATABASE_DESIGN.md` section 1n for why the cart itself has no

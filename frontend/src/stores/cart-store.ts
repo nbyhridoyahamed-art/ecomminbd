@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { trackEvent } from "@/lib/analytics";
+
 // Mirrors CheckoutRequest's items.*.quantity cap on the backend — clamping
 // here just avoids a late 422 surprise at checkout; the server is still the
 // real limit.
@@ -59,11 +61,13 @@ export const useCartStore = create<CartState>()(
         }
 
         set({ isOpen: true });
+        trackEvent("add_to_cart", { product_id: item.productId });
       },
 
       removeItem: (productId, variantId) => {
         const key = lineKey(productId, variantId);
         set({ items: get().items.filter((line) => lineKey(line.productId, line.variantId) !== key) });
+        trackEvent("remove_from_cart", { product_id: productId });
       },
 
       updateQuantity: (productId, variantId, quantity) => {

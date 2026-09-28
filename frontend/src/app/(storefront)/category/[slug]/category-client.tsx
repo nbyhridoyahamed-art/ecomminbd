@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PackageSearch } from "lucide-react";
 
+import { trackEvent } from "@/lib/analytics";
 import { ApiError } from "@/types/api";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +24,12 @@ import { useStorefrontCategory } from "@/hooks/use-storefront-catalog";
 export function CategoryClient({ slug }: { slug: string }) {
   const [page, setPage] = useState(1);
   const { data, isLoading, error } = useStorefrontCategory(slug, page);
+
+  useEffect(() => {
+    const categoryId = data?.data.category.id;
+    if (!categoryId) return;
+    trackEvent("category_view", { category_id: categoryId });
+  }, [data?.data.category.id]);
 
   if (error instanceof ApiError && error.status === 404) {
     notFound();

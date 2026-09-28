@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PackageSearch } from "lucide-react";
 
+import { trackEvent } from "@/lib/analytics";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,6 +46,13 @@ function ProductsPageContent() {
 
   const flatCategories = useMemo(() => categories?.flatMap((cat) => [cat, ...cat.children]) ?? [], [categories]);
   const products = data?.data ?? [];
+  const resultsCount = data?.meta?.total ?? products.length;
+
+  useEffect(() => {
+    if (search && !isLoading) {
+      trackEvent("search", { query: search, results_count: resultsCount });
+    }
+  }, [search, isLoading, resultsCount]);
 
   function updateParam(key: string, value: string | null) {
     const params = new URLSearchParams(searchParams.toString());

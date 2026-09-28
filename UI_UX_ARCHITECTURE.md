@@ -107,10 +107,38 @@ component.
 
 ## 9. What's Implemented So Far
 
+Updated through Phase 15 (SEO) — this section had been frozen since the
+Phase 3/4 admin-shell-and-Settings snapshot above and had drifted well
+behind reality; see `PAGE_INVENTORY.md`/`COMPONENT_INVENTORY.md` for the
+authoritative per-screen/per-component detail, this is just the summary.
+
 Admin shell (sidebar + topbar, collapse/expand, dark mode toggle,
-responsive drawer, permission-gated nav), the login screen, the
-dashboard page shell with real (if currently sparse) data from the
-backend, and the full Settings section (General/Users/Roles — list,
-create, edit, delete-with-confirmation, permission-denied states).
-Storefront, customer account shell, and command palette land with the
-phases that have real data to back them.
+responsive drawer, permission-gated nav that now covers every shipped
+section: Dashboard, Catalog, Inventory, Purchasing, Orders, Delivery,
+Content incl. SEO, Reports, Settings), full Settings, and a complete
+data-management admin covering Catalog (incl. variants/bundles/CSV
+import-export), Inventory, Purchasing (incl. returns), Orders, Delivery
+(incl. COD settlement), Reporting (sales/product-performance/low-stock,
+each with CSV+PDF export), a full drag-and-drop Homepage Builder, a Blog
+CMS, and an SEO suite (per-entity metadata, redirects, templates). The
+Storefront (public catalog browsing + guest COD checkout) and a
+Customer Account shell (`/account/*`) are both live, sharing this same
+design language rather than the admin sidebar shell (section 1 above).
+
+A **verbatim copy of the full master UI/UX spec** (colors, dark-mode
+palette, typography scale, breakpoints, component/animation/
+accessibility rules) was re-supplied mid-Phase-20 as a sanity check
+against `DESIGN_SYSTEM.md`/this doc: every token, hex value, and
+section-number citation already in `tokens.css`/`theme.css` matches it
+exactly, confirming the design layer hasn't drifted from spec across 19
+phases of feature work. No token or component changes were needed as a
+result — Phase 20's new screens are built on the same
+already-conformant primitives, not a parallel or upgraded system.
+
+Command palette (`⌘K`/`/`, spec section 15/44) is the one piece of the
+original admin-shell sketch still genuinely unbuilt. It's no longer
+blocked on missing data — products/orders/customers/pages/blog/
+categories/brands all exist with real records now — but building a
+cross-entity global-search index is a substantial, self-contained
+feature in its own right (not a Phase 20 Analytics concern), so it stays
+a flagged, ready-to-pick item rather than something bolted on here.
