@@ -572,8 +572,9 @@ segment — the same gotcha `products/export` already documented.)
 `GET/POST/DELETE saved-sections` (no update — a saved section is a
 frozen template) plus `POST .../{id}/insert` (creates a new draft block
 from the section's snapshot, appended to the end of the page).
-`GET/POST/PUT/DELETE testimonials` and `.../blog-posts` are plain
-per-store CRUD, gated the same way every other simple admin resource is.
+`GET/POST/PUT/DELETE testimonials` and `.../blog-posts` (Phase 14 takes
+this last one over — see below) are plain per-store CRUD, gated the same
+way every other simple admin resource is.
 Two public, unauthenticated, store-scoped endpoints back the storefront:
 `GET storefront/homepage-blocks` (active blocks only, ordered, each
 resolved via the same shared trait — `data` on each block carries only
@@ -582,5 +583,41 @@ the keys that type actually resolved, e.g. `products`/`categories`/
 storefront/newsletter/subscribe` (throttled `15,1`, idempotent —
 `firstOrCreate` on `(store_id, email)`, so resubscribing an existing
 address isn't an error).
+
+Blog (Phase 14, full spec): `GET/POST/PUT/DELETE blog-posts` absorbs
+Phase 13's placeholder controller — `BlogPostRequest` accepts a
+`tag_ids` array alongside the model's own fillable fields; the
+controller syncs the `blog_post_tag` pivot separately after
+`create()`/`update()` rather than passing `tag_ids` through mass
+assignment. Marking a post `status: 'published'` with no `published_at`
+stamps `now()` server-side on both create and update; an explicit future
+`published_at` is honored as-is (real scheduling, no extra field for
+"is this scheduled"). `GET .../{id}/versions` lists that post's
+`blog_post_versions`, latest first; `POST
+.../{id}/versions/{version}/restore` snapshots the current state first
+(a restore is itself undoable, same rule Homepage Builder's own revision
+restore follows), then applies the target snapshot's
+title/slug/excerpt/body/featured_image_url/meta_title/meta_description/
+status. `GET/POST/PUT/DELETE blog-categories` and `.../blog-tags` are
+plain per-store CRUD; both a post's `blog_category_id` and every
+`tag_ids` entry validate with `Rule::exists(...)->where('store_id',
+$storeId)`, the same cross-store-reference guard `ProductRequest`'s
+`category_id`/`brand_id` already established. Five public,
+unauthenticated, store-scoped endpoints back the storefront: `GET
+storefront/blog` (paginated, `?search=`), `GET storefront/blog/{slug}`
+(published + due only — 404 otherwise, same "don't confirm existence"
+rule Pages/Products already follow — returning both the post and up to 3
+related posts sharing its category), `GET storefront/blog/category/
+{slug}` and `.../blog/tag/{slug}` (each paginated, mirroring
+`storefront/categories/{slug}`'s `{category, products}` response shape
+with `{category, posts}`/`{tag, posts}`), and `GET storefront/blog/rss`
+(hand-built RSS 2.0 XML via a Blade view, `Content-Type:
+application/rss+xml`, the 20 most recent published posts). All five —
+plus the admin `blog-posts` index's own default ordering — share one
+`BlogPost::scopePublished()`/`latest('published_at')` combination rather
+than five copies of the same visibility rule. (Route-ordering note:
+`blog/rss` and `blog/category|tag/{slug}` are registered before the bare
+`blog/{slug}`, or its wildcard would swallow `rss` as a slug first — the
+same gotcha `products/export` already documented.)
 
 Section 7 (webhooks) remains documented intent for future phases.

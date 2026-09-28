@@ -7,10 +7,9 @@ use App\Models\User;
 
 /**
  * One umbrella permission, the same PagePolicy shape — blog.manage already
- * exists in RoleAndPermissionSeeder (wired to Marketing Manager/SEO
- * Manager/Content Manager) waiting for a real blog to activate it. This
- * minimal BlogPost model borrows it now for the homepage builder's Blog
- * Posts block; Phase 14 (the real Blog CMS) is expected to take it over.
+ * existed in RoleAndPermissionSeeder (wired to Marketing Manager/SEO
+ * Manager/Content Manager) from the homepage builder's minimal BlogPost
+ * model; Phase 14's real Blog CMS reuses it as-is.
  */
 class BlogPostPolicy
 {

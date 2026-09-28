@@ -25,9 +25,15 @@ class BlogPostRequest extends FormRequest
                 Rule::unique('blog_posts', 'slug')->where('store_id', $storeId)->ignore($postId),
             ],
             'excerpt' => ['nullable', 'string', 'max:2000'],
+            'body' => ['nullable', 'string'],
             'featured_image_url' => ['nullable', 'string', 'max:2048'],
+            'blog_category_id' => ['nullable', Rule::exists('blog_categories', 'id')->where('store_id', $storeId)],
+            'tag_ids' => ['nullable', 'array'],
+            'tag_ids.*' => [Rule::exists('blog_tags', 'id')->where('store_id', $storeId)],
+            'meta_title' => ['nullable', 'string', 'max:255'],
+            'meta_description' => ['nullable', 'string', 'max:500'],
+            'status' => ['nullable', Rule::in(['draft', 'published'])],
             'published_at' => ['nullable', 'date'],
-            'is_active' => ['nullable', 'boolean'],
         ];
     }
 }

@@ -75,9 +75,8 @@ trait ResolvesHomepageBlocks
                 'posts' => BlogPostResource::collection(
                     BlogPost::query()
                         ->where('store_id', $storeId)
-                        ->where('is_active', true)
-                        ->whereNotNull('published_at')
-                        ->where('published_at', '<=', now())
+                        ->published()
+                        ->with(['category', 'tags'])
                         ->latest('published_at')
                         ->limit($block->settings['limit'] ?? 3)
                         ->get()

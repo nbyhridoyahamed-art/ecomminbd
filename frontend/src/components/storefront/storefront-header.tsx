@@ -45,6 +45,9 @@ export function StorefrontHeader() {
               <Link href="/brands" onClick={() => setMobileNavOpen(false)} className="rounded-md px-2 py-2 text-sm font-medium hover:bg-border/30">
                 Brands
               </Link>
+              <Link href="/blog" onClick={() => setMobileNavOpen(false)} className="rounded-md px-2 py-2 text-sm font-medium hover:bg-border/30">
+                Blog
+              </Link>
               {categories && categories.length > 0 ? (
                 <>
                   <p className="mt-3 px-2 text-xs font-semibold uppercase text-text-muted">Categories</p>
@@ -86,6 +89,9 @@ export function StorefrontHeader() {
           </Link>
           <Link href="/brands" className="text-sm font-medium text-text-primary hover:text-primary">
             Brands
+          </Link>
+          <Link href="/blog" className="text-sm font-medium text-text-primary hover:text-primary">
+            Blog
           </Link>
         </nav>
 

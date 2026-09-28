@@ -5,7 +5,9 @@ use App\Http\Controllers\Api\V1\Account\AuthController as AccountAuthController;
 use App\Http\Controllers\Api\V1\Account\OrderController as AccountOrderController;
 use App\Http\Controllers\Api\V1\Account\ProfileController as AccountProfileController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\BlogCategoryController;
 use App\Http\Controllers\Api\V1\BlogPostController;
+use App\Http\Controllers\Api\V1\BlogTagController;
 use App\Http\Controllers\Api\V1\BrandController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CodSettlementController;
@@ -39,6 +41,7 @@ use App\Http\Controllers\Api\V1\StockLevelController;
 use App\Http\Controllers\Api\V1\StockMovementController;
 use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\Storefront\BlogController as StorefrontBlogController;
 use App\Http\Controllers\Api\V1\Storefront\BrandController as StorefrontBrandController;
 use App\Http\Controllers\Api\V1\Storefront\CategoryController as StorefrontCategoryController;
 use App\Http\Controllers\Api\V1\Storefront\CheckoutController as StorefrontCheckoutController;
@@ -81,6 +84,14 @@ Route::prefix('v1')->group(function () {
         Route::get('pages', [StorefrontPageController::class, 'index']);
         Route::get('pages/{slug}', [StorefrontPageController::class, 'show']);
         Route::get('homepage-blocks', [StorefrontHomepageController::class, 'index']);
+
+        // Registered before blog/{slug} — otherwise it would swallow "rss"
+        // as a post slug first (same gotcha as products/export above).
+        Route::get('blog/rss', [StorefrontBlogController::class, 'rss']);
+        Route::get('blog/category/{slug}', [StorefrontBlogController::class, 'category']);
+        Route::get('blog/tag/{slug}', [StorefrontBlogController::class, 'tag']);
+        Route::get('blog', [StorefrontBlogController::class, 'index']);
+        Route::get('blog/{slug}', [StorefrontBlogController::class, 'show']);
         Route::post('newsletter/subscribe', [StorefrontNewsletterController::class, 'subscribe'])->middleware('throttle:15,1');
 
         // Same controller the admin app uses under auth:sanctum below —
@@ -175,7 +186,11 @@ Route::prefix('v1')->group(function () {
         Route::post('saved-sections/{savedSection}/insert', [SavedSectionController::class, 'insert']);
 
         Route::apiResource('testimonials', TestimonialController::class);
+        Route::apiResource('blog-categories', BlogCategoryController::class);
+        Route::apiResource('blog-tags', BlogTagController::class);
         Route::apiResource('blog-posts', BlogPostController::class);
+        Route::get('blog-posts/{blogPost}/versions', [BlogPostController::class, 'versions']);
+        Route::post('blog-posts/{blogPost}/versions/{version}/restore', [BlogPostController::class, 'restoreVersion']);
         Route::get('newsletter-subscribers', [NewsletterSubscriberController::class, 'index']);
         Route::delete('newsletter-subscribers/{newsletterSubscriber}', [NewsletterSubscriberController::class, 'destroy']);
 

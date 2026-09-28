@@ -3,27 +3,24 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
-/**
- * Deliberately minimal — exists only to back the homepage builder's "Blog
- * Posts" block (spec section 59). NOT Phase 14 (Blog CMS): no categories,
- * tags, authors, or rich editor here. See DEVELOPMENT_ROADMAP.md's Phase 13
- * scope note.
- */
-#[Fillable(['store_id', 'title', 'slug', 'excerpt', 'featured_image_url', 'published_at', 'is_active'])]
+#[Fillable(['store_id', 'title', 'slug', 'excerpt', 'body', 'featured_image_url', 'blog_category_id', 'created_by', 'meta_title', 'meta_description', 'status', 'published_at'])]
 class BlogPost extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected function casts(): array
     {
         return [
             'published_at' => 'datetime',
-            'is_active' => 'boolean',
         ];
     }
 
@@ -39,5 +36,55 @@ class BlogPost extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(BlogCategory::class, 'blog_category_id');
+    }
+
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(BlogTag::class, 'blog_post_tag');
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(BlogPostVersion::class)->latest();
+    }
+
+    /**
+     * Real scheduled publishing without extra cron infrastructure: a future
+     * published_at on an already-published post is invisible until due, and
+     * this single condition is shared by every storefront read path (index,
+     * detail's related posts, category/tag archives) and the homepage
+     * builder's Blog Posts block, so they can never drift out of sync.
+     */
+    public function scopePublished(Builder $query): void
+    {
+        $query->where('status', 'published')
+            ->whereNotNull('published_at')
+            ->where('published_at', '<=', now());
+    }
+
+    /** Not stored — kept fresh automatically whenever body changes. */
+    public function readingTimeMinutes(): int
+    {
+        return max(1, (int) ceil(str_word_count(strip_tags((string) $this->body)) / 200));
+    }
+
+    /** Falls back to a truncated plain-text lead-in when no manual excerpt was set. */
+    public function displayExcerpt(int $length = 200): ?string
+    {
+        if ($this->excerpt) {
+            return $this->excerpt;
+        }
+
+        return $this->body ? Str::limit(strip_tags($this->body), $length) : null;
     }
 }

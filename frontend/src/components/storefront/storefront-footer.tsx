@@ -31,6 +31,11 @@ export function StorefrontFooter() {
                 Brands
               </Link>
             </li>
+            <li>
+              <Link href="/blog" className="hover:text-primary">
+                Blog
+              </Link>
+            </li>
           </ul>
         </div>
 

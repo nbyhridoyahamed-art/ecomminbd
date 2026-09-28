@@ -443,9 +443,10 @@ first (small) piece of the CMS/builder box the paragraph below used to
 list as entirely unbuilt. A `Page` model/`pages` table (see
 `DATABASE_DESIGN.md` section 1q) backs admin CRUD at a new
 `frontend/src/app/(admin)/content/` route group and two public storefront
-endpoints. Two design choices worth flagging for whoever picks up
-Phase 13/14 next: (1) `PagePolicy` maps all five abilities to one
-`pages.manage` permission — not this session's own invention, but a
+endpoints. Two design choices worth flagging, both later confirmed
+correct once Phase 13 and Phase 14 actually shipped: (1) `PagePolicy`
+maps all five abilities to one `pages.manage` permission — not this
+session's own invention, but a
 pre-existing seeder wire-up (`RoleAndPermissionSeeder`, since Phase 3)
 finally activated, the same "some resources get one umbrella permission,
 not Category's 4-way split" pattern `settings.manage` already established;
@@ -502,7 +503,33 @@ placeholder models back three block types pending their real phase:
 2's still-unbuilt verified-purchase review system), `BlogPost`
 (title/slug/excerpt/image/published_at only — not Phase 14's real
 blog CMS), and `NewsletterSubscriber` (email capture only).
-Blog, SEO, Catalog Wave 2's remaining
+Also built since: **Phase 14** — the real Blog CMS, absorbing Phase 13's
+placeholder `BlogPost` model exactly as flagged above (an ALTER
+migration, not drop-and-recreate, so the 3 existing demo rows survive).
+`blog.manage` is a single umbrella permission, the same pattern
+`pages.manage`/`settings.manage` already established — another
+pre-existing seeder wire-up (Marketing Manager/SEO Manager/Content
+Manager, since Phase 3) finally activated, not invented for this phase.
+A new `BlogPost::scopePublished()` local scope — this app's first use of
+an Eloquent local scope — is the single place `status = 'published' AND
+published_at <= now()` lives, shared by the storefront's index/detail/
+category/tag reads and the homepage builder's own Blog Posts block
+resolver, so real scheduled publishing needs zero extra cron
+infrastructure (unlike Phase 13's dedicated
+`homepage-blocks:publish-scheduled` Artisan command) and the visibility
+rule can't drift across five call sites. Version history reuses Phase
+13's `homepage_block_revisions` pattern exactly (a snapshot taken before
+every save and every restore) at a new `blog_post_versions` table — a
+Save-button form doesn't need Phase 13's separate local-undo/redo layer
+alongside it, since there's no live-autosave canvas to undo within.
+`RichTextEditor` (`COMPONENT_INVENTORY.md`) is reused as-is for the post
+body, exactly as earmarked when Phase 12 chose plain text instead. See
+`DEVELOPMENT_ROADMAP.md`'s Phase 14 scope note for the full design —
+including why this phase was designed from `DATABASE_DESIGN.md`'s own
+forward-looking notes rather than a master-spec section, since a
+dedicated research pass established none was ever committed to this
+repository for it.
+SEO, Catalog Wave 2's remaining
 items (reviews — no longer blocked on anything, just not yet picked, now
 that Phase 17 gives the real customer identity it was waiting on — see
 `DATABASE_DESIGN.md` section 2 — and a reusable media library), Purchasing Wave 2's remaining

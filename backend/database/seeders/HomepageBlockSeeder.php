@@ -53,12 +53,40 @@ class HomepageBlockSeeder extends Seeder
 
         if (BlogPost::where('store_id', $store->id)->doesntExist()) {
             $posts = [
-                ['title' => 'How to Choose the Right Panjabi for Eid', 'slug' => 'choosing-the-right-panjabi-for-eid', 'excerpt' => 'A quick guide to fabric, fit, and color for this year\'s Eid collection.'],
-                ['title' => '5 Tips for Faster Cash-on-Delivery Checkout', 'slug' => 'faster-cod-checkout-tips', 'excerpt' => 'Simple ways to make sure your COD order ships without delay.'],
-                ['title' => 'Behind the Scenes: Our Dhaka Warehouse', 'slug' => 'behind-the-scenes-dhaka-warehouse', 'excerpt' => 'A look at how orders are picked, packed, and handed to courier partners.'],
+                [
+                    'title' => 'How to Choose the Right Panjabi for Eid',
+                    'slug' => 'choosing-the-right-panjabi-for-eid',
+                    'excerpt' => 'A quick guide to fabric, fit, and color for this year\'s Eid collection.',
+                    'body' => '<p>Eid shopping season is here, and picking the right panjabi comes down to three things: fabric, fit, and color.</p>'
+                        .'<p><strong>Fabric</strong> — Cotton and cotton-blends breathe best for Bangladesh\'s weather, while silk and linen blends suit evening programs. Check the product page\'s material line before you order.</p>'
+                        .'<p><strong>Fit</strong> — Our size guide on every product page maps chest and length measurements to S–XXL. When in doubt, size up; a panjabi that\'s slightly loose is easier to wear all day than one that\'s tight.</p>'
+                        .'<p><strong>Color</strong> — Pastels and whites are classic for Eid morning prayers, while deeper tones suit evening family gatherings. Either way, cash on delivery means you can order a couple of options and only pay for what you keep.</p>',
+                ],
+                [
+                    'title' => '5 Tips for Faster Cash-on-Delivery Checkout',
+                    'slug' => 'faster-cod-checkout-tips',
+                    'excerpt' => 'Simple ways to make sure your COD order ships without delay.',
+                    'body' => '<p>Cash on delivery is the easiest way to shop with us, and a few small habits make it even smoother:</p>'
+                        .'<ol>'
+                        .'<li>Double-check your phone number — our courier partner calls before every delivery attempt.</li>'
+                        .'<li>Keep your address specific: house/road/area, not just the neighborhood name.</li>'
+                        .'<li>Answer unknown numbers around your expected delivery window.</li>'
+                        .'<li>Have the exact cash ready — couriers don\'t always carry change.</li>'
+                        .'<li>Track your order status from your account so you know exactly when it\'s out for delivery.</li>'
+                        .'</ol>'
+                        .'<p>Following these keeps your order moving instead of sitting in a failed-delivery queue.</p>',
+                ],
+                [
+                    'title' => 'Behind the Scenes: Our Dhaka Warehouse',
+                    'slug' => 'behind-the-scenes-dhaka-warehouse',
+                    'excerpt' => 'A look at how orders are picked, packed, and handed to courier partners.',
+                    'body' => '<p>Every order placed on our storefront routes through a single warehouse in Dhaka before it ever reaches a courier.</p>'
+                        .'<p>Once an order is confirmed, our team picks each item, does a quality check, and packs it the same day for orders placed before our afternoon cutoff. Packed orders are batched by courier zone and handed off to our delivery partners each evening.</p>'
+                        .'<p>That same-day packing is what makes our delivery estimates reliable — most Dhaka orders arrive within 1–2 days, and outside-Dhaka orders within 3–5 days.</p>',
+                ],
             ];
             foreach ($posts as $data) {
-                BlogPost::create([...$data, 'store_id' => $store->id, 'published_at' => now(), 'is_active' => true]);
+                BlogPost::create([...$data, 'store_id' => $store->id, 'published_at' => now(), 'status' => 'published']);
             }
         }
     }

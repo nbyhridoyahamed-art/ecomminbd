@@ -66,7 +66,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Content",
     href: "/content/pages",
     icon: FileText,
-    anyPermission: ["pages.manage"],
+    anyPermission: ["pages.manage", "builder.view", "blog.manage"],
   },
   {
     label: "Settings",

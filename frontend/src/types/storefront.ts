@@ -151,13 +151,54 @@ export interface StorefrontTestimonial {
   rating: number | null;
 }
 
+export interface StorefrontBlogTagRef {
+  name: string;
+  slug: string;
+}
+
+export interface StorefrontBlogCategoryRef {
+  name: string;
+  slug: string;
+}
+
 export interface StorefrontBlogPostSummary {
   id: number;
   title: string;
   slug: string;
   excerpt: string | null;
   featured_image_url: string | null;
+  category: StorefrontBlogCategoryRef | null;
+  tags: StorefrontBlogTagRef[];
+  reading_time_minutes: number;
   published_at: string | null;
+}
+
+export interface StorefrontBlogPostDetail {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  body: string | null;
+  featured_image_url: string | null;
+  category: StorefrontBlogCategoryRef | null;
+  tags: StorefrontBlogTagRef[];
+  reading_time_minutes: number;
+  meta_title: string | null;
+  meta_description: string | null;
+  published_at: string | null;
+}
+
+export interface StorefrontBlogCategory {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+}
+
+export interface StorefrontBlogTag {
+  id: number;
+  name: string;
+  slug: string;
 }
 
 export interface StorefrontFlashSaleItem {

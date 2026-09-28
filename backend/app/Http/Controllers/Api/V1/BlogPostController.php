@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BlogPost\BlogPostRequest;
 use App\Http\Resources\BlogPostResource;
+use App\Http\Resources\BlogPostVersionResource;
 use App\Models\BlogPost;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +13,10 @@ use Illuminate\Http\Request;
 
 class BlogPostController extends Controller
 {
+    private const SNAPSHOT_FIELDS = [
+        'title', 'slug', 'excerpt', 'body', 'featured_image_url', 'meta_title', 'meta_description', 'status',
+    ];
+
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', BlogPost::class);
@@ -19,6 +24,9 @@ class BlogPostController extends Controller
         $posts = BlogPost::query()
             ->when($request->filled('store_id'), fn ($query) => $query->where('store_id', $request->integer('store_id')))
             ->when($request->filled('search'), fn ($query) => $query->where('title', 'like', '%'.$request->string('search').'%'))
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('blog_category_id'), fn ($query) => $query->where('blog_category_id', $request->integer('blog_category_id')))
+            ->with(['category', 'tags'])
             ->orderByDesc('published_at')
             ->get();
 
@@ -29,25 +37,49 @@ class BlogPostController extends Controller
     {
         $this->authorize('create', BlogPost::class);
 
-        $post = BlogPost::create($request->validated());
+        $data = $request->safe()->except('tag_ids');
+        $data['created_by'] = $request->user()->id;
+        $data['status'] ??= 'draft';
 
-        return ApiResponse::success(new BlogPostResource($post), 'Blog post created successfully.', status: 201);
+        if ($data['status'] === 'published' && empty($data['published_at'])) {
+            $data['published_at'] = now();
+        }
+
+        $post = BlogPost::create($data);
+
+        if ($request->filled('tag_ids')) {
+            $post->tags()->sync($request->input('tag_ids'));
+        }
+
+        return ApiResponse::success(new BlogPostResource($post->load(['category', 'tags', 'author'])), 'Blog post created successfully.', status: 201);
     }
 
     public function show(BlogPost $blogPost): JsonResponse
     {
         $this->authorize('view', $blogPost);
 
-        return ApiResponse::success(new BlogPostResource($blogPost), 'Blog post fetched successfully.');
+        return ApiResponse::success(new BlogPostResource($blogPost->load(['category', 'tags', 'author'])), 'Blog post fetched successfully.');
     }
 
     public function update(BlogPostRequest $request, BlogPost $blogPost): JsonResponse
     {
         $this->authorize('update', $blogPost);
 
-        $blogPost->update($request->validated());
+        $this->snapshot($blogPost, $request->user()->id);
 
-        return ApiResponse::success(new BlogPostResource($blogPost), 'Blog post updated successfully.');
+        $data = $request->safe()->except('tag_ids');
+
+        if (($data['status'] ?? $blogPost->status) === 'published' && empty($data['published_at'] ?? $blogPost->published_at)) {
+            $data['published_at'] = now();
+        }
+
+        $blogPost->update($data);
+
+        if ($request->has('tag_ids')) {
+            $blogPost->tags()->sync($request->input('tag_ids', []));
+        }
+
+        return ApiResponse::success(new BlogPostResource($blogPost->load(['category', 'tags', 'author'])), 'Blog post updated successfully.');
     }
 
     public function destroy(BlogPost $blogPost): JsonResponse
@@ -57,5 +89,37 @@ class BlogPostController extends Controller
         $blogPost->delete();
 
         return ApiResponse::success(message: 'Blog post deleted successfully.');
+    }
+
+    public function versions(BlogPost $blogPost): JsonResponse
+    {
+        $this->authorize('view', $blogPost);
+
+        $versions = $blogPost->versions()->with('editor')->limit(50)->get();
+
+        return ApiResponse::success(BlogPostVersionResource::collection($versions), 'Blog post versions fetched successfully.');
+    }
+
+    public function restoreVersion(Request $request, BlogPost $blogPost, int $version): JsonResponse
+    {
+        $this->authorize('update', $blogPost);
+
+        $target = $blogPost->versions()->findOrFail($version);
+
+        // Restoring is itself a change worth being able to undo.
+        $this->snapshot($blogPost, $request->user()->id);
+
+        $blogPost->update(collect($target->snapshot)->only(self::SNAPSHOT_FIELDS)->toArray());
+
+        return ApiResponse::success(new BlogPostResource($blogPost->load(['category', 'tags', 'author'])), 'Blog post restored successfully.');
+    }
+
+    private function snapshot(BlogPost $post, int $userId): void
+    {
+        $post->versions()->create([
+            'store_id' => $post->store_id,
+            'snapshot' => collect($post->getAttributes())->only(self::SNAPSHOT_FIELDS)->toArray(),
+            'created_by' => $userId,
+        ]);
     }
 }

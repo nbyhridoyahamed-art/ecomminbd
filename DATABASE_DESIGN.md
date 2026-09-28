@@ -1027,6 +1027,82 @@ real blog CMS (see section 2's Blog bullet); `newsletter_subscribers` is
 plain email capture with no confirmation/unsubscribe-token flow, since
 nothing yet needs one.
 
+## 1s. Blog Schema (Phase 14)
+
+```
+blog_posts (altered — absorbs the Phase 13 placeholder, see 1r above)
+  id, uuid
+  store_id (FK stores, cascade)
+  title, slug, excerpt (nullable)
+  body (longtext, nullable — new)
+  blog_category_id (FK blog_categories, nullOnDelete — new)
+  created_by (FK users, nullOnDelete — new)
+  meta_title, meta_description (nullable — new)
+  status (varchar, default 'draft' — new, supersedes the dropped `is_active`)
+  featured_image_url (nullable)
+  published_at (nullable — doubles as the scheduling gate, see below)
+  timestamps, soft deletes (new)
+  unique(store_id, slug)
+
+blog_categories
+  id, uuid
+  store_id (FK stores, cascade)
+  name, slug, description (nullable)
+  timestamps, soft deletes
+  unique(store_id, slug)
+
+blog_tags
+  id
+  store_id (FK stores, cascade)
+  name, slug
+  timestamps, soft deletes
+  unique(store_id, slug)
+
+blog_post_tag (pivot)
+  blog_post_id (FK blog_posts, cascade)
+  blog_tag_id (FK blog_tags, cascade)
+  primary key (blog_post_id, blog_tag_id) — no extra columns, no timestamps
+
+blog_post_versions
+  id
+  blog_post_id (FK blog_posts, cascade)
+  store_id (FK stores, cascade)
+  snapshot (json — {title, slug, excerpt, body, featured_image_url, meta_title, meta_description, status})
+  created_by (FK users, nullOnDelete)
+  timestamps
+```
+
+The `is_active` boolean Phase 13's placeholder used is dropped entirely
+(not run in parallel with `status`) — the ALTER migration backfills
+`is_active = true` rows to `status = 'published'` before dropping the
+column, so the 3 existing demo posts stay visible. `blog_categories` is
+deliberately flat (no `parent_id`), unlike products' `Category` (section
+1c) — the near-universal blog convention (broad topic buckets, not a
+taxonomy needing unlimited nesting). Real scheduled publishing reuses
+`published_at` as both the display timestamp and the scheduling gate: a
+new `BlogPost::scopePublished()` local scope requires `status =
+'published' AND published_at <= now()`, so a future-dated `published_at`
+on an already-published post is naturally invisible until due, with zero
+extra background-job infrastructure (unlike Phase 13's dedicated
+`homepage-blocks:publish-scheduled` Artisan command) — and the storefront
+index/detail/category/tag reads and the homepage builder's own Blog
+Posts block resolver all share this one scope rather than five copies of
+the same condition. `blog_post_versions` mirrors
+`homepage_block_revisions` (section 1r) exactly: one row per save, and
+restoring a version snapshots first so the restore is itself undoable —
+sized for a Save-button form rather than a live-autosave canvas, so no
+separate local-undo/redo layer sits alongside it the way the homepage
+builder's own does. Reading time and the excerpt fallback (when the
+manual `excerpt` is blank) are computed at the API Resource layer at
+read time — `str_word_count(strip_tags($body)) / 200` and
+`Str::limit(strip_tags($body), 200)` respectively — never stored, so
+editing `body` keeps both fresh automatically. Deliberately cut: a
+comments/moderation subsystem (its own table, spam/moderation states, a
+public submission UI, notification hooks) — not part of this schema's
+own prior design intent below, a genuinely large separate feature that
+would roughly double this phase's size, and real spec-rule-178 risk if
+built without genuine safeguards.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -1104,9 +1180,10 @@ compatible with them.
 - **CMS/Builder (Phase 12 + full Phase 13 shipped — sections 1q/1r):**
   `pages` (simple content pages) and the full Homepage Builder
   (`homepage_blocks`, `homepage_block_revisions`, `saved_sections`,
-  plus the placeholder `testimonials`/`blog_posts`/
-  `newsletter_subscribers` models three of its block types resolve real
-  data from) are built. Still deferred: `page_versions` (edit history for
+  plus the `testimonials`/`newsletter_subscribers` placeholder models and
+  `blog_posts` — since promoted to the real table Phase 14 built, section
+  1s — that three of its block types resolve real data from) are built.
+  Still deferred: `page_versions` (edit history for
   *CMS pages* specifically — `homepage_blocks` already got its own
   revision history in Phase 13, this is the still-missing equivalent for
   `pages`), and `navigation_menus`/`navigation_items` (today's page links
@@ -1115,13 +1192,11 @@ compatible with them.
   above lists this same gap) remains unbuilt for the builder's own
   image-URL fields too — every image field across all ~30 block types is
   a plain URL string, no upload-and-browse picker yet.
-- **Blog:** `blog_posts` now exists, but only in the deliberately minimal
-  shape Phase 13's Blog Posts block needed
-  (`title`/`slug`/`excerpt`/`featured_image_url`/`published_at` — see
-  section 1r); a real blog still needs `body`, `blog_post_versions`,
-  `blog_categories`, `blog_tags`, `blog_post_tag` (pivot), and is
-  expected to absorb or replace today's placeholder table rather than
-  run alongside it.
+- **Blog (Phase 14 shipped — section 1s):** the real blog CMS is built —
+  `blog_posts` (altered, absorbing Phase 13's placeholder),
+  `blog_categories`, `blog_tags`, `blog_post_tag`, `blog_post_versions`.
+  Deliberately cut, not deferred to a numbered Wave: a comments/
+  moderation subsystem (see section 1s's own note on why).
 - **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,
   description, focus_keyword, og_*, twitter_*, schema_json, canonical,
   robots), `redirects`, `seo_templates`.

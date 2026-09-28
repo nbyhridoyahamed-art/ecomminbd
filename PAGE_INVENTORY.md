@@ -70,7 +70,10 @@ their backing functionality — no dead pages).
 | `/website/navigation` | ⏳ | 12 Wave 2 — no `navigation_menus`/`navigation_items` schema yet, see `DATABASE_DESIGN.md` |
 | `/website/media` | ⏳ | 12 Wave 2 — same reusable media library gap Catalog Wave 2 lists |
 | `/website/theme` | ⏳ | 12 Wave 2 |
-| `/blog` | ⏳ | 14 |
+| `/content/blog/posts` | ✅ | 14 — a small, deliberate path change beyond this table's original `/blog` sketch, following Pages/Homepage's own `/content/*` grouping; the first Content sub-resource to get its own nested tab-nav (Posts/Categories/Tags, documented in `COMPONENT_INVENTORY.md`) |
+| `/content/blog/posts/new`, `/content/blog/posts/[id]` | ✅ | 14 (title/slug w/ auto-fill, category `Select`, tag checkboxes, TipTap body, excerpt w/ auto-fallback note, featured image URL, draft/published status + a `datetime-local` schedule field, optional SEO section, a Version History sheet on the edit page) |
+| `/content/blog/categories`, `.../new`, `.../[id]` | ✅ | 14 (name/slug w/ auto-fill, description; list shows each category's post count) |
+| `/content/blog/tags`, `.../new`, `.../[id]` | ✅ | 14 (name/slug w/ auto-fill; list shows each tag's post count) |
 | `/seo` | ⏳ | 15 |
 | `/settings/general` | ✅ | 4 (store name/domain/currency/timezone/locale/status) |
 | `/settings/users` | ✅ | 4 (list, search, create, edit, role assignment, delete w/ confirmation) |
@@ -89,7 +92,9 @@ their backing functionality — no dead pages).
 | `/category/[slug]` | ✅ | 16 (category + its subcategories as quick links, paginated active products) |
 | `/brand/[slug]` | ✅ | 16 |
 | `/brands` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch (a brand index page for the header/footer's "Brands" link to point at, mirroring `/products`' justification) |
-| `/blog`, `/blog/[slug]` | ⏳ | 14/16 |
+| `/blog` | ✅ | 14/16 (paginated, `?search=`) |
+| `/blog/[slug]` | ✅ | 14/16 (body rendered from real HTML via `dangerouslySetInnerHTML`, same trust model as the homepage builder's Rich Text/Custom HTML blocks; clickable category/tags; up to 3 related posts sharing its category) |
+| `/blog/category/[slug]`, `/blog/tag/[slug]` | ✅ | 14/16 (paginated archives, mirroring `/category/[slug]`'s shape) |
 | `/pages/[slug]` | ✅ | 12/16 (title + plain-text content rendered `whitespace-pre-line`, matching the product description convention; draft pages and pages from another store both 404) |
 | `/cart` | ✅ | 16 (line items w/ quantity stepper, subtotal — reused `CartLineItem` also backs the header's cart drawer) |
 | `/checkout` | ✅ | 16 (guest-only: name/phone/email, shipping address w/ live BD division/district/upazila cascade, order summary; payment method is a fixed "Cash on Delivery" label, not a selector — Wave 1 has only the one method, so a picker would be a fake choice) |
@@ -178,10 +183,13 @@ tab nav) around everything that actually needs a signed-in customer.
 | `GET /api/v1/storefront/pages` (published-only, backs the footer), `GET .../{slug}` (published-only, 404 on draft or wrong-store) | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/homepage-blocks`, `GET .../preview` (all blocks incl. drafts, resolved), `POST .../reorder`, `.../{id}/duplicate`, `.../{id}/publish`, `.../{id}/unpublish`, `.../{id}/schedule`, `GET .../{id}/revisions`, `POST .../{id}/revisions/{revision}/restore`, `POST .../{id}/save-as-section` | ✅ |
 | `GET/POST/DELETE /api/v1/saved-sections`, `POST .../{id}/insert` | ✅ |
-| `GET/POST/PUT/DELETE /api/v1/testimonials`, `.../blog-posts` | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/testimonials` | ✅ |
 | `GET/DELETE /api/v1/newsletter-subscribers` | ✅ |
 | `GET /api/v1/storefront/homepage-blocks` (active blocks, resolved), `POST /api/v1/storefront/newsletter/subscribe` (throttled) | ✅ |
-| Everything else under CMS (navigation/media)/blog/SEO/etc. | ⏳ — added phase by phase |
+| `GET/POST/PUT/DELETE /api/v1/blog-posts` (Phase 14 takes over the Phase 13 placeholder), `GET .../{id}/versions`, `POST .../{id}/versions/{versionId}/restore` | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/blog-categories`, `.../blog-tags` | ✅ |
+| `GET /api/v1/storefront/blog` (paginated, `?search=`), `GET .../{slug}` (+ related posts), `GET .../category/{slug}`, `.../tag/{slug}` (each paginated), `GET .../rss` (RSS 2.0 XML) | ✅ |
+| Everything else under CMS (navigation/media)/SEO/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

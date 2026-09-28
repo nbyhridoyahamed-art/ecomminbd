@@ -20,9 +20,27 @@ class BlogPostFactory extends Factory
             'title' => ucfirst(fake()->sentence(4)),
             'slug' => fake()->unique()->slug(),
             'excerpt' => fake()->paragraph(),
+            'body' => fake()->paragraphs(4, true),
             'featured_image_url' => null,
+            'meta_title' => null,
+            'meta_description' => null,
+            'status' => 'published',
             'published_at' => now(),
-            'is_active' => true,
         ];
+    }
+
+    public function draft(): static
+    {
+        return $this->state(fn () => ['status' => 'draft', 'published_at' => null]);
+    }
+
+    public function published(): static
+    {
+        return $this->state(fn () => ['status' => 'published', 'published_at' => now()]);
+    }
+
+    public function scheduled(): static
+    {
+        return $this->state(fn () => ['status' => 'published', 'published_at' => now()->addWeek()]);
     }
 }

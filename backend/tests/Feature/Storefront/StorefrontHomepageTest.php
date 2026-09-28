@@ -166,13 +166,13 @@ class StorefrontHomepageTest extends TestCase
         $this->assertCount(1, $blocks[0]['data']['testimonials']);
     }
 
-    public function test_blog_posts_excludes_unpublished_future_and_inactive_posts(): void
+    public function test_blog_posts_excludes_unpublished_future_and_draft_posts(): void
     {
         $store = $this->activeStore();
-        BlogPost::factory()->for($store)->create(['published_at' => now()->subDay(), 'is_active' => true]);
-        BlogPost::factory()->for($store)->create(['published_at' => now()->addDay(), 'is_active' => true]); // future
-        BlogPost::factory()->for($store)->create(['published_at' => null, 'is_active' => true]); // never published
-        BlogPost::factory()->for($store)->create(['published_at' => now()->subDay(), 'is_active' => false]); // inactive
+        BlogPost::factory()->for($store)->create(['published_at' => now()->subDay(), 'status' => 'published']);
+        BlogPost::factory()->for($store)->create(['published_at' => now()->addDay(), 'status' => 'published']); // future
+        BlogPost::factory()->for($store)->create(['published_at' => null, 'status' => 'published']); // never published
+        BlogPost::factory()->for($store)->create(['published_at' => now()->subDay(), 'status' => 'draft']); // draft
         HomepageBlock::factory()->for($store)->ofType('blog_posts')->active()->create(['settings' => ['heading' => 'Blog', 'limit' => 5]]);
 
         $blocks = $this->getJson('/api/v1/storefront/homepage-blocks')->assertOk()->json('data');

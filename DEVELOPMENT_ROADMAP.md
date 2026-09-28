@@ -20,7 +20,7 @@ in place and the app still builds/runs.
 | 11 | Admin Dashboard (full KPIs/charts) | ✅ Wave 1 done (custom date ranges, per-warehouse/per-courier breakdowns, full reporting suite deferred — see note) | Yes — sales trend (orders + revenue, last 14 days) and order-status-breakdown charts backed by real aggregate endpoints, a recent-orders widget, and every stat card now permission-gated |
 | 12 | CMS | ✅ Wave 1 done (page versions/history, navigation menus, hierarchical pages, scheduled publishing deferred — see note) | Yes — simple content pages (About/Terms/Privacy-style) with plain-text content, admin CRUD under a new "Content" nav section, and public storefront rendering at `/pages/[slug]` plus a footer links column |
 | 13 | Homepage Builder | ✅ Full spec done, not a lean wave (see note) | Yes — a real drag-and-drop visual builder: all ~30 block types, a dnd-kit live-preview canvas, full per-block style/responsive/animation overrides, local autosave + undo/redo, server-side revision history with restore, and a reusable saved-sections library |
-| 14 | Blog | ⏳ Not started | No |
+| 14 | Blog | ✅ Full spec done, not a lean wave (see note) | Yes — a real Blog CMS: rich TipTap posts with categories/tags/SEO/scheduled publishing, server-side version history with restore, admin CRUD under Content, and public `/blog` index/detail/category/tag pages plus an RSS feed |
 | 15 | SEO | ⏳ Not started | No |
 | 16 | Storefront | ✅ Wave 1 done, homepage now block-driven since Phase 13 (multi-store domain routing, non-COD payment still deferred — see note) | Yes — public unauthenticated catalog browsing (products/categories/brands) and guest COD checkout against the single active store |
 | 17 | Customer Dashboard | ✅ Wave 1 done (wishlist, customer-initiated returns, checkout saved-address integration deferred — see note) | Yes — customer register/login/logout against a new `customers.password` column, guest-checkout orders auto-linked by phone on registration, and an `/account/*` shell (order history + status timeline, saved addresses, profile) |
@@ -824,32 +824,87 @@ stack — which is what actually caught both bugs `ARCHITECTURE.md`
 describes; neither tsc, eslint, nor the backend test suite alone would
 have.
 
+**Phase 14 scope note:** ships the full Blog CMS — explicitly requested
+in full rather than a lean wave, and against this project's own
+previously-documented target schema rather than a master-spec section:
+a dedicated research pass this session conclusively established the
+189-section master spec was never committed to this repository (it only
+ever existed as chat-pasted content across the session), so this phase
+was designed from `DATABASE_DESIGN.md`'s own forward-looking notes,
+established conventions, and full-featured-blog-CMS judgment, per the
+user's explicit "use your best judgment" instruction. Real posts (rich
+TipTap body reusing Phase 13's `RichTextEditor` as-is, exactly as
+`COMPONENT_INVENTORY.md` already documented it would; a manual excerpt
+falling back to an auto-truncated plain-text lead-in; featured image;
+SEO fields; draft/published status; real scheduled publishing via
+`published_at <= now()` with zero extra cron infrastructure, unlike
+Phase 13's dedicated Artisan command), flat categories (deliberately
+non-hierarchical, unlike products' `Category` — the near-universal blog
+convention), and many-to-many tags. Server-side version history mirrors
+Phase 13's `homepage_block_revisions` pattern exactly: one snapshot per
+save, and restoring a version is itself a change that gets its own
+snapshot first. Absorbs Phase 13's placeholder `BlogPost` model exactly
+as that phase's own code comments anticipated: an ALTER migration (not
+drop-and-recreate) preserves the 3 existing demo rows, backfilling
+`is_active = true` to `status = published` before dropping the column
+entirely rather than running both in parallel. `blog.manage` is a single
+umbrella permission — not new, but another dormant discovery: the RBAC
+seeder had it pre-wired to Marketing Manager/SEO Manager/Content Manager
+since Phase 3, and `BlogPostPolicy`'s own Phase 13 comment explicitly
+anticipated this exact handoff. Admin UI adds Blog as a third tab under
+Content (Posts/Categories/Tags, gated on `blog.manage`) — the first
+Content sub-resource to get its own nested tab-nav; Categories/Tags use
+dedicated create/edit routes matching `Page`'s established pattern, not
+an inline dialog. Storefront adds `/blog` (paginated, searchable),
+`/blog/[slug]` (detail + related posts by category), `/blog/category/[slug]`
+and `/blog/tag/[slug]` (paginated archives), and a hand-built RSS 2.0
+feed at `GET /storefront/blog/rss` — plus Blog links in the header and
+footer nav. Reading time and the excerpt fallback are computed at the
+Resource layer at read time, never stored, so edits to `body` keep them
+fresh automatically; a new `BlogPost::scopePublished()` local scope —
+this app's first — keeps that one "is this visible" condition from
+drifting across the storefront's four read paths and the homepage
+builder's own Blog Posts block. Deliberately cut: a comments/moderation
+subsystem — not part of this project's own documented target schema, a
+genuinely large separate feature (its own table, spam states, a public
+submission UI, notification hooks) that would roughly double this
+phase's size, and real spec-rule-178 risk (fake functionality) if built
+without genuine safeguards. 29 new backend tests (329 → 358), all green,
+Pint-clean, plus frontend build/lint/typecheck and a real Playwright
+walkthrough against the running dev stack — post creation with
+category/tag/body/status, a version-history snapshot-and-restore round
+trip, and all four storefront routes plus the RSS feed.
+
 ## Next Session Should Start With
 
 Phase 17 (Customer Dashboard) Wave 1, Phase 19 (Integrations) Wave 1,
-Phase 12 (CMS) Wave 1, and now the full Phase 13 (Homepage Builder) are
-all done — real customer accounts with guest orders auto-claimed by
-phone, an `/account/*` shell, real order/return lifecycle notifications
-(mail/SMS to the customer, a database notification driving the admin
-topbar bell), simple content pages manageable in the admin and rendered
-on the storefront, and a complete drag-and-drop homepage builder with
-~30 block types feeding a fully block-driven storefront homepage; see
-each phase's own scope note for what they deliberately still cut. Phase
-13 shipped out of the order rule 176 would otherwise have picked —
-explicitly requested in full ahead of everything else — so the
-already-flagged older dependency it jumped is still open: Phase 17
-finally unblocked Catalog Wave 2's one remaining item, customer reviews
-(a review needs a real customer identity plus a verified order to attach
-to, and Phase 17 gives both — `/account/orders` already shows a
-signed-in customer their own delivered orders), and that has been the
-clearest rule-176 pickup since before Phase 13 was requested; it still
-is. Reasonable alternatives, whichever the user prefers: Blog (Phase 14)
-and SEO (Phase 15), the two remaining content phases Phase 13 was the
-last blocker for (CMS pages exist for a blog index to link to, a real
-storefront exists to render either on, and Phase 13's TipTap editor and
-`BlogPost`/SEO-tab placeholders are already earmarked for them to absorb
-— see `ARCHITECTURE.md`'s Phase 13 note and ``COMPONENT_INVENTORY.md``);
-Phase 19 Wave 2 itself (a real BD SMS provider, the courier/payment
+Phase 12 (CMS) Wave 1, the full Phase 13 (Homepage Builder), and now the
+full Phase 14 (Blog) are all done — real customer accounts with guest
+orders auto-claimed by phone, an `/account/*` shell, real order/return
+lifecycle notifications (mail/SMS to the customer, a database
+notification driving the admin topbar bell), simple content pages
+manageable in the admin and rendered on the storefront, a complete
+drag-and-drop homepage builder with ~30 block types feeding a fully
+block-driven storefront homepage, and a real Blog CMS (categories, tags,
+version history, scheduled publishing, RSS) with its own storefront
+section; see each phase's own scope note for what they deliberately
+still cut. Phase 13 (and Phase 14 right behind it) shipped out of the
+order rule 176 would otherwise have picked — both explicitly requested
+in full ahead of everything else — so the already-flagged older
+dependency they jumped is still open: Phase 17 finally unblocked Catalog
+Wave 2's one remaining item, customer reviews (a review needs a real
+customer identity plus a verified order to attach to, and Phase 17 gives
+both — `/account/orders` already shows a signed-in customer their own
+delivered orders), and that has been the clearest rule-176 pickup since
+before Phase 13 was requested; it still is. Reasonable alternative,
+whichever the user prefers: SEO (Phase 15), the one remaining content
+phase Phase 13 was a blocker for (a real storefront exists to render
+per-page/per-post metadata on, Phase 13's own SEO tab is an honest
+placeholder waiting for it, and Phase 14's posts already carry
+`meta_title`/`meta_description` columns with nothing yet reading them
+for real `<head>` tags or a sitemap — see `ARCHITECTURE.md`'s Phase 13
+note and `COMPONENT_INVENTORY.md`); Phase 19 Wave 2 itself (a real BD
+SMS provider, the courier/payment
 gateway adapters section 6 of `ARCHITECTURE.md` documents as
 target-only, a WhatsApp channel, queued delivery — each still blocked on
 real provider credentials or a running queue worker, neither of which
