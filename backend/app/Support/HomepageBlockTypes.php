@@ -156,7 +156,12 @@ final class HomepageBlockTypes
             self::FLASH_SALE => [
                 'settings.heading' => ['required', 'string', 'max:255'],
                 'settings.ends_at' => ['required', 'date'],
-                'settings.items' => ['required', 'array', 'min:1', 'max:12'],
+                // Not required and no min:1: a freshly-added flash sale has
+                // no items yet — its defaultSettings() can't seed a real
+                // product_id (there's no way to know one in advance), so an
+                // empty list has to be a valid starting state.
+                // FlashSaleBlock renders nothing until items are added.
+                'settings.items' => ['array', 'max:12'],
                 'settings.items.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->where('store_id', $storeId)],
                 'settings.items.*.sale_price' => ['required', 'numeric', 'min:0'],
             ],
@@ -168,7 +173,10 @@ final class HomepageBlockTypes
                 'settings.cta_url' => ['nullable', 'string', 'max:2048'],
             ],
             self::PROMO_BANNER => [
-                'settings.image_url' => ['required', 'string', 'max:2048'],
+                // Nullable: PromoBannerBlock renders nothing until an image
+                // is set, and a freshly-added block hasn't had one uploaded
+                // yet.
+                'settings.image_url' => ['nullable', 'string', 'max:2048'],
                 'settings.link_url' => ['nullable', 'string', 'max:2048'],
                 'settings.alt_text' => ['nullable', 'string', 'max:255'],
             ],
@@ -176,12 +184,21 @@ final class HomepageBlockTypes
             self::THREE_COLUMN_BANNER => self::bannerColumnRules(3),
             self::VIDEO => [
                 'settings.heading' => ['nullable', 'string', 'max:255'],
-                'settings.video_url' => ['required', 'string', 'max:2048'],
+                // Nullable, not required: a freshly-added block has no video
+                // yet, and VideoBlock renders nothing until one is set —
+                // same "optional until configured" contract as every image
+                // field below, not a hole in the schema.
+                'settings.video_url' => ['nullable', 'string', 'max:2048'],
                 'settings.poster_image_url' => ['nullable', 'string', 'max:2048'],
                 'settings.autoplay' => ['nullable', 'boolean'],
             ],
             self::IMAGE_TEXT => [
-                'settings.image_url' => ['required', 'string', 'max:2048'],
+                // Nullable: ImageTextBlock already renders fine with no
+                // image, and a freshly-added block hasn't had one uploaded
+                // yet. `body` stays required — defaultSettings() seeds real
+                // starter text for it instead, since empty body would
+                // render as a visibly blank paragraph.
+                'settings.image_url' => ['nullable', 'string', 'max:2048'],
                 'settings.heading' => ['required', 'string', 'max:255'],
                 'settings.body' => ['required', 'string'],
                 'settings.cta_label' => ['nullable', 'string', 'max:60'],
@@ -190,7 +207,10 @@ final class HomepageBlockTypes
             ],
             self::RICH_TEXT => [
                 'settings.heading' => ['nullable', 'string', 'max:255'],
-                'settings.body' => ['required', 'string'],
+                // Nullable: RichTextBlock renders nothing until the admin
+                // types something into the TipTap editor — an empty canvas
+                // to start from, not a validation hole.
+                'settings.body' => ['nullable', 'string'],
             ],
             self::FAQ => [
                 'settings.heading' => ['nullable', 'string', 'max:255'],
@@ -205,7 +225,10 @@ final class HomepageBlockTypes
             ],
             self::GALLERY => [
                 'settings.heading' => ['nullable', 'string', 'max:255'],
-                'settings.images' => ['required', 'array', 'min:1', 'max:24'],
+                // Not required and no min:1: a freshly-added gallery starts
+                // empty (GalleryBlock renders nothing until images are
+                // added) rather than forcing a fake placeholder image.
+                'settings.images' => ['array', 'max:24'],
                 'settings.images.*.image_url' => ['required', 'string', 'max:2048'],
                 'settings.images.*.alt_text' => ['nullable', 'string', 'max:255'],
             ],
@@ -236,11 +259,13 @@ final class HomepageBlockTypes
                 // Trusted-input surface: only staff holding builder.edit can
                 // ever reach this field, the same trust boundary every other
                 // admin-authored field in this app already has — see
-                // DEVELOPMENT_ROADMAP.md's Phase 13 scope note.
-                'settings.html' => ['required', 'string', 'max:20000'],
+                // DEVELOPMENT_ROADMAP.md's Phase 13 scope note. Nullable, not
+                // required: CustomHtmlBlock renders nothing until the admin
+                // pastes something in.
+                'settings.html' => ['nullable', 'string', 'max:20000'],
             ],
             self::CUSTOM_CSS => [
-                'settings.css' => ['required', 'string', 'max:20000'],
+                'settings.css' => ['nullable', 'string', 'max:20000'],
             ],
             self::SPACER => [
                 'settings.height_px' => ['required', 'integer', 'min:8', 'max:400'],
@@ -256,7 +281,11 @@ final class HomepageBlockTypes
     {
         return [
             'settings.banners' => ['required', 'array', 'size:'.$count],
-            'settings.banners.*.image_url' => ['required', 'string', 'max:2048'],
+            // Nullable: MultiColumnBannerBlock skips any banner with no
+            // image, and defaultSettings() seeds $count empty banner slots
+            // for the admin to fill in — the slot count is fixed above, not
+            // each slot's image.
+            'settings.banners.*.image_url' => ['nullable', 'string', 'max:2048'],
             'settings.banners.*.link_url' => ['nullable', 'string', 'max:2048'],
             'settings.banners.*.alt_text' => ['nullable', 'string', 'max:255'],
         ];
@@ -324,20 +353,20 @@ final class HomepageBlockTypes
             self::PROMO_BANNER => ['image_url' => null, 'link_url' => '/products', 'alt_text' => null],
             self::TWO_COLUMN_BANNER => ['banners' => [['image_url' => null, 'link_url' => null, 'alt_text' => null], ['image_url' => null, 'link_url' => null, 'alt_text' => null]]],
             self::THREE_COLUMN_BANNER => ['banners' => array_fill(0, 3, ['image_url' => null, 'link_url' => null, 'alt_text' => null])],
-            self::VIDEO => ['heading' => null, 'video_url' => '', 'poster_image_url' => null, 'autoplay' => false],
-            self::IMAGE_TEXT => ['image_url' => null, 'heading' => 'About Us', 'body' => '', 'cta_label' => null, 'cta_url' => null, 'image_position' => 'left'],
-            self::RICH_TEXT => ['heading' => null, 'body' => ''],
+            self::VIDEO => ['heading' => null, 'video_url' => null, 'poster_image_url' => null, 'autoplay' => false],
+            self::IMAGE_TEXT => ['image_url' => null, 'heading' => 'About Us', 'body' => 'Tell your story here.', 'cta_label' => null, 'cta_url' => null, 'image_position' => 'left'],
+            self::RICH_TEXT => ['heading' => null, 'body' => null],
             self::TESTIMONIALS => ['heading' => 'What Our Customers Say', 'mode' => 'auto', 'limit' => 3, 'testimonial_ids' => []],
             self::REVIEWS => ['heading' => 'Customer Reviews', 'mode' => 'auto', 'limit' => 3, 'testimonial_ids' => []],
-            self::FAQ => ['heading' => 'Frequently Asked Questions', 'items' => [['question' => '', 'answer' => '']]],
+            self::FAQ => ['heading' => 'Frequently Asked Questions', 'items' => [['question' => 'What is your return policy?', 'answer' => 'Contact us within 7 days of delivery for a full refund or exchange.']]],
             self::NEWSLETTER => ['heading' => 'Stay in the loop', 'subheading' => 'Subscribe for offers and updates.', 'cta_label' => 'Subscribe'],
             self::GALLERY => ['heading' => null, 'images' => []],
             self::TRUST_BADGES => ['heading' => null, 'items' => [['icon' => 'truck', 'label' => 'Cash on Delivery'], ['icon' => 'shield', 'label' => 'Easy Returns']]],
             self::STATISTICS => ['heading' => null, 'items' => [['value' => '10,000+', 'label' => 'Happy Customers']]],
             self::CTA => ['heading' => 'Ready to shop?', 'subheading' => null, 'cta_label' => 'Shop Now', 'cta_url' => '/products', 'background_image_url' => null],
             self::BLOG_POSTS => ['heading' => 'From the Blog', 'limit' => 3],
-            self::CUSTOM_HTML => ['html' => ''],
-            self::CUSTOM_CSS => ['css' => ''],
+            self::CUSTOM_HTML => ['html' => null],
+            self::CUSTOM_CSS => ['css' => null],
             self::SPACER => ['height_px' => 40],
             default => [],
         };

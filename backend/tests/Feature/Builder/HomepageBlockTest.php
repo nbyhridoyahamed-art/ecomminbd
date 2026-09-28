@@ -9,6 +9,7 @@ use App\Models\HomepageBlockRevision;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\HomepageBlockTypes;
 use Database\Seeders\RoleAndPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -122,6 +123,29 @@ class HomepageBlockTest extends TestCase
             'settings' => ['heading' => 'About', 'body' => 'Ignored is_active below.'],
             'is_active' => true,
         ])->assertCreated()->assertJsonPath('data.is_active', false);
+    }
+
+    /**
+     * The block picker creates a block with exactly HomepageBlockTypes::
+     * defaultSettings($type) and nothing else — if a type's own defaults
+     * don't satisfy its own settingsRules(), clicking it in the picker
+     * silently 422s and nothing gets added. Every type must be creatable
+     * from its own defaults alone.
+     */
+    public function test_every_block_type_can_be_created_from_only_its_own_default_settings(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+
+        foreach (HomepageBlockTypes::ALL as $type) {
+            $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/homepage-blocks', [
+                'store_id' => $store->id,
+                'type' => $type,
+                'settings' => HomepageBlockTypes::defaultSettings($type),
+            ]);
+
+            $this->assertSame(201, $response->status(), "Type '{$type}' failed with its own defaults: ".json_encode($response->json()));
+        }
     }
 
     public function test_settings_are_validated_per_block_type(): void

@@ -15,7 +15,7 @@ export function RichTextPanel({ value, onChange }: ContentPanelProps<RichTextSet
       </div>
       <div className="space-y-1.5">
         <Label>Content</Label>
-        <RichTextEditor value={value.body} onChange={(body) => onChange({ ...value, body })} placeholder="Write something..." />
+        <RichTextEditor value={value.body ?? ""} onChange={(body) => onChange({ ...value, body: body || null })} placeholder="Write something..." />
       </div>
     </div>
   );

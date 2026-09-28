@@ -17,9 +17,9 @@ export function VideoPanel({ value, onChange }: ContentPanelProps<VideoSettings>
         <Label htmlFor="video-url">Video URL</Label>
         <Input
           id="video-url"
-          value={value.video_url}
+          value={value.video_url ?? ""}
           placeholder="https://..."
-          onChange={(event) => onChange({ ...value, video_url: event.target.value })}
+          onChange={(event) => onChange({ ...value, video_url: event.target.value || null })}
         />
       </div>
       <div className="space-y-1.5">

@@ -1,6 +1,8 @@
 import type { VideoSettings } from "@/types/homepage-block";
 
 export function VideoBlock({ settings }: { settings: VideoSettings }) {
+  if (!settings.video_url) return null;
+
   return (
     <section className="space-y-4">
       {settings.heading ? <h2 className="text-section font-semibold text-text-primary">{settings.heading}</h2> : null}

@@ -13,8 +13,8 @@ export function CustomCssPanel({ value, onChange }: ContentPanelProps<CustomCssS
         id="custom-css-code"
         className="font-mono text-xs"
         rows={12}
-        value={value.css}
-        onChange={(event) => onChange({ ...value, css: event.target.value })}
+        value={value.css ?? ""}
+        onChange={(event) => onChange({ ...value, css: event.target.value || null })}
       />
       <p className="text-xs text-text-muted">Raw CSS, injected as-is on the storefront. Staff use only — never paste rules from an untrusted source.</p>
     </div>

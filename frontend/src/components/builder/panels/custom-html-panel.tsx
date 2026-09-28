@@ -13,8 +13,8 @@ export function CustomHtmlPanel({ value, onChange }: ContentPanelProps<CustomHtm
         id="custom-html-code"
         className="font-mono text-xs"
         rows={12}
-        value={value.html}
-        onChange={(event) => onChange({ ...value, html: event.target.value })}
+        value={value.html ?? ""}
+        onChange={(event) => onChange({ ...value, html: event.target.value || null })}
       />
       <p className="text-xs text-text-muted">Raw HTML, rendered as-is on the storefront. Staff use only — never paste markup from an untrusted source.</p>
     </div>

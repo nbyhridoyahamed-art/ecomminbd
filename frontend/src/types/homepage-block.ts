@@ -178,7 +178,7 @@ export interface MultiBannerSettings {
 
 export interface VideoSettings {
   heading: string | null;
-  video_url: string;
+  video_url: string | null;
   poster_image_url: string | null;
   autoplay: boolean;
 }
@@ -194,7 +194,7 @@ export interface ImageTextSettings {
 
 export interface RichTextSettings {
   heading: string | null;
-  body: string;
+  body: string | null;
 }
 
 export interface AutoManualTestimonialSettings {
@@ -259,11 +259,11 @@ export interface CtaSettings {
 }
 
 export interface CustomHtmlSettings {
-  html: string;
+  html: string | null;
 }
 
 export interface CustomCssSettings {
-  css: string;
+  css: string | null;
 }
 
 export interface SpacerSettings {
