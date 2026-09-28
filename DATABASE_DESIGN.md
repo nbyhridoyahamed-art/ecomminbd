@@ -570,6 +570,37 @@ deactivating it (`status = inactive`) instead. See
 this retrofit and its own variant-aware-retrofit scope note for what it
 actually shipped.
 
+## 1j. Product CSV Import/Export (Phase 5 Wave 2b)
+
+No new tables — `GET /products/export` reads the existing `products`
+columns (joined to `categories`/`brands` for their names) and streams
+them as a CSV; `POST /products/import` reads one back and writes to the
+same columns via the normal `Product::create()`/`update()` path, so every
+existing constraint (the `(store_id, sku)`/`(store_id, slug)` unique
+indexes from section 1b, `price_amount` as integer minor units via
+`App\Support\Money`) applies exactly as it does to a manually-created
+product. `App\Support\ProductCsv::HEADERS` is the single source of truth
+for the column list both directions read, so a straight export → edit →
+re-import round-trips; a header the app doesn't recognize is ignored
+rather than failing the file, so extra spreadsheet columns are harmless.
+
+Import resolves a `Category`/`Brand` name to its `id`, matching
+case-insensitively first and creating a new one only when no match
+exists — the same `(store_id, slug)`-unique tables from section 1b, so a
+`Str::slug()` collision on auto-create dedupes with a `-2`/`-3` suffix,
+same as a manually-typed duplicate name would. A new SKU always creates
+a `type = simple` product; an existing SKU only ever updates that
+product's own columns — `type` and its `product_variants` rows (section
+1i) are never touched by import, so re-importing an edited export of a
+variable product can't silently flatten it into a simple one. `status`/
+`track_stock`/`featured` are the one exception to "blank cell empties
+the column": since these are non-nullable columns with a real current
+state (not optional content like `description`), a blank cell on an
+update row leaves the existing value alone instead of resetting it to
+the create-time default — every other nullable column is written
+literally, including to `null` on blank, since the file is meant to be
+the source of truth for whatever column it contains.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -583,13 +614,15 @@ compatible with them.
   `reviews` (Phase 8's `customers`/`orders` now exist to back "verified
   purchase", but the reviews table itself isn't built, and nothing lets
   a customer actually write one before a storefront/account portal
-  exists — Phase 16/17), a reusable/browsable `media` library with
+  exists — Phase 16/17), and a reusable/browsable `media` library with
   folders and cross-entity reuse (today, product/category/brand images
-  upload directly against their own record — see section 1b), and CSV
-  bulk import/export. `products`, `categories`, `brands`,
-  `product_images` are built — see section 1b; `product_attributes`,
-  `product_attribute_values`, `product_variants`,
-  `product_variant_attribute_values` are built — see section 1i.
+  upload directly against their own record — see section 1b).
+  `products`, `categories`, `brands`, `product_images` are built — see
+  section 1b; `product_attributes`, `product_attribute_values`,
+  `product_variants`, `product_variant_attribute_values` are built — see
+  section 1i. CSV bulk import/export, the one Wave 2b item this bullet
+  used to list, is no longer deferred — no new tables, since it reads
+  and writes the `products` columns above directly (see section 1j).
 - **Inventory Wave 2:** a pending/in-transit/received transfer approval
   workflow, and a `stock_adjustments` header table for grouping a
   stocktake's many per-product adjustments under one reference (today

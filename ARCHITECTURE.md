@@ -265,10 +265,15 @@ variable product's stock across all its variants) rather than gaining
 per-variant rows. This is the real unblock Catalog Wave 2a's variants
 needed before storefront product pages or Returns' exchange feature can
 use them, neither of which is built yet (their own phases haven't
-started).
+started). Also built since: **Catalog CSV bulk import/export** (Phase 5
+Wave 2b) — no new tables, `GET /products/export`/`POST /products/import`
+read and write the existing `products` columns directly through a shared
+`App\Support\ProductCsv` header list (see `DATABASE_DESIGN.md` section
+1j), scoped to simple products only (an update never touches an existing
+product's `type` or variants).
 CMS/builder, blog, SEO, storefront, customer account, the full reporting
 suite (Phase 18), the adapter implementations described in section 6,
-Catalog Wave 2b (bundles, reviews, bulk import/export, a reusable media
+the rest of Catalog Wave 2b (bundles, reviews, a reusable media
 library), Purchasing Wave 2 (purchase returns, supplier
 ledger, PO approval workflow), Orders Wave 2 (a non-COD gateway-payments
 ledger, coupons), Delivery Wave 2 (delivery zones/rates, multi-shipment

@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Package, Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, Package, Pencil, Plus, Trash2, Upload } from "lucide-react";
 
 import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useCategories } from "@/hooks/use-categories";
 import { useAllBrands } from "@/hooks/use-brands";
-import { useDeleteProduct, useProducts } from "@/hooks/use-products";
+import { useDeleteProduct, useExportProducts, useProducts } from "@/hooks/use-products";
+import { ProductImportDialog } from "@/components/catalog/product-import-dialog";
 import { PermissionDenied } from "@/components/permission-denied";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,17 +43,19 @@ export default function ProductsPage() {
   const [brandId, setBrandId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: categories } = useCategories(storeId);
   const { data: brandsData } = useAllBrands(storeId);
-  const { data, isLoading } = useProducts(storeId, {
-    page,
+  const filters = {
     search,
     categoryId: categoryId !== "all" ? Number(categoryId) : null,
     brandId: brandId !== "all" ? Number(brandId) : null,
     status: status !== "all" ? status : null,
-  });
+  };
+  const { data, isLoading } = useProducts(storeId, { page, ...filters });
   const deleteProduct = useDeleteProduct();
+  const exportProducts = useExportProducts();
 
   if (currentUser && !can(currentUser, "products.view")) {
     return <PermissionDenied />;
@@ -204,14 +207,30 @@ export default function ProductsPage() {
             </SelectContent>
           </Select>
         </div>
-        {canCreate ? (
-          <Button asChild>
-            <Link href="/catalog/products/new">
-              <Plus />
-              Add product
-            </Link>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            loading={exportProducts.isPending}
+            onClick={() => storeId && exportProducts.mutate({ storeId, filters })}
+          >
+            <Download />
+            Export
           </Button>
-        ) : null}
+          {canCreate ? (
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload />
+              Import
+            </Button>
+          ) : null}
+          {canCreate ? (
+            <Button asChild>
+              <Link href="/catalog/products/new">
+                <Plus />
+                Add product
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <DataTable
@@ -266,6 +285,10 @@ export default function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {storeId ? (
+        <ProductImportDialog storeId={storeId} open={importOpen} onClose={() => setImportOpen(false)} />
+      ) : null}
     </div>
   );
 }

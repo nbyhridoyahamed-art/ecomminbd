@@ -41,19 +41,22 @@ export interface ProductFilters {
   status?: string | null;
 }
 
+function buildProductFilterParams(storeId: number | null | undefined, filters: Omit<ProductFilters, "page">) {
+  const params = new URLSearchParams({ store_id: String(storeId) });
+  if (filters.search) params.set("search", filters.search);
+  if (filters.categoryId) params.set("category_id", String(filters.categoryId));
+  if (filters.brandId) params.set("brand_id", String(filters.brandId));
+  if (filters.status) params.set("status", filters.status);
+  return params;
+}
+
 export function useProducts(storeId: number | null | undefined, filters: ProductFilters) {
   return useQuery({
     queryKey: ["products", storeId, filters],
     queryFn: () => {
-      const params = new URLSearchParams({
-        store_id: String(storeId),
-        page: String(filters.page),
-        per_page: "20",
-      });
-      if (filters.search) params.set("search", filters.search);
-      if (filters.categoryId) params.set("category_id", String(filters.categoryId));
-      if (filters.brandId) params.set("brand_id", String(filters.brandId));
-      if (filters.status) params.set("status", filters.status);
+      const params = buildProductFilterParams(storeId, filters);
+      params.set("page", String(filters.page));
+      params.set("per_page", "20");
 
       return api.getWithMeta<Product[]>(`/products?${params.toString()}`);
     },
@@ -165,6 +168,49 @@ export function useMarkPrimaryProductImage(productId: number) {
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : "Could not update primary image.");
+    },
+  });
+}
+
+export function useExportProducts() {
+  return useMutation({
+    mutationFn: ({ storeId, filters }: { storeId: number; filters: Omit<ProductFilters, "page"> }) => {
+      const params = buildProductFilterParams(storeId, filters);
+      return api.download(`/products/export?${params.toString()}`, "products.csv");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not export products.");
+    },
+  });
+}
+
+export interface ProductImportError {
+  row: number;
+  message: string;
+}
+
+export interface ProductImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: ProductImportError[];
+}
+
+export function useImportProducts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ storeId, file }: { storeId: number; file: File }) => {
+      const formData = new FormData();
+      formData.append("store_id", String(storeId));
+      formData.append("file", file);
+      return api.post<ProductImportResult>("/products/import", formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not import the file.");
     },
   });
 }

@@ -61,6 +61,42 @@ async function requestWithMeta<T>(
   return { data: json.data, meta: json.meta };
 }
 
+/**
+ * Downloads an authenticated file endpoint (e.g. a CSV export) that returns
+ * a raw file body rather than the usual JSON envelope — fetched directly
+ * (with the Bearer token) as a Blob, then saved via a throwaway object URL,
+ * since a plain <a href> can't carry an Authorization header.
+ */
+async function download(path: string, filenameFallback: string): Promise<void> {
+  const token = getAuthToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers });
+
+  if (!response.ok) {
+    const json = (await response.json().catch(() => null)) as ApiResponse<unknown> | null;
+    if (response.status === 401) clearAuthToken();
+    throw new ApiError(
+      json && json.success === false ? json.message : "Could not download the file.",
+      response.status,
+    );
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = /filename="?([^"]+)"?/.exec(disposition)?.[1] ?? filenameFallback;
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   get: <T>(path: string, options?: RequestOptions) => request<T>(path, { ...options, method: "GET" }),
   getWithMeta: <T>(path: string, options?: RequestOptions) =>
@@ -70,4 +106,5 @@ export const api = {
   put: <T>(path: string, body?: object | FormData, options?: RequestOptions) =>
     request<T>(path, { ...options, method: "PUT", body }),
   delete: <T>(path: string, options?: RequestOptions) => request<T>(path, { ...options, method: "DELETE" }),
+  download,
 };

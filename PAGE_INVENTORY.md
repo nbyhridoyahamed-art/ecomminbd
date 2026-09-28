@@ -10,7 +10,7 @@ their backing functionality — no dead pages).
 |---|---|---|
 | `/login` | ✅ | 3 (Auth) |
 | `/dashboard` | ✅ | 3/11 (real KPI stat cards, each permission-gated so a card never shows a misleading 0; sales-trend + order-status-breakdown Recharts visuals; recent-orders widget) |
-| `/catalog/products` | ✅ | 5 (search, filter by category/brand/status, pagination) |
+| `/catalog/products` | ✅ | 5 (search, filter by category/brand/status, pagination); 5 Wave 2b added Export (respects the current filters) and Import (CSV upload dialog with a per-row results summary) |
 | `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5/5-Wave2a (tabbed form: General/Pricing/Variants*/Media/SEO — *Variants tab only shown once type is set to Variable; multi-image upload with primary selection) |
 | `/catalog/categories` | ✅ | 5 (hierarchical list, unlimited nesting, cycle-safe) |
 | `/catalog/categories/new`, `/catalog/categories/[id]` | ✅ | 5 |
@@ -120,6 +120,7 @@ their backing functionality — no dead pages).
 | `GET/POST/PUT/DELETE /api/v1/product-attributes` | ✅ |
 | `POST/PUT/DELETE /api/v1/product-attributes/{id}/values(/{value})` | ✅ |
 | `POST /api/v1/products/{id}/variants/generate`, `PUT/DELETE .../variants/{variantId}` | ✅ |
+| `GET /api/v1/products/export`, `POST /api/v1/products/import` | ✅ |
 | `GET /api/v1/stock-levels`, `GET .../low-stock-count` | ✅ |
 | `GET /api/v1/stock-movements` | ✅ |
 | `POST /api/v1/stock-adjustments` | ✅ |

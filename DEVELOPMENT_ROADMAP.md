@@ -11,7 +11,7 @@ in place and the app still builds/runs.
 | 2 | Design System | ✅ Done | Yes — tokens, theme, first primitives |
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
-| 5 | Catalog | ✅ Wave 1 + Wave 2a done (bundles/reviews/bulk import-export/media library still deferred — see note) | Yes — categories (hierarchy), brands, simple + variable products w/ pricing/SEO/images, attributes + a variant generator, full admin UI |
+| 5 | Catalog | ✅ Wave 1 + Wave 2a + Wave 2b (CSV import/export) done (bundles/reviews/media library still deferred — see note) | Yes — categories (hierarchy), brands, simple + variable products w/ pricing/SEO/images, attributes + a variant generator, CSV bulk import/export, full admin UI |
 | 6 | Inventory | ✅ Wave 1 done, now variant-aware (transfer approval workflow deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Wave 1 done, now variant-aware (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
 | 8 | Orders | ✅ Wave 1 done, now variant-aware (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
@@ -109,9 +109,41 @@ change rule 176 warns against. That pass has since been done — see the
 **variant-aware Orders/Inventory/Purchasing retrofit** scope note below.
 Bundles/combos (needs
 Orders-integrated component stock decrement, not just a new `type`
-value), customer reviews, CSV bulk import/export, and a reusable media
-library remain deferred for the reasons Wave 1's note above already
-gives — none has a real consumer yet.
+value), customer reviews, and a reusable media library remain deferred
+for the reasons Wave 1's note above already gives — none has a real
+consumer yet. CSV bulk import/export is no longer deferred — see the
+**Phase 5 Wave 2b** scope note directly below.
+
+**Phase 5 Wave 2b scope note:** picked CSV bulk import/export as the one
+piece of the remaining Wave 2 list with a real, immediate, self-contained
+consumer (a store operator bulk-loading or editing a catalog from a
+spreadsheet) and no dependency on anything else — unlike the other three:
+bundles need Orders-integrated stock decrement (substantial, cross-
+cutting work similar in shape to the variant-aware retrofit), and
+customer reviews specifically can't be *real* yet regardless of how much
+backend work goes into them — nothing lets a customer actually write one
+before a storefront or account portal exists (Phase 16/17), so building
+the table now would be exactly the "fake functionality ahead of its
+consumer" spec rule 178 forbids. `GET /products/export` streams every
+product matching the same filters as the list (not just the current
+page) as a CSV; `POST /products/import` reads one back, upserting by
+`(store_id, sku)` — a new SKU creates a simple product (mirroring
+`ProductController::store()`'s own defaults), an existing one updates
+only its own base fields, never its `type` or variants, so importing a
+tweaked export of a variable product can't silently flatten it. A shared
+`App\Support\ProductCsv` column list keeps both directions honest, so a
+straight export → edit → re-import round-trips. Missing Category/Brand
+names are auto-created (matched case-insensitively first, to avoid
+duplicates from casing alone) — a deliberate choice, since naming a
+category to import against is real intent, not a typo to silently drop.
+A row that fails validation (e.g. a blank Name) is skipped and reported
+by row number rather than aborting the whole file, so one bad row in a
+large catalog file doesn't cost every good one. Deliberately scoped down
+to *simple* products only: a flat CSV row has nowhere to represent a
+variant's own SKU/price/attribute-values without a lot more complexity
+than a first pass warrants, so import never creates a variable product —
+variants stay managed from the product's own Variants tab, matching how
+this project has consistently drawn that line all session.
 
 **Phase 6 scope note:** Wave 1 ships on-hand stock tracking per
 warehouse (`stock_levels`), a full audit ledger of every change
@@ -303,15 +335,18 @@ build/lint/typecheck.
 
 ## Next Session Should Start With
 
-Phase 5 Wave 2b (bundles/combos, customer reviews, CSV bulk
-import/export, a reusable media library) or Phase 18 Reporting are the
-two reasonable pickups now that catalog variants are fully sellable,
-stockable, and purchasable — neither blocks the other, pick whichever
-the user prioritizes. Follow the phase order above; do not skip ahead to
-CMS/SEO/Storefront (Phases 12–17) — nothing currently blocks them
-specifically, but the master spec's own incremental-phases rule (176)
-means they still wait their turn behind Phase 18 Reporting and any
-remaining Wave 2 items on already-started phases.
+CSV bulk import/export (Phase 5 Wave 2b) is done. Bundles/combos (needs
+Orders-integrated component stock decrement) or Phase 18 Reporting are
+the two reasonable pickups next — neither blocks the other, pick
+whichever the user prioritizes. Customer reviews stays off the table
+until Phase 16/17 gives a customer somewhere to actually write one; a
+reusable media library still has no real consumer either (today's
+direct-upload-per-record images work fine). Follow the phase order
+above; do not skip ahead to CMS/SEO/Storefront (Phases 12–17) — nothing
+currently blocks them specifically, but the master spec's own
+incremental-phases rule (176) means they still wait their turn behind
+Phase 18 Reporting and any remaining Wave 2 items on already-started
+phases.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

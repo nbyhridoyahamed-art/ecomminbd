@@ -8,8 +8,11 @@ use App\Http\Resources\ProductResource;
 use App\Models\Product;
 use App\Support\ApiResponse;
 use App\Support\Money;
+use App\Support\ProductCsv;
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductController extends Controller
 {
@@ -21,16 +24,7 @@ class ProductController extends Controller
 
         $perPage = min((int) $request->integer('per_page', 20), 100);
 
-        $products = Product::query()
-            ->with(self::RELATIONS)
-            ->when($request->filled('store_id'), fn ($query) => $query->where('store_id', $request->integer('store_id')))
-            ->when($request->filled('search'), fn ($query) => $query->where(function ($q) use ($request) {
-                $term = '%'.$request->string('search').'%';
-                $q->where('name', 'like', $term)->orWhere('sku', 'like', $term);
-            }))
-            ->when($request->filled('category_id'), fn ($query) => $query->where('category_id', $request->integer('category_id')))
-            ->when($request->filled('brand_id'), fn ($query) => $query->where('brand_id', $request->integer('brand_id')))
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+        $products = $this->applyFilters(Product::query()->with(self::RELATIONS), $request)
             ->latest()
             ->paginate($perPage);
 
@@ -44,6 +38,69 @@ class ProductController extends Controller
                 'last_page' => $products->lastPage(),
             ],
         );
+    }
+
+    /**
+     * Exports every product matching the same filters as index() — not just
+     * the current page — as a CSV a store operator can edit and re-import
+     * (see ProductImportController). Simple and variable products both
+     * export; the Type column is informational only, since import never
+     * creates or edits variants.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $this->authorize('viewAny', Product::class);
+
+        $products = $this->applyFilters(Product::query()->with(['category', 'brand']), $request)
+            ->orderBy('name')
+            ->get();
+
+        return response()->streamDownload(function () use ($products) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, array_keys(ProductCsv::HEADERS));
+
+            foreach ($products as $product) {
+                fputcsv($handle, [
+                    $product->type,
+                    $product->sku,
+                    $product->name,
+                    $product->slug,
+                    $product->category?->name,
+                    $product->brand?->name,
+                    $product->status,
+                    $product->featured ? '1' : '0',
+                    (new Money($product->price_amount, $product->currency_code))->toDecimal(),
+                    $product->sale_price_amount !== null ? (new Money($product->sale_price_amount, $product->currency_code))->toDecimal() : null,
+                    $product->cost_price_amount !== null ? (new Money($product->cost_price_amount, $product->currency_code))->toDecimal() : null,
+                    $product->compare_at_price_amount !== null ? (new Money($product->compare_at_price_amount, $product->currency_code))->toDecimal() : null,
+                    $product->description,
+                    $product->short_description,
+                    $product->barcode,
+                    $product->weight,
+                    $product->weight_unit,
+                    $product->track_stock ? '1' : '0',
+                    $product->low_stock_threshold,
+                    $product->seo_title,
+                    $product->seo_description,
+                    $product->focus_keyword,
+                ]);
+            }
+
+            fclose($handle);
+        }, 'products-'.now()->format('Ymd-His').'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    private function applyFilters(Builder $query, Request $request): Builder
+    {
+        return $query
+            ->when($request->filled('store_id'), fn ($q) => $q->where('store_id', $request->integer('store_id')))
+            ->when($request->filled('search'), fn ($q) => $q->where(function ($q2) use ($request) {
+                $term = '%'.$request->string('search').'%';
+                $q2->where('name', 'like', $term)->orWhere('sku', 'like', $term);
+            }))
+            ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', $request->integer('category_id')))
+            ->when($request->filled('brand_id'), fn ($q) => $q->where('brand_id', $request->integer('brand_id')))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')));
     }
 
     public function store(ProductRequest $request): JsonResponse

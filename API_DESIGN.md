@@ -133,6 +133,25 @@ different store, returns a 422. `DELETE /products/{id}/variants/{variantId}`
 now also returns a 422 if the variant has any `stock_levels` row at all
 (even a zeroed-out one) — see the variant-aware retrofit note below.
 
+Catalog CSV import/export (Phase 5 Wave 2b): `GET /products/export`
+takes the same filters as `GET /products` (`store_id`, `search`,
+`category_id`, `brand_id`, `status`) but streams every matching row —
+not just the current page — as a `text/csv` download (`Content-
+Disposition: attachment`), gated by `viewAny` on `Product` like the list
+itself. `POST /products/import` is a `multipart/form-data` upload
+(`store_id`, `file`; `mimes:csv,txt`, 5 MB max) gated by a direct
+`products.create` check; it upserts by `(store_id, sku)` and always
+returns `200` with a summary — `{created, updated, skipped, errors:
+[{row, message}]}` — rather than a single failing status, since a big
+file is expected to partially succeed (a `422` is reserved for the file
+itself being unreadable or missing its required SKU/Name/Price columns
+entirely). `App\Support\ProductCsv::HEADERS` is the shared column list
+both endpoints read — see `DATABASE_DESIGN.md` section 1j for the exact
+semantics (case-insensitive Category/Brand auto-create, `type`/variants
+never touched by an update, and why `status`/`track_stock`/`featured`
+are the one set of columns where a blank cell means "leave unchanged"
+rather than "clear it").
+
 Variant-aware Orders/Inventory/Purchasing retrofit: every endpoint below
 that accepts a line item (`items[].product_id`) now also accepts an
 optional sibling `items[].product_variant_id` (a flat

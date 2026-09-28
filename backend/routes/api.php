@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\ProductAttributeController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
+use App\Http\Controllers\Api\V1\ProductImportController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReceiptController;
@@ -67,6 +68,12 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('categories', CategoryController::class);
         Route::apiResource('brands', BrandController::class);
+
+        // Registered before the products apiResource — otherwise its
+        // GET products/{product} route would swallow "export" as a
+        // product route-key first.
+        Route::get('products/export', [ProductController::class, 'export']);
+        Route::post('products/import', [ProductImportController::class, 'store']);
         Route::apiResource('products', ProductController::class);
 
         Route::post('products/{product}/images', [ProductImageController::class, 'store']);
