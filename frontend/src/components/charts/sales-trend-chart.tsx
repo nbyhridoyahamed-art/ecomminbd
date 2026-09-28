@@ -20,18 +20,18 @@ interface SalesTrendChartProps {
   data: SalesTrendPoint[] | undefined;
   isLoading: boolean;
   currencyCode: string;
-  days: number;
+  title: string;
 }
 
 function formatShortDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function SalesTrendChart({ data, isLoading, currencyCode, days }: SalesTrendChartProps) {
+export function SalesTrendChart({ data, isLoading, currencyCode, title }: SalesTrendChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sales trend (last {days} days)</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (

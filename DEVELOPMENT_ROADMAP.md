@@ -24,7 +24,7 @@ in place and the app still builds/runs.
 | 15 | SEO | ⏳ Not started | No |
 | 16 | Storefront | ⏳ Not started | No |
 | 17 | Customer Dashboard | ⏳ Not started | No |
-| 18 | Reporting | ⏳ Not started | No |
+| 18 | Reporting | ✅ Wave 1 done (per-courier breakdowns, PDF export, period-over-period comparisons, materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method, day/week/month granularity, date-range + warehouse filters), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
 | 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ⏳ Not started | No |
 | 20 | Analytics | ⏳ Not started | No |
 | 21 | Security Hardening | ⏳ Ongoing baseline only | Partial — Sanctum, policies, rate limiting, validation from day one |
@@ -290,7 +290,10 @@ endpoint is single-warehouse only — a cross-warehouse product list
 needs a new endpoint, and the existing store-wide `low-stock-count`
 scalar already backs the "Low stock alerts" card honestly), CSV/PDF
 export, period-over-period comparisons, and the full reporting suite —
-all of that is Phase 18 Reporting's job, not a dashboard widget's.
+all of that was Phase 18 Reporting's job, not a dashboard widget's. Phase 18
+Wave 1 (see note below) has since shipped the date-range/per-warehouse/
+payment-method/CSV pieces on dedicated Reports pages, leaving per-courier
+breakdowns, PDF export, and period-over-period comparisons still open.
 
 **Variant-aware Orders/Inventory/Purchasing retrofit scope note:** closes
 the gap Phase 5 Wave 2a's own scope note (above) flagged and this doc
@@ -333,20 +336,45 @@ duplicate rows per product; it now sums with `GROUP BY`/`SUM()` instead.
 14 new backend tests (141 → 155), all green, plus the existing frontend
 build/lint/typecheck.
 
+**Phase 18 Wave 1 scope note:** ships three read-only, permission-gated
+report endpoints on `ReportController`, activating the `reports.view`
+permission the RBAC seeder has carried since Phase 3 but no controller
+had checked until now. Sales report: totals (revenue/orders/average
+order value) plus a by-period breakdown — day/week/month granularity,
+where week/month buckets are folded in PHP over already-fetched
+day-level `DATE()` rows rather than in SQL, since MySQL and SQLite (used
+by the test suite) don't share a portable week/month truncation function
+— and a by-payment-method breakdown, filterable by date range (capped at
+366 days) and warehouse. Product performance: units sold + revenue per
+product, ranked by revenue, rolling a variable product's variant sales up
+to its parent product (same convention as the Stock Levels list and the
+Low Stock report below, for one consistent merchandising view across all
+three). Low stock report: cross-warehouse quantity/reserved/available
+summed per product against its threshold (mirrors the earlier
+variant-retrofit fix to `StockLevelController`'s own cross-warehouse
+`GROUP BY`/`HAVING`). All three ship a CSV export via
+`streamDownload()`, and a new "Reports" nav section (Sales/Product
+Performance/Low Stock tabs) fronts them. Deliberately deferred to a
+Wave 2 (see `DATABASE_DESIGN.md` section 2): per-courier breakdowns, PDF
+export, period-over-period comparisons, and any materialized/scheduled
+aggregate table — like `DashboardController`, every report here computes
+fresh on each request, fine at current data volume. 10 new backend tests
+(164 → 174), all green, plus the existing frontend build/lint/typecheck.
+
 ## Next Session Should Start With
 
-CSV bulk import/export (Phase 5 Wave 2b) is done. Bundles/combos (needs
-Orders-integrated component stock decrement) or Phase 18 Reporting are
-the two reasonable pickups next — neither blocks the other, pick
-whichever the user prioritizes. Customer reviews stays off the table
-until Phase 16/17 gives a customer somewhere to actually write one; a
-reusable media library still has no real consumer either (today's
+Phase 18 Reporting Wave 1 is done. Bundles/combos (needs
+Orders-integrated component stock decrement) or a Reporting Wave 2 item
+(per-courier breakdowns, PDF export, period-over-period comparisons) are
+the reasonable pickups next — neither blocks the other, pick whichever
+the user prioritizes. Customer reviews stays off the table until
+Phase 16/17 gives a customer somewhere to actually write one; a reusable
+media library still has no real consumer either (today's
 direct-upload-per-record images work fine). Follow the phase order
 above; do not skip ahead to CMS/SEO/Storefront (Phases 12–17) — nothing
 currently blocks them specifically, but the master spec's own
-incremental-phases rule (176) means they still wait their turn behind
-Phase 18 Reporting and any remaining Wave 2 items on already-started
-phases.
+incremental-phases rule (176) means they still wait their turn behind any
+remaining Wave 2 items on already-started phases.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

@@ -58,6 +58,11 @@ their backing functionality — no dead pages).
 | `/orders/returns/[id]` | ✅ | 10 (status card w/ Approve/Reject/Receive/Refund actions — receive has a per-item restock checklist, refund has a suggested-amount-prefilled input — items table, order summary, status history timeline) |
 | `/orders` (exchanges, store credit, cross-return partial-refund reconciliation) | ⏳ | 10 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/dashboard` (custom date-range picker, per-warehouse/per-courier breakdowns, low-stock-products widget w/ names, export) | ⏳ | 11 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md`; full reporting suite is Phase 18 |
+| `/reports` | ✅ | 18 (redirects to Sales) |
+| `/reports/sales` | ✅ | 18 (date range + warehouse + granularity filters, revenue/orders/AOV stat cards, reused `SalesTrendChart`, by-payment-method table, CSV export) |
+| `/reports/products` | ✅ | 18 (date range + warehouse filters, units-sold/revenue table ranked by revenue, variant sales rolled up to the parent product, CSV export) |
+| `/reports/low-stock` | ✅ | 18 (cross-warehouse on-hand/reserved/available vs. threshold, CSV export) |
+| `/reports` (per-courier breakdowns, PDF export, period-over-period comparisons) | ⏳ | 18 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/website/homepage` | ⏳ | 13 |
 | `/website/pages` | ⏳ | 12 |
 | `/website/navigation` | ⏳ | 12 |
@@ -65,7 +70,6 @@ their backing functionality — no dead pages).
 | `/website/theme` | ⏳ | 12 |
 | `/blog` | ⏳ | 14 |
 | `/seo` | ⏳ | 15 |
-| `/reports` | ⏳ | 18 |
 | `/settings/general` | ✅ | 4 (store name/domain/currency/timezone/locale/status) |
 | `/settings/users` | ✅ | 4 (list, search, create, edit, role assignment, delete w/ confirmation) |
 | `/settings/users/new`, `/settings/users/[id]` | ✅ | 4 |

@@ -270,16 +270,33 @@ Wave 2b) — no new tables, `GET /products/export`/`POST /products/import`
 read and write the existing `products` columns directly through a shared
 `App\Support\ProductCsv` header list (see `DATABASE_DESIGN.md` section
 1j), scoped to simple products only (an update never touches an existing
-product's `type` or variants).
-CMS/builder, blog, SEO, storefront, customer account, the full reporting
-suite (Phase 18), the adapter implementations described in section 6,
-the rest of Catalog Wave 2b (bundles, reviews, a reusable media
-library), Purchasing Wave 2 (purchase returns, supplier
-ledger, PO approval workflow), Orders Wave 2 (a non-COD gateway-payments
-ledger, coupons), Delivery Wave 2 (delivery zones/rates, multi-shipment
-orders — the return-driven stock reversal gap this used to list is
-closed, see above), Returns Wave 2 (exchanges, store credit, cross-return
-partial-refund reconciliation), and Dashboard Wave 2 (a custom
-date-range picker, per-warehouse/per-courier breakdowns, a low-stock-
-products widget with names, export — see `DATABASE_DESIGN.md` section 2)
-are designed here but built in later phases per `DEVELOPMENT_ROADMAP.md`.
+product's `type` or variants). Also built since: **Phase 18 Wave 1
+Reporting** — three read-only, permission-gated (`reports.view`)
+endpoints on `ReportController`, no new tables, pure aggregation over
+`orders`/`order_items`/`products`/`stock_levels` exactly like the
+Phase 11 dashboard endpoints (see `DATABASE_DESIGN.md` section 1k): a
+sales report (totals, day/week/month-folded by-period breakdown, and a
+by-payment-method breakdown, filterable by date range and warehouse), a
+product performance report (units sold + revenue ranked by revenue,
+variant sales rolled up to the parent product), and a low-stock report
+(cross-warehouse quantity/reserved/available vs. threshold, with product
+names — the low-stock gap the Phase 11 note below used to list). All
+three ship a CSV export and a new admin "Reports" section
+(Sales/Product Performance/Low Stock tabs).
+CMS/builder, blog, SEO, storefront, customer account, the adapter
+implementations described in section 6, the rest of Catalog Wave 2b
+(bundles, reviews, a reusable media library), Purchasing Wave 2 (purchase
+returns, supplier ledger, PO approval workflow), Orders Wave 2 (a
+non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery
+zones/rates, multi-shipment orders — the return-driven stock reversal gap
+this used to list is closed, see above), Returns Wave 2 (exchanges, store
+credit, cross-return partial-refund reconciliation), Dashboard Wave 2 (a
+custom date-range picker and per-warehouse/per-courier breakdowns *on the
+dashboard widget itself* — Reports above now covers date-range/
+per-warehouse/payment-method/CSV/low-stock-with-names as its own admin
+section, so only per-courier breakdowns and folding any of that back into
+the dashboard remain open there), and Reporting Wave 2 (per-courier
+breakdowns, PDF export, period-over-period comparisons, and any
+materialized/scheduled aggregate table — see `DATABASE_DESIGN.md`
+section 2) are designed here but built in later phases per
+`DEVELOPMENT_ROADMAP.md`.

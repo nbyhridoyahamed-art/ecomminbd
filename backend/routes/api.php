@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\ProductImportController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReceiptController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReturnController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\ShipmentController;
@@ -140,5 +141,12 @@ Route::prefix('v1')->group(function () {
 
         Route::get('dashboard/sales-trend', [DashboardController::class, 'salesTrend']);
         Route::get('dashboard/order-status-breakdown', [DashboardController::class, 'orderStatusBreakdown']);
+
+        Route::get('reports/sales', [ReportController::class, 'salesReport']);
+        Route::get('reports/sales/export', [ReportController::class, 'salesReportExport']);
+        Route::get('reports/products-performance', [ReportController::class, 'productPerformance']);
+        Route::get('reports/products-performance/export', [ReportController::class, 'productPerformanceExport']);
+        Route::get('reports/low-stock', [ReportController::class, 'lowStock']);
+        Route::get('reports/low-stock/export', [ReportController::class, 'lowStockExport']);
     });
 });

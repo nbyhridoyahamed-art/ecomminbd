@@ -87,7 +87,7 @@ List endpoints accept:
 
 ## 6. Resources Planned for Later Phases
 
-`payments`, `pages`, `blog`, `media`, `seo`, `reports`, `settings` —
+`payments`, `pages`, `blog`, `media`, `seo`, `settings` —
 each gets its own controller/request/resource set when its phase lands;
 none are stubbed early to avoid dead routes (spec rule 178: no fake
 functionality). `orders`, `customers`, `couriers`, `shipments`,
@@ -292,5 +292,22 @@ orders, cancelled orders excluded, `revenue_amount` summed from
 direct-permission pattern as `StockLevelController::lowStockCount()`,
 since a dashboard aggregate spans multiple models rather than one
 Eloquent policy. No new resource — see `DATABASE_DESIGN.md` section 2.
+
+Reporting (Phase 18 Wave 1): `GET /reports/sales` (`store_id`,
+`date_from`, `date_to` — capped at a 366-day span, optional
+`warehouse_id`, optional `granularity` of `day`/`week`/`month`, default
+`day`) returns `{totals: {revenue_amount, orders_count,
+average_order_value}, by_period: [...], by_payment_method: [...]}`, plus
+a `GET /reports/sales/export` CSV twin. `GET /reports/products-performance`
+(same date/warehouse filters, paginated) ranks products by revenue,
+rolling a variable product's variant sales up to the parent product —
+plus a `GET /reports/products-performance/export` CSV twin (unpaginated,
+every matching row). `GET /reports/low-stock` (`store_id` only,
+paginated) sums quantity/reserved across every warehouse per product and
+returns only rows at or below their `low_stock_threshold` — plus a
+`GET /reports/low-stock/export` CSV twin. All six actions check
+`reports.view` directly (same direct-permission pattern as the Dashboard
+endpoints above), activating a permission the RBAC seeder has carried
+since Phase 3. No new resource — see `DATABASE_DESIGN.md` section 1k.
 
 Section 7 (webhooks) remains documented intent for future phases.

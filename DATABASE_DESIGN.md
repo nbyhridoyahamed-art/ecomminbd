@@ -505,8 +505,9 @@ fresh on every request (`GROUP BY DATE(orders.created_at)` / `GROUP BY
 orders.status`), same "never store a derivable total" reasoning as an
 order's own `total_amount`, just applied across rows instead of within
 one. A materialized/scheduled aggregate table only becomes worth it once
-Phase 18 Reporting needs heavier queries than a dashboard's trailing-14-
-days window — see the Reporting/Analytics bullet in section 2.
+report queries get heavier than today's runtime aggregation (both here
+and in section 1k below) can comfortably serve — see the
+Reporting/Analytics bullet in section 2.
 
 ## 1i. Product Variants Schema (Phase 5 Wave 2a)
 
@@ -601,6 +602,29 @@ the create-time default — every other nullable column is written
 literally, including to `null` on blank, since the file is meant to be
 the source of truth for whatever column it contains.
 
+## 1k. Reporting (Phase 18 Wave 1)
+
+No new tables — `ReportController`'s three endpoints (sales, product
+performance, low stock) are pure read-side aggregation over the same
+`orders`/`order_items` (section 1e), `products` (section 1b), and
+`stock_levels` (section 1c) rows every other phase already writes,
+same "compute it fresh" reasoning as the Admin Dashboard's own
+aggregates in section 1h. The sales report's day-level bucketing uses
+`GROUP BY DATE(orders.created_at)` — the one date-truncation expression
+MySQL and SQLite (the test suite's driver) both support — and folds that
+into week/month buckets in PHP (`Carbon::startOfWeek()`/`startOfMonth()`)
+rather than asking SQL to do dialect-specific truncation. Product
+performance rolls a variable product's variant-level `order_items` rows
+up to their shared `product_id` (`GROUP BY products.id`), and low stock
+sums `stock_levels.quantity`/`quantity_reserved` across every warehouse
+per product (`GROUP BY products.id` with a `HAVING` on the computed
+available quantity vs. `products.low_stock_threshold`) — the same
+cross-warehouse summing fix the variant-aware retrofit already applied to
+the Stock Levels list (section 1i), reused here rather than re-derived.
+All three gate on the `reports.view` permission the RBAC seeder has
+seeded since Phase 3 (see `API_DESIGN.md`) but which sat unused until
+this phase checked it for the first time.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -681,8 +705,11 @@ compatible with them.
 - **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,
   description, focus_keyword, og_*, twitter_*, schema_json, canonical,
   robots), `redirects`, `seo_templates`.
-- **Reporting/Analytics:** materialized/aggregated tables populated by
-  scheduled jobs rather than heavy runtime aggregation on raw tables.
+- **Reporting/Analytics:** Phase 18 Wave 1 (section 1k) shipped
+  sales/product-performance/low-stock reports as runtime aggregation —
+  still open for a Wave 2: materialized/aggregated tables populated by
+  scheduled jobs once runtime aggregation gets too slow, plus
+  per-courier breakdowns, PDF export, and period-over-period comparisons.
 
 All money columns in future phases use integer minor-unit columns
 (`*_amount` in paisa) — never `float`/`double` — per spec rule 27.

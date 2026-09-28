@@ -184,7 +184,12 @@ export default function DashboardPage() {
       {canViewOrders ? (
         <>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <SalesTrendChart data={salesTrend.data} isLoading={salesTrend.isLoading} currencyCode="BDT" days={14} />
+            <SalesTrendChart
+              data={salesTrend.data}
+              isLoading={salesTrend.isLoading}
+              currencyCode="BDT"
+              title="Sales trend (last 14 days)"
+            />
             <OrderStatusChart data={orderStatusBreakdown.data} isLoading={orderStatusBreakdown.isLoading} />
           </div>
 
