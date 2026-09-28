@@ -4,6 +4,14 @@ export interface StorefrontStore {
   currency_code: string;
 }
 
+export interface StorefrontPage {
+  title: string;
+  slug: string;
+  content: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+}
+
 export interface StorefrontProduct {
   id: number;
   name: string;

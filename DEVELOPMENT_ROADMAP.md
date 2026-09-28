@@ -18,7 +18,7 @@ in place and the app still builds/runs.
 | 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
 | 10 | Returns | ✅ Wave 1 done (exchanges/store-credit, cross-return refund reconciliation deferred — see note) | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
 | 11 | Admin Dashboard (full KPIs/charts) | ✅ Wave 1 done (custom date ranges, per-warehouse/per-courier breakdowns, full reporting suite deferred — see note) | Yes — sales trend (orders + revenue, last 14 days) and order-status-breakdown charts backed by real aggregate endpoints, a recent-orders widget, and every stat card now permission-gated |
-| 12 | CMS | ⏳ Not started | No |
+| 12 | CMS | ✅ Wave 1 done (page versions/history, navigation menus, hierarchical pages, scheduled publishing deferred — see note) | Yes — simple content pages (About/Terms/Privacy-style) with plain-text content, admin CRUD under a new "Content" nav section, and public storefront rendering at `/pages/[slug]` plus a footer links column |
 | 13 | Homepage Builder | ⏳ Not started | No |
 | 14 | Blog | ⏳ Not started | No |
 | 15 | SEO | ⏳ Not started | No |
@@ -759,45 +759,80 @@ worker actually runs. 15 new backend tests (264 → 279), all green,
 Pint-clean, plus the existing frontend build/lint/typecheck and a real
 Playwright walkthrough against a production build.
 
+**Phase 12 Wave 1 scope note:** ships simple CMS content pages — the
+About Us/Terms & Conditions/Privacy Policy style of static page, not a
+page builder (Phase 13) or blog (Phase 14). A new `pages` table
+(`store_id`, `title`, `slug`, `content` text-nullable, `meta_title`,
+`meta_description`, `status` default `draft`, `created_by`, soft deletes,
+`unique(store_id, slug)`) backs it, mirroring `Category`'s per-store-slug
+convention exactly (`Rule::unique(...)->where('store_id', $storeId)`).
+`PagePolicy` maps all five ability methods to one `pages.manage`
+permission rather than Category's 4-way split — not a new convention
+invented for this phase, but discovery of one already committed: the RBAC
+seeder had `pages.manage` pre-wired to the SEO Manager and Content
+Manager roles since Phase 3, dormant until now. Content is deliberately
+plain text (a `Textarea`), not rich text or Markdown — `COMPONENT_INVENTORY.md`
+already reserved TipTap for Phase 14's blog post editor, and introducing a
+second editor dependency ahead of that phase would be scope creep; the
+storefront renders it with `whitespace-pre-line`, the same convention
+`Product.description` already uses. Admin UI lives under a new "Content"
+nav section (`/content/pages`, gated on `pages.manage`) — deliberately
+without the shared tab-nav layout Purchasing/Reports use, since Blog
+(Phase 14) hasn't shipped yet to be a second tab; that infrastructure gets
+added the moment its phase does, same principle as every other
+single-resource nav section so far. Public side: `GET /storefront/pages`
+(published-only, backs a new "Information" footer column) and
+`GET /storefront/pages/{slug}` (published-only, 404s on draft or
+wrong-store) back a new `/pages/[slug]` storefront route, styled like the
+product detail page's description block. Deliberately cut to Wave 2: page
+versioning/history, navigation menus (`navigation_menus`/`navigation_items`
+tables spec section 12 describes), hierarchical/nested pages, and
+scheduled publish/unpublish dates — none of which a first "About Us" page
+needs. 11 new backend tests (279 → 290), all green, Pint-clean, plus the
+existing frontend build/lint/typecheck and a real Playwright walkthrough
+against a production build.
+
 ## Next Session Should Start With
 
-Phase 17 (Customer Dashboard) Wave 1 and Phase 19 (Integrations) Wave 1
-are both done — real customer accounts with guest orders auto-claimed by
-phone, an `/account/*` shell, and now real order/return lifecycle
-notifications (mail/SMS to the customer, a database notification driving
-the admin topbar bell); see each phase's own Wave 1 scope note for what
-they deliberately still cut. Phase 17 finally unblocks the one item
-Catalog Wave 2 was left waiting on: customer reviews. The reason it was
-deferred no longer holds — a review needs a real customer identity plus a
-verified order to attach to, and Phase 17 gives both (`/account/orders`
-already shows a signed-in customer their own delivered orders). That
-makes reviews the clearest next pickup: it closes out Phase 5, whose Wave
-2 has been waiting on exactly this since the CSV import/export pass, and
-finishing an earlier phase is the correct incremental order (rule 176)
-rather than jumping ahead to Phases 12–15 just because Phase 16 gave them
-somewhere to eventually render. Reasonable alternatives, whichever the
-user prefers: Phase 19 Wave 2 itself (a real BD SMS provider, the
-courier/payment gateway adapters section 6 of `ARCHITECTURE.md` documents
-as target-only, a WhatsApp channel, queued delivery — each still blocked
-on real provider credentials or a running queue worker, neither of which
-exist in this environment); Phase 17 Wave 2 (wishlist, customer-initiated
-returns, checkout saved-address integration — see that scope note);
-Storefront Wave 2 (multi-store domain routing, non-COD payment, real
-per-page SEO metadata — each still blocked on a second store to route
-between, Phase 19 Wave 2's payment adapters, or its own deliberate
-server-fetch design pass, per the Phase 16 Wave 1 scope note); or any
-already-started phase's own remaining Wave 2 (Orders, Delivery, Returns,
-Dashboard, or Purchasing's supplier ledger/PO approval workflow/reorder
-suggestions). Phase 18 Reporting stays fully shipped through Wave 2; only
-materialized/scheduled aggregate tables remain there, still infra to
-build once real data volume demands it, not a pick-able feature today. A
-reusable media library still has no real consumer (today's
-direct-upload-per-record images work fine). Do not skip ahead to
-CMS/Homepage Builder/Blog/SEO (Phases 12–15) on the theory that a real
-storefront and account portal now exist to feed them — that's true, and
-unlike before this makes them legitimately reachable rather than pure
-speculation, but rule 176 still means they wait behind the earlier phases
-that have a more direct, already-flagged dependency waiting on them.
+Phase 17 (Customer Dashboard) Wave 1, Phase 19 (Integrations) Wave 1, and
+Phase 12 (CMS) Wave 1 are all done — real customer accounts with guest
+orders auto-claimed by phone, an `/account/*` shell, real order/return
+lifecycle notifications (mail/SMS to the customer, a database notification
+driving the admin topbar bell), and now simple content pages manageable in
+the admin and rendered on the storefront; see each phase's own Wave 1
+scope note for what they deliberately still cut. Phase 17 finally unblocks
+the one item Catalog Wave 2 was left waiting on: customer reviews. The
+reason it was deferred no longer holds — a review needs a real customer
+identity plus a verified order to attach to, and Phase 17 gives both
+(`/account/orders` already shows a signed-in customer their own delivered
+orders). That makes reviews the clearest next pickup: it closes out Phase
+5, whose Wave 2 has been waiting on exactly this since the CSV
+import/export pass, and finishing an earlier phase is the correct
+incremental order (rule 176) rather than jumping further ahead into
+Phases 13–15 just because Phase 16 gave them somewhere to eventually
+render. Reasonable alternatives, whichever the user prefers: Phase 19
+Wave 2 itself (a real BD SMS provider, the courier/payment gateway
+adapters section 6 of `ARCHITECTURE.md` documents as target-only, a
+WhatsApp channel, queued delivery — each still blocked on real provider
+credentials or a running queue worker, neither of which exist in this
+environment); Phase 17 Wave 2 (wishlist, customer-initiated returns,
+checkout saved-address integration — see that scope note); Phase 12 Wave 2
+(page versioning, navigation menus, hierarchical pages, scheduled
+publishing — see that scope note); Storefront Wave 2 (multi-store domain
+routing, non-COD payment, real per-page SEO metadata — each still blocked
+on a second store to route between, Phase 19 Wave 2's payment adapters, or
+its own deliberate server-fetch design pass, per the Phase 16 Wave 1 scope
+note); or any already-started phase's own remaining Wave 2 (Orders,
+Delivery, Returns, Dashboard, or Purchasing's supplier ledger/PO approval
+workflow/reorder suggestions). Phase 18 Reporting stays fully shipped
+through Wave 2; only materialized/scheduled aggregate tables remain there,
+still infra to build once real data volume demands it, not a pick-able
+feature today. A reusable media library still has no real consumer
+(today's direct-upload-per-record images work fine). Homepage Builder
+(Phase 13) is now the natural next of the remaining content phases — CMS
+pages exist for it to link to and a real storefront exists to render it on
+— but rule 176 still means it and Blog/SEO (Phases 14–15) wait behind
+Phase 5's reviews, which has the older, already-flagged dependency.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

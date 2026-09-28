@@ -92,11 +92,11 @@ List endpoints accept:
 
 ## 6. Resources Planned for Later Phases
 
-`payments`, `pages`, `blog`, `media`, `seo`, `settings` —
+`payments`, `blog`, `media`, `seo`, `settings` —
 each gets its own controller/request/resource set when its phase lands;
 none are stubbed early to avoid dead routes (spec rule 178: no fake
 functionality). `orders`, `customers`, `couriers`, `shipments`,
-`cod-settlements`, and `returns` are implemented — see section 9.
+`cod-settlements`, `returns`, and `pages` are implemented — see section 9.
 
 ## 7. Webhooks (future phases)
 
@@ -512,5 +512,22 @@ A notification not belonging to the caller simply isn't found (`{id}/read`
 structured fields (`order_id`, `order_number`, `customer_name`, a `type`
 discriminator), not a pre-formatted string — the frontend renders it, same
 split every other resource in this API follows.
+
+Pages (Phase 12 Wave 1): admin `GET/POST/PUT/DELETE pages` follows the
+exact Category/Brand shape — flat list (search + `store_id` filter, no
+pagination), `PageRequest` validates `slug` unique per `store_id` (same
+`Rule::unique(...)->where(...)->ignore($id)` idiom), gated on a single
+`pages.manage` permission via `PagePolicy` rather than a 4-way split, since
+`pages.manage` already existed in the RBAC seeder before this phase (see
+`DATABASE_DESIGN.md` section 1q). Two public, unauthenticated, store-scoped
+endpoints mirror Storefront's existing category/brand/product read
+endpoints: `GET storefront/pages` (published-only, ordered by title, backs
+the footer's page-links column) and `GET storefront/pages/{slug}`
+(published-only; a draft slug or one from another store both 404, never
+403 — the same "don't confirm existence" reasoning Storefront's other
+`{slug}` lookups already use). The public `Storefront\PageResource` returns
+only `title`/`slug`/`content`/`meta_title`/`meta_description` — no `id`,
+`status`, or `created_by`, the same admin-vs-public field split every other
+Storefront resource in this API already draws.
 
 Section 7 (webhooks) remains documented intent for future phases.

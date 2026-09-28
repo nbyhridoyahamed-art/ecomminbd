@@ -3,6 +3,7 @@ import {
   BarChart3,
   Boxes,
   ClipboardList,
+  FileText,
   LayoutDashboard,
   Package,
   Settings,
@@ -60,6 +61,12 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/reports/sales",
     icon: BarChart3,
     anyPermission: ["reports.view"],
+  },
+  {
+    label: "Content",
+    href: "/content/pages",
+    icon: FileText,
+    anyPermission: ["pages.manage"],
   },
   {
     label: "Settings",

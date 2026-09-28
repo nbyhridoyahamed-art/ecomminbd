@@ -438,7 +438,27 @@ of real provider credentials in this environment (`PROJECT_AUDIT.md`):
 a real BD SMS provider, the courier/payment gateway adapters section 6
 still documents as target-only, a WhatsApp channel, and queued
 (non-synchronous) delivery once a real queue worker actually runs.
-CMS/builder, blog, SEO, Catalog Wave 2's remaining
+Also built since: **Phase 12 Wave 1** — simple CMS content pages, the
+first (small) piece of the CMS/builder box the paragraph below used to
+list as entirely unbuilt. A `Page` model/`pages` table (see
+`DATABASE_DESIGN.md` section 1q) backs admin CRUD at a new
+`frontend/src/app/(admin)/content/` route group and two public storefront
+endpoints. Two design choices worth flagging for whoever picks up
+Phase 13/14 next: (1) `PagePolicy` maps all five abilities to one
+`pages.manage` permission — not this session's own invention, but a
+pre-existing seeder wire-up (`RoleAndPermissionSeeder`, since Phase 3)
+finally activated, the same "some resources get one umbrella permission,
+not Category's 4-way split" pattern `settings.manage` already established;
+(2) page content is plain text, not the rich-text/Markdown a real CMS
+usually implies, because `COMPONENT_INVENTORY.md` had already earmarked
+TipTap for Phase 14's blog post editor specifically — adding a second,
+competing rich-text dependency ahead of that phase would pre-empt a
+decision that phase hasn't made yet. Deliberately deferred: page version
+history, `navigation_menus`/`navigation_items` (today's page links are a
+flat, unordered footer column), hierarchical/nested pages, and scheduled
+publish dates — none of which a first "About Us" page needs, per
+`DEVELOPMENT_ROADMAP.md`'s Phase 12 Wave 1 scope note.
+Homepage Builder, blog, SEO, Catalog Wave 2's remaining
 items (reviews — no longer blocked on anything, just not yet picked, now
 that Phase 17 gives the real customer identity it was waiting on — see
 `DATABASE_DESIGN.md` section 2 — and a reusable media library), Purchasing Wave 2's remaining

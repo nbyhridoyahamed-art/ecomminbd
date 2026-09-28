@@ -3,10 +3,12 @@
 import Link from "next/link";
 
 import { useStorefrontCategories, useStorefrontStore } from "@/hooks/use-storefront-catalog";
+import { useStorefrontPages } from "@/hooks/use-storefront-pages";
 
 export function StorefrontFooter() {
   const { data: store } = useStorefrontStore();
   const { data: categories } = useStorefrontCategories();
+  const { data: pages } = useStorefrontPages();
 
   return (
     <footer className="mt-auto border-t border-border bg-surface pb-16 desktop:pb-0">
@@ -40,6 +42,21 @@ export function StorefrontFooter() {
                 <li key={category.id}>
                   <Link href={`/category/${category.slug}`} className="hover:text-primary">
                     {category.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {pages && pages.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-text-primary">Information</p>
+            <ul className="space-y-1.5 text-sm text-text-secondary">
+              {pages.map((page) => (
+                <li key={page.slug}>
+                  <Link href={`/pages/${page.slug}`} className="hover:text-primary">
+                    {page.title}
                   </Link>
                 </li>
               ))}

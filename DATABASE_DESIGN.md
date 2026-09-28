@@ -899,6 +899,39 @@ The one model change: `Customer` (section 1o) gained Laravel's
 `Notifiable` trait — `User` already had it, unused, since nothing in this
 app sent a notification to anyone before now.
 
+## 1q. CMS Pages Schema (Phase 12 Wave 1)
+
+```
+pages
+  id, uuid
+  store_id (FK stores, cascade)
+  title
+  slug
+  content (text, nullable — plain text, not HTML/Markdown)
+  meta_title (nullable)
+  meta_description (nullable)
+  status (varchar, default 'draft' — 'draft'|'published')
+  created_by (FK users, nullOnDelete)
+  timestamps, soft deletes
+  unique(store_id, slug)
+```
+
+Deliberately the smallest possible shape for a static content page — the
+About Us/Terms & Conditions/Privacy Policy kind, not a page builder (that
+target schema is still `homepage_blocks`/`saved_sections` below,
+unbuilt). `slug` is unique per `store_id`, not globally, the exact
+`Category`/`Product` convention (`Rule::unique('pages', 'slug')->where('store_id',
+$storeId)`). `content` is a plain nullable text column — no
+`page_versions` history table yet (see section 2) — rendered on the
+storefront with the same `whitespace-pre-line` treatment
+`products.description` already gets, since `COMPONENT_INVENTORY.md`
+reserves a rich-text editor (TipTap) for Phase 14's blog, not this phase.
+No new permission table: `PagePolicy` maps all five abilities to one
+`pages.manage` permission the RBAC seeder had already committed to (wired
+to the SEO Manager and Content Manager roles) since Phase 3, dormant until
+this phase activated it — see `DEVELOPMENT_ROADMAP.md`'s Phase 12 Wave 1
+scope note.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -973,9 +1006,14 @@ compatible with them.
   separate return records (today only a full-coverage refund reconciles
   it — see section 1g). `returns`, `return_items`, `return_status_history`
   are built — see section 1g.
-- **CMS/Builder:** `pages`, `page_versions`, `navigation_menus`,
-  `navigation_items`, `media`, `homepage_blocks` (ordered, `type` +
-  `settings` JSON per the block registry pattern), `saved_sections`.
+- **CMS/Builder (Wave 1 shipped — section 1q):** `pages` is built (simple
+  content pages only). Still deferred: `page_versions` (edit history —
+  no version-diffing/rollback concept exists yet), `navigation_menus`/
+  `navigation_items` (today's page links are a flat, unordered footer
+  list via `GET storefront/pages` — no menu/ordering concept), a reusable
+  `media` library (Catalog Wave 2 above lists this same gap), and the page
+  builder itself: `homepage_blocks` (ordered, `type` + `settings` JSON per
+  the block registry pattern), `saved_sections`.
 - **Blog:** `blog_posts`, `blog_post_versions`, `blog_categories`,
   `blog_tags`, `blog_post_tag` (pivot).
 - **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,

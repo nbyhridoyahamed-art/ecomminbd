@@ -60,7 +60,7 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 |---|---|---|
 | StorefrontHeader | ✅ | Phase 16 — sticky header: mobile hamburger opening a `Sheet` nav (All Products/Brands/category list), store name (from `GET storefront/store`) as a text logo, `CategoryMegaMenu`, desktop All Products/Brands links, a search form (`router.push`'s to `/products?search=...`, no live-filter debounce needed since it's a full navigation), and a cart button with an item-count badge reading `useCartStore` |
 | CategoryMegaMenu | ✅ | Phase 16 — a `DropdownMenu` sized as a wide grid rather than a narrow list (`w-[min(90vw,720px)]`), one column per top-level category with its `children` listed underneath as links — reuses the existing Dropdown Menu primitive rather than adding a new one, since a bigger `DropdownMenuContent` is all a "mega menu" needs on top of it |
-| StorefrontFooter | ✅ | Phase 16 — store name/tagline, Shop links (All Products/Brands), and up to 5 top-level categories; deliberately no Blog/Pages links yet (spec rule 178 — those routes don't exist until Phase 12/14) |
+| StorefrontFooter | ✅ | Phase 16 — store name/tagline, Shop links (All Products/Brands), and up to 5 top-level categories; since Phase 12 also an "Information" column listing every published CMS page (`useStorefrontPages()`), rendered only once at least one exists — deliberately still no Blog links (spec rule 178 — that route doesn't exist until Phase 14) |
 | MobileBottomNav | ✅ | Phase 16 — fixed bottom bar, hidden at `desktop:` width: Home, Shop, and a Cart button (badge from `useCartStore`) opening the same drawer the header's cart icon does |
 | CartDrawer | ✅ | Phase 16 — a `Sheet` listing `CartLineItem`s, subtotal, and View Cart/Checkout actions; empty state when the cart has nothing in it |
 | CartLineItem | ✅ | Phase 16 — image/name/variant-label, a quantity stepper, remove button, and line total; shared as-is between `CartDrawer` (compact) and the full `/cart` page, both reading/writing the same `useCartStore` (`zustand` + `persist`, `localStorage`-backed — see `ARCHITECTURE.md` section 9) |
@@ -103,6 +103,22 @@ gained one addition: an account icon (`User`, `lucide-react`) linking to
 `aria-label` ("My account" vs "Sign in") — the `(dashboard)` route
 group's own auth gate, not this icon, is what actually decides where a
 click lands.
+
+## Content / CMS (`frontend/src/components/content/`, `frontend/src/app/(admin)/content/`)
+
+| Component | Status | Notes |
+|---|---|---|
+| PageForm | ✅ | Phase 12 Wave 1 — title/slug (slug auto-filled from title via the existing `slugify()` helper until manually touched, the exact `CategoryForm` pattern), a plain `Textarea` for content (not TipTap — see the Primitives table's Rich Editor row; a helper line tells the editor line breaks are preserved on the storefront), a draft/published `Select`, and an optional bordered "SEO" section (meta title/description). Lives under `components/content/`, reused by both the admin new-page and edit-page routes exactly like `CategoryForm`. |
+
+No new list/table primitive — the admin `/content/pages` list reuses the
+existing `DataTable` + delete-confirmation `Dialog` shell verbatim (Title/
+Slug/Status columns, a status `Badge`), the same shape as every other
+flat-list admin resource (Categories, Brands, Suppliers). Gating is a
+single `can(user, "pages.manage")` check rather than Category's separate
+view/create/update/delete checks, reflecting `PagePolicy`'s one-permission
+design (`DATABASE_DESIGN.md` section 1q) — both the page-level
+`PermissionDenied` guard and the row-level Edit/Delete actions read the
+same boolean.
 
 ## Charts (`frontend/src/components/charts/`)
 

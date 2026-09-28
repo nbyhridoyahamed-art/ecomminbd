@@ -65,10 +65,11 @@ their backing functionality — no dead pages).
 | `/reports/products` | ✅ | 18 (date range + warehouse filters, units-sold/revenue table ranked by revenue, variant sales rolled up to the parent product, Export dropdown: CSV/PDF) |
 | `/reports/low-stock` | ✅ | 18 (cross-warehouse on-hand/reserved/available vs. threshold, Export dropdown: CSV/PDF) |
 | `/website/homepage` | ⏳ | 13 |
-| `/website/pages` | ⏳ | 12 |
-| `/website/navigation` | ⏳ | 12 |
-| `/website/media` | ⏳ | 12 |
-| `/website/theme` | ⏳ | 12 |
+| `/content/pages` | ✅ | 12 — a small, deliberate path change beyond this table's original `/website/pages` sketch, grouping under a new "Content" nav section rather than a "Website" one (list w/ Title/Slug/Status, delete w/ confirmation) |
+| `/content/pages/new`, `/content/pages/[id]` | ✅ | 12 (title/slug w/ auto-fill, plain-text content, draft/published status, optional meta title/description) |
+| `/website/navigation` | ⏳ | 12 Wave 2 — no `navigation_menus`/`navigation_items` schema yet, see `DATABASE_DESIGN.md` |
+| `/website/media` | ⏳ | 12 Wave 2 — same reusable media library gap Catalog Wave 2 lists |
+| `/website/theme` | ⏳ | 12 Wave 2 |
 | `/blog` | ⏳ | 14 |
 | `/seo` | ⏳ | 15 |
 | `/settings/general` | ✅ | 4 (store name/domain/currency/timezone/locale/status) |
@@ -89,7 +90,7 @@ their backing functionality — no dead pages).
 | `/brand/[slug]` | ✅ | 16 |
 | `/brands` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch (a brand index page for the header/footer's "Brands" link to point at, mirroring `/products`' justification) |
 | `/blog`, `/blog/[slug]` | ⏳ | 14/16 |
-| `/pages/[slug]` | ⏳ | 12/16 |
+| `/pages/[slug]` | ✅ | 12/16 (title + plain-text content rendered `whitespace-pre-line`, matching the product description convention; draft pages and pages from another store both 404) |
 | `/cart` | ✅ | 16 (line items w/ quantity stepper, subtotal — reused `CartLineItem` also backs the header's cart drawer) |
 | `/checkout` | ✅ | 16 (guest-only: name/phone/email, shipping address w/ live BD division/district/upazila cascade, order summary; payment method is a fixed "Cash on Delivery" label, not a selector — Wave 1 has only the one method, so a picker would be a fake choice) |
 | `/order-confirmation/[uuid]` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had a `/checkout` row but nowhere named where a successful checkout lands; looked up by uuid only, same public-receipt contract as the API route |
@@ -173,7 +174,9 @@ tab nav) around everything that actually needs a signed-in customer.
 | `GET/POST/PUT/DELETE /api/v1/account/addresses(/{address})` (own addresses only) | ✅ |
 | `PUT /api/v1/account/profile` (name/email only) | ✅ |
 | `GET /api/v1/notifications` (own inbox, paginated, `meta.unread_count`), `POST .../read-all`, `POST .../{id}/read` — no order/return write endpoints of their own; a notification fires as a side effect of the order/return endpoints above (see `API_DESIGN.md`'s Notifications note) | ✅ |
-| Everything under CMS/blog/SEO/etc. | ⏳ — added phase by phase |
+| `GET/POST/PUT/DELETE /api/v1/pages` (admin, store-scoped, gated on the single `pages.manage` permission) | ✅ |
+| `GET /api/v1/storefront/pages` (published-only, backs the footer), `GET .../{slug}` (published-only, 404 on draft or wrong-store) | ✅ |
+| Everything else under CMS (navigation/media)/blog/SEO/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in
 phase order (see `DEVELOPMENT_ROADMAP.md`), implement backend + frontend

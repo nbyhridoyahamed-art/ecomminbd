@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OrderController;
+use App\Http\Controllers\Api\V1\PageController;
 use App\Http\Controllers\Api\V1\ProductAttributeController;
 use App\Http\Controllers\Api\V1\ProductComponentController;
 use App\Http\Controllers\Api\V1\ProductController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\Storefront\BrandController as StorefrontBrandController;
 use App\Http\Controllers\Api\V1\Storefront\CategoryController as StorefrontCategoryController;
 use App\Http\Controllers\Api\V1\Storefront\CheckoutController as StorefrontCheckoutController;
+use App\Http\Controllers\Api\V1\Storefront\PageController as StorefrontPageController;
 use App\Http\Controllers\Api\V1\Storefront\ProductController as StorefrontProductController;
 use App\Http\Controllers\Api\V1\Storefront\StoreController as StorefrontStoreController;
 use App\Http\Controllers\Api\V1\SupplierController;
@@ -69,6 +71,8 @@ Route::prefix('v1')->group(function () {
         Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show']);
         Route::get('brands', [StorefrontBrandController::class, 'index']);
         Route::get('brands/{slug}', [StorefrontBrandController::class, 'show']);
+        Route::get('pages', [StorefrontPageController::class, 'index']);
+        Route::get('pages/{slug}', [StorefrontPageController::class, 'show']);
 
         // Same controller the admin app uses under auth:sanctum below —
         // Bangladesh division/district/upazila names are nationwide
@@ -142,6 +146,7 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('categories', CategoryController::class);
         Route::apiResource('brands', BrandController::class);
+        Route::apiResource('pages', PageController::class);
 
         // Registered before the products apiResource — otherwise its
         // GET products/{product} route would swallow "export" as a
