@@ -74,6 +74,11 @@ class Product extends Model
         return $this->hasMany(ProductVariant::class);
     }
 
+    public function bundleItems(): HasMany
+    {
+        return $this->hasMany(BundleItem::class, 'bundle_product_id')->orderBy('sort_order');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

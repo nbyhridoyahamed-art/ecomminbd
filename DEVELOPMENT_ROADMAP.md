@@ -11,7 +11,7 @@ in place and the app still builds/runs.
 | 2 | Design System | ✅ Done | Yes — tokens, theme, first primitives |
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
-| 5 | Catalog | ✅ Wave 1 + Wave 2a + Wave 2b (CSV import/export) done (bundles/reviews/media library still deferred — see note) | Yes — categories (hierarchy), brands, simple + variable products w/ pricing/SEO/images, attributes + a variant generator, CSV bulk import/export, full admin UI |
+| 5 | Catalog | ✅ Wave 1 + Wave 2a + Wave 2b (CSV import/export) + Wave 2c (bundles/combos) done — Wave 2 fully closed (reviews/media library still deferred — see note) | Yes — categories (hierarchy), brands, simple + variable + bundle products w/ pricing/SEO/images, attributes + a variant generator, bundle components with derived availability, CSV bulk import/export, full admin UI |
 | 6 | Inventory | ✅ Wave 1 done, now variant-aware (transfer approval workflow deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Wave 1 done, now variant-aware (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
 | 8 | Orders | ✅ Wave 1 done, now variant-aware (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
@@ -144,6 +144,57 @@ variant's own SKU/price/attribute-values without a lot more complexity
 than a first pass warrants, so import never creates a variable product —
 variants stay managed from the product's own Variants tab, matching how
 this project has consistently drawn that line all session.
+
+**Phase 5 Wave 2c scope note:** ships the last deferred Wave 2 item —
+bundles/combos — closing out Catalog Wave 2 entirely (reviews and the
+media library remain deferred for the reasons the notes above already
+give). A bundle is a `Product` row with `type='bundle'`, not a separate
+`bundles` table as an older, pre-variant-system note in
+`DATABASE_DESIGN.md` section 2 used to assume — the `product_variants`
+precedent (a `variable` product doesn't get its own table either) is
+the more consistent pattern to follow, so that old note is superseded
+by this one. A new `bundle_items` table defines a bundle's components
+(product + optional variant + quantity); the core design decision is
+that a bundle never holds real stock of its own — its "available to
+sell" quantity (`App\Support\BundleExpander::availability()`) is
+derived by taking, per warehouse, the minimum across every component of
+`floor(component_available / component_quantity_needed)`, treating a
+component with no stock at a warehouse as zero there rather than
+"unconstrained." Selling a bundle reserves/decrements/restocks its
+*components'* stock, never the bundle's own. Rather than re-deriving a
+bundle's composition live from `bundle_items` at every reserve/ship/
+cancel/return step — which would let an edit to a bundle's components
+made between order-creation and shipment silently reserve one set of
+components and decrement a different set — a new `order_item_components`
+table snapshots the resolved (product, variant, quantity) rows once, at
+order-creation time (`App\Support\BundleExpander::expand()`), and every
+downstream stock operation (Order reserve/ship/cancel, Return receive,
+Shipment returned-to-seller) reads that snapshot rather than the
+bundle's live definition. This also unifies bundle and non-bundle order
+items into one code path with zero branching on product type at the
+point of use — `OrderItem::resolvedComponents()` returns the snapshot
+when present, falling back to a live `BundleExpander::expand()` call
+only for the handful of pre-existing tests that construct an
+`OrderItem` directly and bypass the real order-creation flow the
+snapshot exists to protect (a fallback that's safe precisely because an
+item with no snapshot never went through the race condition the
+snapshot prevents). Partial-return proration divides each component's
+snapshotted quantity by the order item's own quantity to get an exact
+per-unit rate, since the snapshot is always built as an exact multiple.
+Deliberately scoped down, the same way every other Wave 2 item was: no
+nested bundles (a bundle cannot contain another bundle); Purchasing/
+stock-adjustments/stock-transfers never touch a bundle directly (only
+its components — enforced by a shared `App\Rules\ProductIsNotBundle`
+rule; Orders is the one deliberate exception, since ordering a bundle is
+the whole point); the Low Stock report and the Stock Levels list exclude
+bundles entirely (a bundle has `track_stock` forced `false` server-side
+regardless of what's submitted, which is what keeps it off the Low
+Stock report; the Stock Levels list additionally filters
+`type != 'bundle'` since a left join would otherwise show it as a
+misleading "0 on hand" row); CSV import/export stays scoped to simple
+products only, unchanged; and there's no physical "kitting/assembly"
+stock action, since a bundle's stock is purely virtual/computed, never
+a real inventory movement of its own.
 
 **Phase 6 scope note:** Wave 1 ships on-hand stock tracking per
 warehouse (`stock_levels`), a full audit ledger of every change
@@ -436,11 +487,11 @@ Phase 18 Reporting Wave 2 is done — all three items (per-courier
 breakdown, period-over-period comparison, PDF export) are shipped;
 only materialized/scheduled aggregate tables remain there, and per
 rule 178 that's infra to build once real data volume demands it, not a
-pick-able feature today. Bundles/combos (needs Orders-integrated
-component stock decrement, Catalog Wave 2b's last piece) is the clearest
-next pickup; any other already-started phase's own Wave 2 (Purchasing,
-Orders, Delivery, Returns, Dashboard) is equally available if the user
-prefers it. Customer reviews stays off the table until Phase 16/17
+pick-able feature today. Catalog Wave 2 is now fully closed too —
+bundles/combos (Wave 2c) shipped, the last item on that list. Any
+already-started phase's own Wave 2 (Purchasing, Orders, Delivery,
+Returns, Dashboard) is the clearest next pickup, whichever the user
+prefers. Customer reviews stays off the table until Phase 16/17
 gives a customer somewhere to actually write one; a reusable media
 library still has no real consumer either (today's
 direct-upload-per-record images work fine). Follow the phase order

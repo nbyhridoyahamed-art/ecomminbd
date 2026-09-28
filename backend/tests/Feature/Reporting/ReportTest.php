@@ -289,6 +289,27 @@ class ReportTest extends TestCase
         $this->assertSame('Simple Mug', $rows[1]['name']);
     }
 
+    public function test_product_performance_report_shows_a_bundle_as_its_own_row_not_its_components(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $bundle = Product::factory()->for($store)->create(['name' => 'Combo Pack', 'type' => 'bundle']);
+
+        $this->orderOn($store, $warehouse, $customer, 'delivered', 'cod', '2026-06-10 10:00:00', $bundle, 2, 50000);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/reports/products-performance?store_id={$store->id}&date_from=2026-06-01&date_to=2026-06-30")
+            ->assertOk();
+
+        $rows = $response->json('data');
+        $this->assertCount(1, $rows);
+        $this->assertSame('Combo Pack', $rows[0]['name']);
+        $this->assertSame(2, $rows[0]['units_sold']);
+        $this->assertEquals(1000.0, $rows[0]['revenue_amount']);
+    }
+
     public function test_product_performance_export_streams_a_csv(): void
     {
         $admin = $this->admin();
@@ -354,6 +375,31 @@ class ReportTest extends TestCase
         $this->assertSame('Low Stock Item', $rows[0]['name']);
         $this->assertSame(5, $rows[0]['total_quantity']);
         $this->assertSame(5, $rows[0]['total_available']);
+    }
+
+    public function test_low_stock_report_excludes_bundles_created_via_the_api_even_when_requested_with_a_threshold(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/products', [
+            'store_id' => $store->id,
+            'name' => 'Combo Pack',
+            'slug' => 'combo-pack',
+            'sku' => 'COMBO-1',
+            'price' => '999.00',
+            'type' => 'bundle',
+            'track_stock' => true,
+            'low_stock_threshold' => 100,
+        ])->assertCreated();
+
+        // No stock_levels row at all for the bundle -- available (0) would
+        // always be <= 100 if track_stock had actually been left true.
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/reports/low-stock?store_id={$store->id}")
+            ->assertOk();
+
+        $this->assertCount(0, $response->json('data'));
     }
 
     public function test_low_stock_report_export_streams_a_csv(): void

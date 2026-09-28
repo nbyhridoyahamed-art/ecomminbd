@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Delivery;
 
+use App\Models\BundleItem;
 use App\Models\Courier;
 use App\Models\Customer;
 use App\Models\Order;
@@ -85,6 +86,75 @@ class ShipmentTest extends TestCase
         ]);
 
         return compact('order', 'product', 'variant');
+    }
+
+    /**
+     * A shipped order with one bundle line item (2x widget + 1x gadget per
+     * bundle unit), built via a direct items()->create() call the same way
+     * shippedOrder()/shippedOrderWithVariant() are — so resolvedComponents()
+     * must fall back to a live BundleExpander::expand() call, since no
+     * order_item_components snapshot exists.
+     *
+     * @return array{order: Order, bundle: Product, widget: Product, gadget: Product}
+     */
+    private function shippedOrderWithBundleItem(Store $store, int $bundleQuantity = 2): array
+    {
+        $customer = Customer::factory()->for($store)->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $bundle = Product::factory()->for($store)->create(['type' => 'bundle', 'name' => 'Combo Pack']);
+        $widget = Product::factory()->for($store)->create(['name' => 'Widget']);
+        $gadget = Product::factory()->for($store)->create(['name' => 'Gadget']);
+        BundleItem::create(['bundle_product_id' => $bundle->id, 'component_product_id' => $widget->id, 'quantity' => 2]);
+        BundleItem::create(['bundle_product_id' => $bundle->id, 'component_product_id' => $gadget->id, 'quantity' => 1]);
+
+        $order = Order::factory()->for($store)->for($customer)->for($warehouse)->create([
+            'status' => 'shipped',
+            'payment_method' => 'cod',
+            'payment_status' => 'unpaid',
+            'shipping_amount' => 5000,
+            'discount_amount' => 0,
+        ]);
+
+        $order->items()->create(['product_id' => $bundle->id, 'quantity' => $bundleQuantity, 'unit_price_amount' => 100000]);
+
+        return compact('order', 'bundle', 'widget', 'gadget');
+    }
+
+    public function test_a_failed_bundle_delivery_marked_returned_to_seller_restocks_each_components_full_quantity(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'widget' => $widget, 'gadget' => $gadget] = $this->shippedOrderWithBundleItem($store, bundleQuantity: 2);
+        $courier = Courier::factory()->for($store)->create();
+
+        // Simulate the on-hand quantity Order.ship() already decremented for
+        // each component before this shipment ever existed.
+        StockLevel::factory()->for($widget)->for($order->warehouse)->create(['quantity' => 8]);
+        StockLevel::factory()->for($gadget)->for($order->warehouse)->create(['quantity' => 5]);
+
+        $shipmentId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-BUNDLE-1'])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipmentId}/picked-up")->assertOk();
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/shipments/{$shipmentId}/failed", ['note' => 'Customer not available'])
+            ->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipmentId}/returned")->assertOk();
+
+        // The whole shipment failed (not a partial return), so each
+        // component's full snapshotted quantity is restocked: 2 bundle units
+        // -> 2*2=4 widgets, 2*1=2 gadgets.
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $widget->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 12]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $gadget->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 7]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $widget->id, 'type' => 'return', 'quantity' => 4,
+            'quantity_before' => 8, 'quantity_after' => 12, 'reference_type' => Shipment::class, 'reference_id' => $shipmentId,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $gadget->id, 'type' => 'return', 'quantity' => 2,
+            'quantity_before' => 5, 'quantity_after' => 7, 'reference_type' => Shipment::class, 'reference_id' => $shipmentId,
+        ]);
     }
 
     public function test_returning_a_failed_variant_delivery_restocks_only_that_variants_stock(): void

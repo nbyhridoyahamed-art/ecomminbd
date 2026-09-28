@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
 use App\Support\ApiResponse;
+use App\Support\BundleExpander;
 use App\Support\InsufficientStockException;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +27,7 @@ class OrderController extends Controller
     // show() response always includes.
     private const RELATIONS = [
         'customer', 'warehouse', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator',
+        'items.components.product', 'items.components.productVariant',
         'shippingDivision', 'shippingDistrict', 'shippingUpazila', 'statusHistory.creator',
         'shipment.courier', 'returns',
     ];
@@ -122,7 +124,7 @@ class OrderController extends Controller
 
         try {
             DB::transaction(function () use ($order, $data, $currency, $shipping) {
-                $order->load('items');
+                $order->load('items.components');
                 $this->releaseReservation($order);
                 $order->items()->delete();
 
@@ -179,40 +181,42 @@ class OrderController extends Controller
             DB::transaction(function () use ($order) {
                 $fromStatus = $order->status;
 
-                foreach ($order->items()->get() as $item) {
-                    $level = StockLevel::query()
-                        ->where('product_id', $item->product_id)
-                        ->where('product_variant_id', $item->product_variant_id)
-                        ->where('warehouse_id', $order->warehouse_id)
-                        ->lockForUpdate()
-                        ->first();
+                foreach ($order->items()->with('components')->get() as $item) {
+                    foreach ($item->resolvedComponents() as $component) {
+                        $level = StockLevel::query()
+                            ->where('product_id', $component->product_id)
+                            ->where('product_variant_id', $component->product_variant_id)
+                            ->where('warehouse_id', $order->warehouse_id)
+                            ->lockForUpdate()
+                            ->first();
 
-                    $before = $level?->quantity ?? 0;
-                    $after = $before - $item->quantity;
+                        $before = $level?->quantity ?? 0;
+                        $after = $before - $component->quantity;
 
-                    if ($after < 0 || ($level?->quantity_reserved ?? 0) < $item->quantity) {
-                        $product = Product::findOrFail($item->product_id);
-                        throw new InsufficientStockException("Stock for \"{$product->name}\" is inconsistent with this order's reservation.");
+                        if ($after < 0 || ($level?->quantity_reserved ?? 0) < $component->quantity) {
+                            $product = Product::findOrFail($component->product_id);
+                            throw new InsufficientStockException("Stock for \"{$product->name}\" is inconsistent with this order's reservation.");
+                        }
+
+                        $level->update([
+                            'quantity' => $after,
+                            'quantity_reserved' => $level->quantity_reserved - $component->quantity,
+                        ]);
+
+                        StockMovement::create([
+                            'store_id' => $order->store_id,
+                            'product_id' => $component->product_id,
+                            'product_variant_id' => $component->product_variant_id,
+                            'warehouse_id' => $order->warehouse_id,
+                            'type' => 'sale',
+                            'quantity' => $component->quantity,
+                            'quantity_before' => $before,
+                            'quantity_after' => $after,
+                            'reference_type' => Order::class,
+                            'reference_id' => $order->id,
+                            'created_by' => request()->user()->id,
+                        ]);
                     }
-
-                    $level->update([
-                        'quantity' => $after,
-                        'quantity_reserved' => $level->quantity_reserved - $item->quantity,
-                    ]);
-
-                    StockMovement::create([
-                        'store_id' => $order->store_id,
-                        'product_id' => $item->product_id,
-                        'product_variant_id' => $item->product_variant_id,
-                        'warehouse_id' => $order->warehouse_id,
-                        'type' => 'sale',
-                        'quantity' => $item->quantity,
-                        'quantity_before' => $before,
-                        'quantity_after' => $after,
-                        'reference_type' => Order::class,
-                        'reference_id' => $order->id,
-                        'created_by' => request()->user()->id,
-                    ]);
                 }
 
                 $order->update(['status' => 'shipped']);
@@ -264,7 +268,7 @@ class OrderController extends Controller
         DB::transaction(function () use ($order, $request) {
             $fromStatus = $order->status;
 
-            $order->load('items');
+            $order->load('items.components');
             $this->releaseReservation($order);
 
             $order->update(['status' => 'cancelled']);
@@ -307,54 +311,75 @@ class OrderController extends Controller
         ];
     }
 
-    /** Replaces an order's items wholesale — see OrderRequest for why a partial PATCH isn't offered. */
+    /**
+     * Replaces an order's items wholesale — see OrderRequest for why a
+     * partial PATCH isn't offered. Also resolves and snapshots each item's
+     * components (BundleExpander) into order_item_components: an identity
+     * row for a simple/variable product, or one row per bundle component.
+     * reserveItems()/releaseReservation()/ship() all read this snapshot
+     * rather than re-deriving it from the bundle's live composition, so
+     * editing a bundle's components later can't split one order between two
+     * different resolutions.
+     */
     private function syncItems(Order $order, array $items, string $currency): void
     {
         foreach ($items as $item) {
-            $order->items()->create([
+            $orderItem = $order->items()->create([
                 'product_id' => $item['product_id'],
                 'product_variant_id' => $item['product_variant_id'] ?? null,
                 'quantity' => $item['quantity'],
                 'unit_price_amount' => Money::fromDecimal($item['unit_price'], $currency)->amountMinor,
             ]);
+
+            foreach (BundleExpander::expand($orderItem->product_id, $orderItem->product_variant_id, $orderItem->quantity) as $component) {
+                $orderItem->components()->create([
+                    'product_id' => $component->product_id,
+                    'product_variant_id' => $component->product_variant_id,
+                    'quantity' => $component->quantity,
+                ]);
+            }
         }
     }
 
-    /** Reserves stock for every item on the order, atomically, at its current warehouse. */
+    /** Reserves stock for every item's resolved components, atomically, at the order's current warehouse. */
     private function reserveItems(Order $order): void
     {
-        foreach ($order->items()->get() as $item) {
-            $level = StockLevel::query()
-                ->where('product_id', $item->product_id)
-                ->where('product_variant_id', $item->product_variant_id)
-                ->where('warehouse_id', $order->warehouse_id)
-                ->lockForUpdate()
-                ->first();
+        foreach ($order->items()->with('components')->get() as $item) {
+            foreach ($item->resolvedComponents() as $component) {
+                $level = StockLevel::query()
+                    ->where('product_id', $component->product_id)
+                    ->where('product_variant_id', $component->product_variant_id)
+                    ->where('warehouse_id', $order->warehouse_id)
+                    ->lockForUpdate()
+                    ->first();
 
-            $available = ($level?->quantity ?? 0) - ($level?->quantity_reserved ?? 0);
+                $available = ($level?->quantity ?? 0) - ($level?->quantity_reserved ?? 0);
 
-            if ($available < $item->quantity) {
-                $product = Product::findOrFail($item->product_id);
-                throw new InsufficientStockException("Not enough available stock of \"{$product->name}\" at this warehouse to fulfil {$item->quantity} unit(s).");
+                if ($available < $component->quantity) {
+                    $product = Product::findOrFail($component->product_id);
+                    throw new InsufficientStockException("Not enough available stock of \"{$product->name}\" at this warehouse to fulfil {$component->quantity} unit(s).");
+                }
+
+                $level->update(['quantity_reserved' => $level->quantity_reserved + $component->quantity]);
             }
-
-            $level->update(['quantity_reserved' => $level->quantity_reserved + $item->quantity]);
         }
     }
 
-    /** Releases this order's reserved stock without touching on-hand quantity. Requires items to be loaded. */
+    /** Releases this order's reserved stock without touching on-hand quantity. Requires items.components to be loaded. */
     private function releaseReservation(Order $order): void
     {
         foreach ($order->items as $item) {
-            $level = StockLevel::query()
-                ->where('product_id', $item->product_id)
-                ->where('product_variant_id', $item->product_variant_id)
-                ->where('warehouse_id', $order->warehouse_id)
-                ->lockForUpdate()
-                ->first();
+            foreach ($item->resolvedComponents() as $component) {
+                $level = StockLevel::query()
+                    ->where('product_id', $component->product_id)
+                    ->where('product_variant_id', $component->product_variant_id)
+                    ->where('warehouse_id', $order->warehouse_id)
+                    ->lockForUpdate()
+                    ->first();
 
-            if ($level) {
-                $level->update(['quantity_reserved' => max(0, $level->quantity_reserved - $item->quantity)]);
+                if ($level) {
+                    $level->update(['quantity_reserved' => max(0, $level->quantity_reserved - $component->quantity)]);
+                }
             }
         }
     }

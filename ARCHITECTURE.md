@@ -298,10 +298,25 @@ same private query helpers the JSON/CSV endpoints already use, so the
 PDF can't drift from what's on screen; richer than the CSV on purpose
 (KPI totals, trend, payment-method/courier breakdowns included) since a
 PDF is a presentable snapshot of the page, not a spreadsheet export.
-This closes out Reporting Wave 2.
+This closes out Reporting Wave 2. Also built since: **Phase 5 Wave 2c** —
+bundles/combos, the last deferred Catalog Wave 2 item, closing that wave
+out entirely. A bundle is a `products` row with `type='bundle'`, not a
+separate table (mirrors the `product_variants` precedent above); a new
+`bundle_items` table defines its components, and a new
+`order_item_components` table snapshots each order line's resolved
+components at order-creation time so a later edit to a bundle's
+composition can't retroactively change what an already-placed order
+reserves/ships/returns (see `DATABASE_DESIGN.md` section 1l). A bundle
+never holds real stock of its own — `App\Support\BundleExpander` derives
+its sellable quantity from its components' stock instead, and the same
+class expands a bundle line item into its component rows for every
+stock operation. Deliberately excluded: nested bundles, Purchasing/
+adjustments/transfers (a bundle is never bought or moved directly, only
+its components — `App\Rules\ProductIsNotBundle`), and the Low Stock
+report/Stock Levels list.
 CMS/builder, blog, SEO, storefront, customer account, the adapter
-implementations described in section 6, the rest of Catalog Wave 2b
-(bundles, reviews, a reusable media library), Purchasing Wave 2 (purchase
+implementations described in section 6, Catalog Wave 2's remaining
+items (reviews, a reusable media library), Purchasing Wave 2 (purchase
 returns, supplier ledger, PO approval workflow), Orders Wave 2 (a
 non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery
 zones/rates, multi-shipment orders — the return-driven stock reversal gap

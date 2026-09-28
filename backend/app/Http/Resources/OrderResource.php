@@ -56,6 +56,15 @@ class OrderResource extends JsonResource
                 'quantity' => $item->quantity,
                 'unit_price' => (new Money($item->unit_price_amount, $this->currency_code))->toDecimal(),
                 'line_total' => (new Money($item->quantity * $item->unit_price_amount, $this->currency_code))->toDecimal(),
+                // Only meaningful for a bundle line — what actually gets
+                // packed/decremented, for staff/packing visibility.
+                'components' => $item->product->type === 'bundle' ? $item->components->map(fn ($component) => [
+                    'product_id' => $component->product_id,
+                    'product_name' => $component->product->name,
+                    'sku' => $component->product->sku,
+                    'product_variant_sku' => $component->productVariant?->sku,
+                    'quantity' => $component->quantity,
+                ]) : null,
             ])),
             'subtotal_amount' => $subtotalMinor === null ? null : (new Money($subtotalMinor, $this->currency_code))->toDecimal(),
             'total_amount' => $subtotalMinor === null ? null : (new Money(

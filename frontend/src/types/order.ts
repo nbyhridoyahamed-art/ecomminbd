@@ -4,6 +4,14 @@ export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "
 
 export type PaymentMethod = "cod" | "bkash" | "nagad" | "rocket" | "card" | "bank_transfer";
 
+export interface OrderItemComponent {
+  product_id: number;
+  product_name: string;
+  sku: string;
+  product_variant_sku: string | null;
+  quantity: number;
+}
+
 export interface OrderItem {
   id: number;
   product_id: number;
@@ -13,6 +21,8 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   line_total: number;
+  /** Only present on a bundle line item — what actually gets packed/decremented. */
+  components: OrderItemComponent[] | null;
 }
 
 export interface OrderStatusHistoryEntry {

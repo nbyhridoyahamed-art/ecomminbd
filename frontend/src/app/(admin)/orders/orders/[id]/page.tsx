@@ -202,6 +202,16 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
                         <span className="ml-1 text-xs text-text-muted">
                           ({item.sku}){variantLabel(item.product_variant) ? ` — ${variantLabel(item.product_variant)}` : ""}
                         </span>
+                        {item.components ? (
+                          <ul className="mt-1 space-y-0.5 border-l border-border pl-2 text-xs text-text-muted">
+                            {item.components.map((component, index) => (
+                              <li key={index}>
+                                {component.quantity}× {component.product_name} ({component.sku}
+                                {component.product_variant_sku ? ` — ${component.product_variant_sku}` : ""})
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </td>
                       <td className="px-4 py-2 text-text-primary">{item.quantity}</td>
                       <td className="px-4 py-2 text-text-primary">{formatMoney(item.unit_price, order.currency_code)}</td>

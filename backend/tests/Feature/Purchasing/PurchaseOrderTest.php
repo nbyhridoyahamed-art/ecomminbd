@@ -94,6 +94,24 @@ class PurchaseOrderTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('items.0.product_variant_id');
     }
 
+    public function test_a_bundle_product_is_rejected_from_purchase_orders(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $supplier = Supplier::factory()->for($store)->create();
+        $bundle = Product::factory()->for($store)->create(['type' => 'bundle']);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/purchase-orders', [
+            'store_id' => $store->id,
+            'warehouse_id' => $warehouse->id,
+            'supplier_id' => $supplier->id,
+            'items' => [
+                ['product_id' => $bundle->id, 'quantity_ordered' => 5, 'unit_cost' => '10.00'],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors('items.0.product_id');
+    }
+
     public function test_a_draft_purchase_order_can_be_created_with_items_and_money_converts_correctly(): void
     {
         $admin = $this->admin();

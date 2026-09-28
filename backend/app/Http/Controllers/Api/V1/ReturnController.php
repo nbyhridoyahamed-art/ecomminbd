@@ -135,7 +135,7 @@ class ReturnController extends Controller
         DB::transaction(function () use ($data, $orderReturn, $request) {
             $order = $orderReturn->order;
             $overrides = collect($data['items'] ?? [])->keyBy('return_item_id');
-            $items = $orderReturn->items()->with('orderItem')->get();
+            $items = $orderReturn->items()->with('orderItem.components')->get();
 
             foreach ($items as $returnItem) {
                 if ($overrides->has($returnItem->id)) {
@@ -146,38 +146,49 @@ class ReturnController extends Controller
                     continue;
                 }
 
-                $level = StockLevel::query()
-                    ->where('product_id', $returnItem->orderItem->product_id)
-                    ->where('product_variant_id', $returnItem->orderItem->product_variant_id)
-                    ->where('warehouse_id', $order->warehouse_id)
-                    ->lockForUpdate()
-                    ->first();
+                $orderItem = $returnItem->orderItem;
 
-                $before = $level?->quantity ?? 0;
-                $after = $before + $returnItem->quantity;
+                foreach ($orderItem->resolvedComponents() as $component) {
+                    // component->quantity is orderItem->quantity's worth of
+                    // this component (see order_item_components), so this is
+                    // always an exact multiple — restocking a partial return
+                    // of a bundle only restocks that fraction of each
+                    // component, not the whole line's snapshot.
+                    $restockQuantity = $returnItem->quantity * intdiv($component->quantity, $orderItem->quantity);
 
-                $level
-                    ? $level->update(['quantity' => $after])
-                    : StockLevel::create([
-                        'product_id' => $returnItem->orderItem->product_id,
-                        'product_variant_id' => $returnItem->orderItem->product_variant_id,
+                    $level = StockLevel::query()
+                        ->where('product_id', $component->product_id)
+                        ->where('product_variant_id', $component->product_variant_id)
+                        ->where('warehouse_id', $order->warehouse_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    $before = $level?->quantity ?? 0;
+                    $after = $before + $restockQuantity;
+
+                    $level
+                        ? $level->update(['quantity' => $after])
+                        : StockLevel::create([
+                            'product_id' => $component->product_id,
+                            'product_variant_id' => $component->product_variant_id,
+                            'warehouse_id' => $order->warehouse_id,
+                            'quantity' => $after,
+                        ]);
+
+                    StockMovement::create([
+                        'store_id' => $orderReturn->store_id,
+                        'product_id' => $component->product_id,
+                        'product_variant_id' => $component->product_variant_id,
                         'warehouse_id' => $order->warehouse_id,
-                        'quantity' => $after,
+                        'type' => 'return',
+                        'quantity' => $restockQuantity,
+                        'quantity_before' => $before,
+                        'quantity_after' => $after,
+                        'reference_type' => OrderReturn::class,
+                        'reference_id' => $orderReturn->id,
+                        'created_by' => $request->user()->id,
                     ]);
-
-                StockMovement::create([
-                    'store_id' => $orderReturn->store_id,
-                    'product_id' => $returnItem->orderItem->product_id,
-                    'product_variant_id' => $returnItem->orderItem->product_variant_id,
-                    'warehouse_id' => $order->warehouse_id,
-                    'type' => 'return',
-                    'quantity' => $returnItem->quantity,
-                    'quantity_before' => $before,
-                    'quantity_after' => $after,
-                    'reference_type' => OrderReturn::class,
-                    'reference_id' => $orderReturn->id,
-                    'created_by' => $request->user()->id,
-                ]);
+                }
             }
 
             $fromStatus = $orderReturn->status;

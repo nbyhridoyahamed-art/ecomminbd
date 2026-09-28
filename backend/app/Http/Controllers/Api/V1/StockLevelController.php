@@ -49,6 +49,11 @@ class StockLevelController extends Controller
                     ->where('stock_levels.warehouse_id', '=', $warehouseId);
             })
             ->where('products.store_id', $storeId)
+            // A bundle never has its own stock_levels row (see BundleExpander)
+            // — left-joined, it would otherwise show up here as a misleading
+            // "0 on hand" rather than being left off a list about real
+            // per-warehouse physical stock.
+            ->where('products.type', '!=', 'bundle')
             ->select(
                 'products.*',
                 DB::raw('COALESCE(SUM(stock_levels.quantity), 0) as warehouse_quantity'),

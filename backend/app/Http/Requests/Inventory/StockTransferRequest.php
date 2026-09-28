@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Inventory;
 
+use App\Rules\ProductIsNotBundle;
 use App\Rules\VariantBelongsToProduct;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -21,7 +22,7 @@ class StockTransferRequest extends FormRequest
             'to_warehouse_id' => ['required', 'exists:warehouses,id'],
             'note' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'exists:products,id', new ProductIsNotBundle],
             'items.*.product_variant_id' => ['nullable', 'integer', new VariantBelongsToProduct],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
         ];

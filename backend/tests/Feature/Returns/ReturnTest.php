@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Returns;
 
+use App\Models\BundleItem;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -95,6 +96,88 @@ class ReturnTest extends TestCase
         ]);
 
         return compact('order', 'item', 'product', 'variant', 'warehouse');
+    }
+
+    /**
+     * A delivered order with one bundle line item (2x widget + 1x gadget per
+     * bundle unit). Built the same way deliveredOrder() is — via a direct
+     * items()->create() call that bypasses OrderController::syncItems() — so
+     * no order_item_components snapshot rows exist and OrderItem::resolvedComponents()
+     * must fall back to a live BundleExpander::expand() call.
+     *
+     * @return array{order: Order, item: OrderItem, bundle: Product, widget: Product, gadget: Product, warehouse: Warehouse}
+     */
+    private function deliveredOrderWithBundleItem(Store $store, int $bundleQuantity = 3): array
+    {
+        $customer = Customer::factory()->for($store)->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $bundle = Product::factory()->for($store)->create(['type' => 'bundle', 'name' => 'Combo Pack']);
+        $widget = Product::factory()->for($store)->create(['name' => 'Widget']);
+        $gadget = Product::factory()->for($store)->create(['name' => 'Gadget']);
+        BundleItem::create(['bundle_product_id' => $bundle->id, 'component_product_id' => $widget->id, 'quantity' => 2]);
+        BundleItem::create(['bundle_product_id' => $bundle->id, 'component_product_id' => $gadget->id, 'quantity' => 1]);
+
+        $order = Order::factory()->for($store)->for($customer)->for($warehouse)->create([
+            'status' => 'delivered',
+            'payment_method' => 'cod',
+            'payment_status' => 'paid',
+            'shipping_amount' => 0,
+            'discount_amount' => 0,
+        ]);
+
+        $item = $order->items()->create(['product_id' => $bundle->id, 'quantity' => $bundleQuantity, 'unit_price_amount' => 100000]);
+
+        return compact('order', 'item', 'bundle', 'widget', 'gadget', 'warehouse');
+    }
+
+    public function test_receiving_a_full_bundle_return_restocks_each_components_full_quantity(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'item' => $item, 'widget' => $widget, 'gadget' => $gadget] =
+            $this->deliveredOrderWithBundleItem($store, bundleQuantity: 3);
+
+        $returnId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/returns", [
+                'items' => [['order_item_id' => $item->id, 'quantity' => 3]],
+            ])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/receive")->assertOk();
+
+        // 3 bundle units need 3*2=6 widgets and 3*1=3 gadgets restocked.
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $widget->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 6]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $gadget->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 3]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $widget->id, 'type' => 'return', 'quantity' => 6,
+            'reference_type' => OrderReturn::class, 'reference_id' => $returnId,
+        ]);
+        $this->assertDatabaseHas('stock_movements', ['product_id' => $gadget->id, 'type' => 'return', 'quantity' => 3]);
+    }
+
+    public function test_a_partial_bundle_return_restocks_only_the_prorated_component_quantities(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'item' => $item, 'widget' => $widget, 'gadget' => $gadget] =
+            $this->deliveredOrderWithBundleItem($store, bundleQuantity: 3);
+
+        $returnId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/returns", [
+                'items' => [['order_item_id' => $item->id, 'quantity' => 1]],
+            ])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/receive")->assertOk();
+
+        // Only 1 of the 3 bundle units returned -> 1*2=2 widgets and 1*1=1
+        // gadget restocked, not the whole line's component quantities.
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $widget->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 2]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $gadget->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 1]);
+        $this->assertDatabaseHas('stock_movements', ['product_id' => $widget->id, 'type' => 'return', 'quantity' => 2]);
+        $this->assertDatabaseHas('stock_movements', ['product_id' => $gadget->id, 'type' => 'return', 'quantity' => 1]);
     }
 
     public function test_receiving_a_variant_return_restocks_only_that_variants_stock(): void

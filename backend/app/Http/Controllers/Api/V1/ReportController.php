@@ -499,6 +499,13 @@ class ReportController extends Controller
             ->orderByDesc('revenue_minor');
     }
 
+    /**
+     * `track_stock = true` also happens to be what keeps a bundle out of
+     * this report — ProductController forces it false on every bundle,
+     * since a bundle never has stock_levels rows of its own (see
+     * BundleExpander), and without that guard a bundle would show 0 on
+     * hand against any positive threshold and always read as "low stock."
+     */
     private function lowStockQuery(int $storeId)
     {
         return DB::table('products')

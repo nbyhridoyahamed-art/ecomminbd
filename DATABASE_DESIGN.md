@@ -100,8 +100,9 @@ products
   category_id (FK→categories, nullOnDelete), brand_id (FK→brands, nullOnDelete),
   name, slug, sku, barcode (nullable),
   type (varchar, default 'simple' — 'variable' is functional since
-    Phase 5 Wave 2a, see section 1i; digital/service/bundle/combo remain
-    reserved column values, not yet implemented — see section 2),
+    Phase 5 Wave 2a (see section 1i) and 'bundle' since Phase 5 Wave 2c
+    (see section 1l); digital/service/combo remain reserved column
+    values, not yet implemented — see section 2),
   description (nullable), short_description (nullable),
   currency_code (char(3), default 'BDT'),
   price_amount, sale_price_amount (nullable), cost_price_amount (nullable),
@@ -659,6 +660,59 @@ number is computed and the PDF can't drift from the on-screen report.
 Money renders as `{currency code} {amount}` rather than the ৳ glyph,
 since dompdf's bundled fonts have no Bengali-script coverage.
 
+## 1l. Bundles/Combos Schema (Phase 5 Wave 2c)
+
+```
+bundle_items
+  id, bundle_product_id (FK→products, cascade),
+  component_product_id (FK→products, restrict — a component can't be
+    deleted while a bundle still lists it),
+  component_variant_id (FK→product_variants, restrict, nullable),
+  quantity (unsigned int, default 1), sort_order (unsigned int, default 0),
+  timestamps
+  unique(bundle_product_id, component_product_id, component_variant_id)
+  index(component_product_id)
+
+order_item_components
+  id, order_item_id (FK→order_items, cascade),
+  product_id (FK→products, cascade),
+  product_variant_id (FK→product_variants, nullOnDelete, nullable),
+  quantity (unsigned int), timestamps
+  index(order_item_id)
+```
+
+A bundle is a `products` row with `type='bundle'` (section 1b's `type`
+column), not a separate `bundles` table — the `product_variants`
+precedent above (section 1i: a `variable` product doesn't get its own
+table either) is the pattern this follows, superseding an older note in
+section 2 that assumed a `bundles`/`bundle_items` pair. `bundle_items`
+still exists, just as a bundle's *components* table, not a
+bundle-header table.
+
+`order_item_components` snapshots what `App\Support\BundleExpander::expand()`
+resolves a line item's components to be at order-creation time — an
+identity row (unchanged product/variant/quantity) for a simple or
+variable product, one row per `bundle_items` row (quantity multiplied by
+however many bundles were ordered) for a bundle. Every downstream stock
+operation (`OrderController::reserveItems()`/`releaseReservation()`/
+`ship()`, `ReturnController::receive()`, `ShipmentController::returned()`)
+reads this snapshot via `OrderItem::resolvedComponents()` rather than
+re-deriving it live, so a bundle's composition can be edited after an
+order is placed without splitting that order between two different
+resolutions. `resolvedComponents()` falls back to a live `expand()` call
+only when no snapshot rows exist — true only for a handful of
+pre-existing tests that construct an `OrderItem` directly and bypass the
+real order-creation flow the snapshot protects. A bundle's own
+"available to sell" quantity (`App\Support\BundleExpander::availability()`,
+surfaced on `ProductResource` as `bundle_availability`) is derived, never
+stored: per warehouse, the minimum across every component of
+`floor(component_available / component_quantity_needed)`, treating a
+component with no stock at a warehouse as zero there. See
+`DEVELOPMENT_ROADMAP.md`'s Phase 5 Wave 2c scope note for the full design
+rationale and every deliberate scope cut (no nested bundles, Purchasing/
+adjustments/transfers excluded via `App\Rules\ProductIsNotBundle`, Low
+Stock report and Stock Levels list exclusion, CSV import/export unchanged).
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -666,21 +720,21 @@ shape, and so the foundation tables above (store_id placement, soft
 deletes, currency as a table not a hardcoded symbol) are already
 compatible with them.
 
-- **Catalog Wave 2b:** `bundles`/`bundle_items` (a bundle's stock
-  decrement needs to hit its component products, not itself — real
-  Orders-integrated work, not just a new `products.type` value),
-  `reviews` (Phase 8's `customers`/`orders` now exist to back "verified
-  purchase", but the reviews table itself isn't built, and nothing lets
-  a customer actually write one before a storefront/account portal
-  exists — Phase 16/17), and a reusable/browsable `media` library with
-  folders and cross-entity reuse (today, product/category/brand images
-  upload directly against their own record — see section 1b).
-  `products`, `categories`, `brands`, `product_images` are built — see
+- **Catalog Wave 2 (now fully shipped):** `reviews` (Phase 8's
+  `customers`/`orders` now exist to back "verified purchase", but the
+  reviews table itself isn't built, and nothing lets a customer actually
+  write one before a storefront/account portal exists — Phase 16/17),
+  and a reusable/browsable `media` library with folders and cross-entity
+  reuse (today, product/category/brand images upload directly against
+  their own record — see section 1b) remain the only deferred items, for
+  the reasons just given. Everything else this bullet used to list is
+  built: `products`, `categories`, `brands`, `product_images` — see
   section 1b; `product_attributes`, `product_attribute_values`,
-  `product_variants`, `product_variant_attribute_values` are built — see
-  section 1i. CSV bulk import/export, the one Wave 2b item this bullet
-  used to list, is no longer deferred — no new tables, since it reads
-  and writes the `products` columns above directly (see section 1j).
+  `product_variants`, `product_variant_attribute_values` — see section
+  1i; CSV bulk import/export — see section 1j; `bundle_items`,
+  `order_item_components` (a bundle's stock decrement hits its component
+  products, not a `bundles`/`bundle_items` pair as this bullet used to
+  assume) — see section 1l.
 - **Inventory Wave 2:** a pending/in-transit/received transfer approval
   workflow, and a `stock_adjustments` header table for grouping a
   stocktake's many per-product adjustments under one reference (today

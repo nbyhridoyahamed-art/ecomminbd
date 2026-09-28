@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\ProductAttributeController;
+use App\Http\Controllers\Api\V1\ProductComponentController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\ProductImportController;
@@ -89,6 +90,10 @@ Route::prefix('v1')->group(function () {
         Route::post('products/{product}/variants/generate', [ProductVariantController::class, 'generate']);
         Route::put('products/{product}/variants/{variant}', [ProductVariantController::class, 'update']);
         Route::delete('products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy']);
+
+        Route::post('products/{product}/components', [ProductComponentController::class, 'store']);
+        Route::put('products/{product}/components/{component}', [ProductComponentController::class, 'update']);
+        Route::delete('products/{product}/components/{component}', [ProductComponentController::class, 'destroy']);
 
         Route::get('stock-levels', [StockLevelController::class, 'index']);
         Route::get('stock-levels/low-stock-count', [StockLevelController::class, 'lowStockCount']);

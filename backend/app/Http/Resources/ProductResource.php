@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\BundleExpander;
 use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -61,6 +62,11 @@ class ProductResource extends JsonResource
 
             'images' => ProductImageResource::collection($this->whenLoaded('images')),
             'variants' => ProductVariantResource::collection($this->whenLoaded('variants')),
+            'components' => BundleItemResource::collection($this->whenLoaded('bundleItems')),
+            // How many of this bundle can currently be sold — derived from
+            // its components (BundleExpander), since a bundle never holds
+            // real stock of its own.
+            'bundle_availability' => $this->when($this->type === 'bundle', fn () => BundleExpander::availability($this->id)),
 
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

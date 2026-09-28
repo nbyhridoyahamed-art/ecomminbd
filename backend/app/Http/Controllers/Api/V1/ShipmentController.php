@@ -199,7 +199,7 @@ class ShipmentController extends Controller
         }
 
         DB::transaction(function () use ($request, $shipment) {
-            $order = $shipment->order()->with('items')->first();
+            $order = $shipment->order()->with('items.components')->first();
 
             // Order.ship() already converted the reservation into a real
             // `sale` movement and decremented on-hand quantity before this
@@ -207,40 +207,44 @@ class ShipmentController extends Controller
             // customer and are physically back, that decrement needs
             // reversing. (Reopening the order's own status, e.g. back to
             // pending/processing or to cancelled, is a Wave 2 problem —
-            // Wave 1 only guarantees the stock side is correct.)
+            // Wave 1 only guarantees the stock side is correct.) The whole
+            // shipment failed, not a partial return, so every component's
+            // full snapshotted quantity is restocked — no proration.
             foreach ($order->items as $item) {
-                $level = StockLevel::query()
-                    ->where('product_id', $item->product_id)
-                    ->where('product_variant_id', $item->product_variant_id)
-                    ->where('warehouse_id', $order->warehouse_id)
-                    ->lockForUpdate()
-                    ->first();
+                foreach ($item->resolvedComponents() as $component) {
+                    $level = StockLevel::query()
+                        ->where('product_id', $component->product_id)
+                        ->where('product_variant_id', $component->product_variant_id)
+                        ->where('warehouse_id', $order->warehouse_id)
+                        ->lockForUpdate()
+                        ->first();
 
-                $before = $level?->quantity ?? 0;
-                $after = $before + $item->quantity;
+                    $before = $level?->quantity ?? 0;
+                    $after = $before + $component->quantity;
 
-                $level
-                    ? $level->update(['quantity' => $after])
-                    : StockLevel::create([
-                        'product_id' => $item->product_id,
-                        'product_variant_id' => $item->product_variant_id,
+                    $level
+                        ? $level->update(['quantity' => $after])
+                        : StockLevel::create([
+                            'product_id' => $component->product_id,
+                            'product_variant_id' => $component->product_variant_id,
+                            'warehouse_id' => $order->warehouse_id,
+                            'quantity' => $after,
+                        ]);
+
+                    StockMovement::create([
+                        'store_id' => $shipment->store_id,
+                        'product_id' => $component->product_id,
+                        'product_variant_id' => $component->product_variant_id,
                         'warehouse_id' => $order->warehouse_id,
-                        'quantity' => $after,
+                        'type' => 'return',
+                        'quantity' => $component->quantity,
+                        'quantity_before' => $before,
+                        'quantity_after' => $after,
+                        'reference_type' => Shipment::class,
+                        'reference_id' => $shipment->id,
+                        'created_by' => $request->user()->id,
                     ]);
-
-                StockMovement::create([
-                    'store_id' => $shipment->store_id,
-                    'product_id' => $item->product_id,
-                    'product_variant_id' => $item->product_variant_id,
-                    'warehouse_id' => $order->warehouse_id,
-                    'type' => 'return',
-                    'quantity' => $item->quantity,
-                    'quantity_before' => $before,
-                    'quantity_after' => $after,
-                    'reference_type' => Shipment::class,
-                    'reference_id' => $shipment->id,
-                    'created_by' => $request->user()->id,
-                ]);
+                }
             }
 
             $fromStatus = $shipment->status;

@@ -32,9 +32,9 @@ class ProductRequest extends FormRequest
                 Rule::unique('products', 'sku')->where('store_id', $storeId)->ignore($productId),
             ],
             'barcode' => ['nullable', 'string', 'max:100'],
-            // 'digital'/'service'/'bundle'/'combo' are still reserved, not
+            // 'digital'/'service'/'combo' are still reserved, not
             // functional — see DEVELOPMENT_ROADMAP.md's Phase 5 scope notes.
-            'type' => ['nullable', Rule::in(['simple', 'variable'])],
+            'type' => ['nullable', Rule::in(['simple', 'variable', 'bundle'])],
 
             'description' => ['nullable', 'string'],
             'short_description' => ['nullable', 'string', 'max:1000'],

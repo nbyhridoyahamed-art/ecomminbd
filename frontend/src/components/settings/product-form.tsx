@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ProductImageGallery } from "@/components/settings/product-image-gallery";
+import { ComponentsManager } from "@/components/catalog/components-manager";
 import { VariantsManager } from "@/components/catalog/variants-manager";
 import type { ProductFormValues } from "@/hooks/use-products";
 import type { Brand } from "@/types/brand";
@@ -29,7 +30,7 @@ const productSchema = z
   .object({
     category_id: z.string(),
     brand_id: z.string(),
-    type: z.enum(["simple", "variable"]),
+    type: z.enum(["simple", "variable", "bundle"]),
     name: z.string().min(1, "Name is required."),
     slug: z
       .string()
@@ -62,9 +63,13 @@ type FormValues = z.infer<typeof productSchema>;
 
 const STATUS_LABELS: Record<string, string> = { draft: "Draft", active: "Active", archived: "Archived" };
 const WEIGHT_UNIT_LABELS: Record<string, string> = { kg: "kg", g: "g", lb: "lb" };
-const TYPE_LABELS: Record<string, string> = { simple: "Simple", variable: "Variable (has variants)" };
+const TYPE_LABELS: Record<string, string> = {
+  simple: "Simple",
+  variable: "Variable (has variants)",
+  bundle: "Bundle (combo of other products)",
+};
 
-const TABS = ["General", "Pricing", "Variants", "Media", "SEO"] as const;
+const TABS = ["General", "Pricing", "Variants", "Components", "Media", "SEO"] as const;
 
 interface ProductFormProps {
   storeId: number;
@@ -102,7 +107,7 @@ export function ProductForm({
     defaultValues: {
       category_id: defaultValues?.category_id ? String(defaultValues.category_id) : "",
       brand_id: defaultValues?.brand_id ? String(defaultValues.brand_id) : "",
-      type: defaultValues?.type === "variable" ? "variable" : "simple",
+      type: defaultValues?.type === "variable" || defaultValues?.type === "bundle" ? defaultValues.type : "simple",
       name: defaultValues?.name ?? "",
       slug: defaultValues?.slug ?? "",
       sku: defaultValues?.sku ?? "",
@@ -186,7 +191,7 @@ export function ProductForm({
 
       <div className="border-b border-border">
         <nav className="flex gap-1">
-          {TABS.filter((t) => t !== "Variants" || type === "variable").map((t) => (
+          {TABS.filter((t) => (t !== "Variants" || type === "variable") && (t !== "Components" || type === "bundle")).map((t) => (
             <button
               key={t}
               type="button"
@@ -295,7 +300,7 @@ export function ProductForm({
           <Label>Product type</Label>
           <Select
             value={type}
-            onValueChange={(value) => setValue("type", value as "simple" | "variable", { shouldDirty: true })}
+            onValueChange={(value) => setValue("type", value as "simple" | "variable" | "bundle", { shouldDirty: true })}
           >
             <SelectTrigger className="max-w-xs">
               <SelectValue placeholder="Select type">{type ? TYPE_LABELS[type] : undefined}</SelectValue>
@@ -303,11 +308,18 @@ export function ProductForm({
             <SelectContent>
               <SelectItem value="simple">Simple</SelectItem>
               <SelectItem value="variable">Variable (has variants)</SelectItem>
+              <SelectItem value="bundle">Bundle (combo of other products)</SelectItem>
             </SelectContent>
           </Select>
           {type === "variable" ? (
             <p className="text-xs text-text-muted">
               Save the product, then use the Variants tab to define its attributes and generate variants.
+            </p>
+          ) : null}
+          {type === "bundle" ? (
+            <p className="text-xs text-text-muted">
+              Save the product, then use the Components tab to choose what it&apos;s made of. A bundle never holds its
+              own stock — it&apos;s only ever as available as its components.
             </p>
           ) : null}
         </div>
@@ -403,25 +415,36 @@ export function ProductForm({
               </Select>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="low_stock_threshold">Low-stock threshold</Label>
-            <Input id="low_stock_threshold" inputMode="numeric" {...register("low_stock_threshold")} />
-          </div>
+          {type !== "bundle" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="low_stock_threshold">Low-stock threshold</Label>
+              <Input id="low_stock_threshold" inputMode="numeric" {...register("low_stock_threshold")} />
+            </div>
+          ) : null}
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-text-primary">
-          <Checkbox
-            checked={trackStock}
-            onCheckedChange={(checked) => setValue("track_stock", checked === true, { shouldDirty: true })}
-          />
-          Track inventory for this product
-        </label>
-        {trackStock ? (
+        {type === "bundle" ? (
           <p className="text-xs text-text-muted">
-            Real-time stock levels and movements arrive with Phase 6 (Inventory) — this only reserves the
-            setting for later.
+            A bundle never holds stock of its own, so it&apos;s never tracked or shown on the Low Stock report
+            directly — how many can be sold is derived from its components&apos; own stock instead.
           </p>
-        ) : null}
+        ) : (
+          <>
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <Checkbox
+                checked={trackStock}
+                onCheckedChange={(checked) => setValue("track_stock", checked === true, { shouldDirty: true })}
+              />
+              Track inventory for this product
+            </label>
+            {trackStock ? (
+              <p className="text-xs text-text-muted">
+                Real-time stock levels and movements arrive with Phase 6 (Inventory) — this only reserves the
+                setting for later.
+              </p>
+            ) : null}
+          </>
+        )}
       </div>
 
       {type === "variable" ? (
@@ -438,6 +461,24 @@ export function ProductForm({
           ) : (
             <Alert variant="info">
               <AlertDescription>Save the product first, then come back here to add variants.</AlertDescription>
+            </Alert>
+          )}
+        </div>
+      ) : null}
+
+      {type === "bundle" ? (
+        <div className={tab === "Components" ? "space-y-4" : "hidden"}>
+          {productId ? (
+            <ComponentsManager
+              storeId={storeId}
+              bundleProductId={productId}
+              components={defaultValues?.components ?? []}
+              bundleAvailability={defaultValues?.bundle_availability}
+              canEdit
+            />
+          ) : (
+            <Alert variant="info">
+              <AlertDescription>Save the product first, then come back here to add components.</AlertDescription>
             </Alert>
           )}
         </div>

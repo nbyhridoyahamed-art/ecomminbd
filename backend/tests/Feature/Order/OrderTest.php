@@ -5,6 +5,7 @@ namespace Tests\Feature\Order;
 use App\Models\BdDistrict;
 use App\Models\BdDivision;
 use App\Models\BdUpazila;
+use App\Models\BundleItem;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
@@ -64,6 +65,19 @@ class OrderTest extends TestCase
         $variant->attributeValues()->attach($value->id);
 
         return compact('product', 'variant');
+    }
+
+    /** @return array{bundle: Product, widget: Product, gadget: Product} */
+    private function bundleWithComponents(Store $store, int $widgetQtyNeeded = 2, int $gadgetQtyNeeded = 1): array
+    {
+        $bundle = Product::factory()->for($store)->create(['type' => 'bundle', 'name' => 'Combo Pack']);
+        $widget = Product::factory()->for($store)->create(['name' => 'Widget']);
+        $gadget = Product::factory()->for($store)->create(['name' => 'Gadget']);
+
+        BundleItem::create(['bundle_product_id' => $bundle->id, 'component_product_id' => $widget->id, 'quantity' => $widgetQtyNeeded]);
+        BundleItem::create(['bundle_product_id' => $bundle->id, 'component_product_id' => $gadget->id, 'quantity' => $gadgetQtyNeeded]);
+
+        return compact('bundle', 'widget', 'gadget');
     }
 
     public function test_creating_an_order_reserves_stock_without_touching_on_hand_quantity(): void
@@ -430,6 +444,180 @@ class OrderTest extends TestCase
             ->assertJsonPath('data.shipping.division', 'Dhaka')
             ->assertJsonPath('data.shipping.district', 'Dhaka')
             ->assertJsonPath('data.shipping.upazila', 'Savar');
+    }
+
+    public function test_ordering_a_bundle_reserves_each_components_stock_multiplied_by_the_needed_quantity(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['bundle' => $bundle, 'widget' => $widget, 'gadget' => $gadget] = $this->bundleWithComponents($store);
+        StockLevel::factory()->for($widget)->for($warehouse)->create(['quantity' => 20, 'quantity_reserved' => 0]);
+        StockLevel::factory()->for($gadget)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [['product_id' => $bundle->id, 'quantity' => 3, 'unit_price' => '500.00']],
+            ...$this->manualShipping(),
+        ]);
+
+        $response->assertCreated();
+        $orderItemId = $response->json('data.items.0.id');
+
+        // 3 bundle units need 3*2=6 widgets and 3*1=3 gadgets reserved —
+        // on-hand quantity is untouched until shipment.
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $widget->id, 'warehouse_id' => $warehouse->id, 'quantity' => 20, 'quantity_reserved' => 6]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $gadget->id, 'warehouse_id' => $warehouse->id, 'quantity' => 10, 'quantity_reserved' => 3]);
+        $this->assertDatabaseHas('order_item_components', ['order_item_id' => $orderItemId, 'product_id' => $widget->id, 'quantity' => 6]);
+        $this->assertDatabaseHas('order_item_components', ['order_item_id' => $orderItemId, 'product_id' => $gadget->id, 'quantity' => 3]);
+    }
+
+    public function test_ordering_a_bundle_with_insufficient_component_stock_is_rejected(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['bundle' => $bundle, 'widget' => $widget, 'gadget' => $gadget] = $this->bundleWithComponents($store);
+        // Only 5 widgets on hand, but 3 bundle units need 6.
+        StockLevel::factory()->for($widget)->for($warehouse)->create(['quantity' => 5, 'quantity_reserved' => 0]);
+        StockLevel::factory()->for($gadget)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [['product_id' => $bundle->id, 'quantity' => 3, 'unit_price' => '500.00']],
+            ...$this->manualShipping(),
+        ])->assertStatus(422);
+
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $widget->id, 'quantity_reserved' => 0]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $gadget->id, 'quantity_reserved' => 0]);
+        $this->assertDatabaseCount('order_item_components', 0);
+    }
+
+    public function test_a_bundle_containing_a_variant_component_reserves_only_that_variants_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['product' => $product, 'variant' => $variant] = $this->variantProduct($store);
+        $bundle = Product::factory()->for($store)->create(['type' => 'bundle']);
+        BundleItem::create([
+            'bundle_product_id' => $bundle->id, 'component_product_id' => $product->id,
+            'component_variant_id' => $variant->id, 'quantity' => 1,
+        ]);
+
+        // A decoy variant-less row for the same component product — ordering
+        // the bundle must never touch this one.
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 999, 'quantity_reserved' => 0]);
+        StockLevel::create(['product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $warehouse->id, 'quantity' => 50, 'quantity_reserved' => 0]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [['product_id' => $bundle->id, 'quantity' => 4, 'unit_price' => '500.00']],
+            ...$this->manualShipping(),
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $product->id, 'product_variant_id' => $variant->id, 'warehouse_id' => $warehouse->id, 'quantity' => 50, 'quantity_reserved' => 4]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $product->id, 'product_variant_id' => null, 'warehouse_id' => $warehouse->id, 'quantity' => 999, 'quantity_reserved' => 0]);
+    }
+
+    public function test_shipping_a_bundle_order_decrements_each_components_stock_and_creates_sale_movements(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['bundle' => $bundle, 'widget' => $widget, 'gadget' => $gadget] = $this->bundleWithComponents($store);
+        StockLevel::factory()->for($widget)->for($warehouse)->create(['quantity' => 20, 'quantity_reserved' => 0]);
+        StockLevel::factory()->for($gadget)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+
+        $create = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [['product_id' => $bundle->id, 'quantity' => 3, 'unit_price' => '500.00']],
+            ...$this->manualShipping(),
+        ])->assertCreated();
+        $orderId = $create->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/orders/{$orderId}/ship")->assertOk();
+
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $widget->id, 'quantity' => 14, 'quantity_reserved' => 0]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $gadget->id, 'quantity' => 7, 'quantity_reserved' => 0]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $widget->id, 'type' => 'sale', 'quantity' => 6, 'reference_type' => Order::class, 'reference_id' => $orderId,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $gadget->id, 'type' => 'sale', 'quantity' => 3, 'reference_type' => Order::class, 'reference_id' => $orderId,
+        ]);
+    }
+
+    public function test_cancelling_a_bundle_order_releases_each_components_reservation(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['bundle' => $bundle, 'widget' => $widget, 'gadget' => $gadget] = $this->bundleWithComponents($store);
+        StockLevel::factory()->for($widget)->for($warehouse)->create(['quantity' => 20, 'quantity_reserved' => 0]);
+        StockLevel::factory()->for($gadget)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+
+        $create = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [['product_id' => $bundle->id, 'quantity' => 3, 'unit_price' => '500.00']],
+            ...$this->manualShipping(),
+        ])->assertCreated();
+        $orderId = $create->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/orders/{$orderId}/cancel")->assertOk();
+
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $widget->id, 'quantity' => 20, 'quantity_reserved' => 0]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $gadget->id, 'quantity' => 10, 'quantity_reserved' => 0]);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_a_mixed_order_with_a_bundle_and_a_regular_item_reserves_both(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        ['bundle' => $bundle, 'widget' => $widget, 'gadget' => $gadget] = $this->bundleWithComponents($store);
+        $mug = Product::factory()->for($store)->create(['name' => 'Mug']);
+        StockLevel::factory()->for($widget)->for($warehouse)->create(['quantity' => 20, 'quantity_reserved' => 0]);
+        StockLevel::factory()->for($gadget)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+        StockLevel::factory()->for($mug)->for($warehouse)->create(['quantity' => 30, 'quantity_reserved' => 0]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'items' => [
+                ['product_id' => $bundle->id, 'quantity' => 2, 'unit_price' => '500.00'],
+                ['product_id' => $mug->id, 'quantity' => 5, 'unit_price' => '20.00'],
+            ],
+            ...$this->manualShipping(),
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $widget->id, 'quantity' => 20, 'quantity_reserved' => 4]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $gadget->id, 'quantity' => 10, 'quantity_reserved' => 2]);
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $mug->id, 'quantity' => 30, 'quantity_reserved' => 5]);
     }
 
     public function test_a_user_without_orders_view_is_forbidden(): void

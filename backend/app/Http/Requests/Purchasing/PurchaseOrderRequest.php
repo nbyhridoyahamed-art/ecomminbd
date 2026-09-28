@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Purchasing;
 
+use App\Rules\ProductIsNotBundle;
 use App\Rules\VariantBelongsToProduct;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,7 +26,7 @@ class PurchaseOrderRequest extends FormRequest
             'currency_code' => ['nullable', 'string', 'size:3'],
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('store_id', $storeId)],
+            'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('store_id', $storeId), new ProductIsNotBundle],
             'items.*.product_variant_id' => ['nullable', 'integer', new VariantBelongsToProduct],
             'items.*.quantity_ordered' => ['required', 'integer', 'min:1'],
             'items.*.unit_cost' => ['required', 'numeric', 'min:0'],

@@ -322,4 +322,44 @@ directly (same direct-permission pattern as the Dashboard endpoints
 above), activating a permission the RBAC seeder has carried since
 Phase 3. No new resource — see `DATABASE_DESIGN.md` section 1k.
 
+Bundles/Combos (Phase 5 Wave 2c): `POST /products/{product}/components`
+adds a component (`product_id`, optional `product_variant_id`,
+`quantity`) to a bundle — rejects with a 422 if `{product}` isn't itself
+a `type=bundle` product, or with a validation error on `product_id` if
+the component is the bundle itself, is itself a bundle (no nested
+bundles), or is already a component of this bundle; `product_variant_id`
+reuses `App\Rules\VariantBelongsToProduct` unchanged. `PUT/DELETE
+/products/{product}/components/{component}` update a component's
+quantity or remove it, returning 404 if `{component}` doesn't belong to
+`{product}`. All three check `products.update` directly, the same
+sub-resource pattern as `ProductVariantController`/`ProductImageController`.
+`GET /products` and `GET /products/{id}` now also return `components[]`
+(`{id, product_id, product_name, product_sku, product_variant_id,
+product_variant_sku, quantity}`) for every product, and — only when
+`type=bundle` — `bundle_availability: {total_available, by_warehouse:
+[{warehouse_id, warehouse_name, available}]}`, the bundle's derived
+sellable quantity (see `DATABASE_DESIGN.md` section 1l). `POST/PUT
+/products` now accept `type=bundle` but force `track_stock` to `false`
+and `low_stock_threshold` to `null` server-side whenever the effective
+type is bundle, regardless of what's submitted, so a bundle can never
+incorrectly show up as "low stock." `POST/PUT /orders` line items can
+now target a bundle product directly — its components are resolved and
+snapshotted into `order_item_components` at creation time, and
+`OrderResource` returns each bundle line item's resolved
+`components: [{product_id, product_name, sku, product_variant_sku,
+quantity}]` (`null` for a non-bundle item) for packing visibility;
+shipping, cancelling, and returning a bundle order reserves/decrements/
+restocks its components, never the bundle itself. `POST
+/stock-adjustments`, `POST /stock-transfers`, and `POST/PUT
+/purchase-orders` all now reject a bundle `product_id` with a 422 via
+the shared `App\Rules\ProductIsNotBundle` rule — a bundle is never
+bought, adjusted, or moved directly, only ordered. `GET /stock-levels`
+and `GET /reports/low-stock` both exclude bundles (the low-stock query's
+`track_stock=true` filter already excludes any bundle, since that's
+forced `false` server-side; `GET /stock-levels` additionally filters
+`type != 'bundle'` explicitly, since its left join would otherwise show
+a bundle as a misleading "0 on hand" row); `GET
+/reports/products-performance` is unaffected and shows a bundle as its
+own ranked row, same as any other product.
+
 Section 7 (webhooks) remains documented intent for future phases.

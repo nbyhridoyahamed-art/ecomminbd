@@ -180,11 +180,13 @@ export function PurchaseOrderForm({
                       <SelectValue placeholder="Select product">{selectedProduct?.name}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {products.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name} ({p.sku})
-                        </SelectItem>
-                      ))}
+                      {products
+                        .filter((p) => p.type !== "bundle")
+                        .map((p) => (
+                          <SelectItem key={p.id} value={String(p.id)}>
+                            {p.name} ({p.sku})
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   {itemErrors?.product_id ? <p className="text-xs text-danger">{itemErrors.product_id.message}</p> : null}

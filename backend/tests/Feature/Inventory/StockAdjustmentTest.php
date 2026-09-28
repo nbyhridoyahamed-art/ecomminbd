@@ -131,6 +131,23 @@ class StockAdjustmentTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('product_variant_id');
     }
 
+    public function test_a_bundle_product_is_rejected_from_stock_adjustments(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $bundle = Product::factory()->for($store)->create(['type' => 'bundle']);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/v1/stock-adjustments', [
+                'product_id' => $bundle->id,
+                'warehouse_id' => $warehouse->id,
+                'direction' => 'increase',
+                'quantity' => 10,
+            ])
+            ->assertUnprocessable()->assertJsonValidationErrors('product_id');
+    }
+
     public function test_decreasing_stock_below_zero_is_rejected(): void
     {
         $admin = $this->admin();

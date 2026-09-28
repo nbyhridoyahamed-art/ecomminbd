@@ -118,6 +118,24 @@ class StockTransferTest extends TestCase
         ]);
     }
 
+    public function test_a_bundle_product_is_rejected_from_stock_transfers(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $from = Warehouse::factory()->for($store)->create();
+        $to = Warehouse::factory()->for($store)->create();
+        $bundle = Product::factory()->for($store)->create(['type' => 'bundle']);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/v1/stock-transfers', [
+                'store_id' => $store->id,
+                'from_warehouse_id' => $from->id,
+                'to_warehouse_id' => $to->id,
+                'items' => [['product_id' => $bundle->id, 'quantity' => 5]],
+            ])
+            ->assertUnprocessable()->assertJsonValidationErrors('items.0.product_id');
+    }
+
     public function test_a_transfer_with_insufficient_source_stock_is_rejected_and_nothing_moves(): void
     {
         $admin = $this->admin();

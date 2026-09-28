@@ -16,7 +16,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductController extends Controller
 {
-    private const RELATIONS = ['category', 'brand', 'images', 'variants.attributeValues.attribute', 'variants.stockLevels.warehouse'];
+    private const RELATIONS = [
+        'category', 'brand', 'images', 'variants.attributeValues.attribute', 'variants.stockLevels.warehouse',
+        'bundleItems.componentProduct', 'bundleItems.componentVariant',
+    ];
 
     public function index(Request $request): JsonResponse
     {
@@ -43,9 +46,9 @@ class ProductController extends Controller
     /**
      * Exports every product matching the same filters as index() — not just
      * the current page — as a CSV a store operator can edit and re-import
-     * (see ProductImportController). Simple and variable products both
-     * export; the Type column is informational only, since import never
-     * creates or edits variants.
+     * (see ProductImportController). Every type exports; the Type column is
+     * informational only, since import never creates or edits variants or
+     * bundle components (import stays scoped to simple products only).
      */
     public function export(Request $request): StreamedResponse
     {
@@ -121,6 +124,9 @@ class ProductController extends Controller
         if ($data['status'] === 'active') {
             $data['published_at'] = now();
         }
+        if ($data['type'] === 'bundle') {
+            $this->clearOwnStockFields($data);
+        }
 
         $product = Product::create($data);
 
@@ -142,6 +148,9 @@ class ProductController extends Controller
         $data['updated_by'] = $request->user()->id;
         if (($data['status'] ?? null) === 'active' && $product->published_at === null) {
             $data['published_at'] = now();
+        }
+        if (($data['type'] ?? $product->type) === 'bundle') {
+            $this->clearOwnStockFields($data);
         }
 
         $product->update($data);
@@ -177,5 +186,21 @@ class ProductController extends Controller
         unset($data['price'], $data['sale_price'], $data['cost_price'], $data['compare_at_price']);
 
         return $data;
+    }
+
+    /**
+     * A bundle never holds real stock of its own — its "available to sell"
+     * quantity is derived from its components (see BundleExpander), not a
+     * stock_levels row it owns. Forcing track_stock off (and clearing any
+     * threshold) here, rather than only hiding the fields client-side, keeps
+     * a bundle out of the low-stock report regardless of what a raw API
+     * request submits — otherwise a bundle with track_stock left true and a
+     * threshold set would show 0 on hand against a positive threshold and
+     * incorrectly appear "low stock" on every single request.
+     */
+    private function clearOwnStockFields(array &$data): void
+    {
+        $data['track_stock'] = false;
+        $data['low_stock_threshold'] = null;
     }
 }

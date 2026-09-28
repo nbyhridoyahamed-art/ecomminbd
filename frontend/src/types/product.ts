@@ -46,9 +46,27 @@ export interface Product {
 
   images: ProductImage[];
   variants: ProductVariant[];
+  components: BundleComponent[];
+  /** Only present when type is "bundle" — how many can currently be sold, derived from component stock. */
+  bundle_availability?: BundleAvailability;
 
   created_at: string;
   updated_at: string;
+}
+
+export interface BundleComponent {
+  id: number;
+  product_id: number;
+  product_name: string;
+  product_sku: string;
+  product_variant_id: number | null;
+  product_variant_sku: string | null;
+  quantity: number;
+}
+
+export interface BundleAvailability {
+  total_available: number;
+  by_warehouse: { warehouse_id: number; warehouse_name: string; available: number }[];
 }
 
 export interface ProductVariantStockByWarehouse {

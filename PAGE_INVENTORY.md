@@ -11,7 +11,7 @@ their backing functionality — no dead pages).
 | `/login` | ✅ | 3 (Auth) |
 | `/dashboard` | ✅ | 3/11 (real KPI stat cards, each permission-gated so a card never shows a misleading 0; sales-trend + order-status-breakdown Recharts visuals; recent-orders widget) |
 | `/catalog/products` | ✅ | 5 (search, filter by category/brand/status, pagination); 5 Wave 2b added Export (respects the current filters) and Import (CSV upload dialog with a per-row results summary) |
-| `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5/5-Wave2a (tabbed form: General/Pricing/Variants*/Media/SEO — *Variants tab only shown once type is set to Variable; multi-image upload with primary selection) |
+| `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5/5-Wave2a/5-Wave2c (tabbed form: General/Pricing/Variants*/Components†/Media/SEO — *Variants tab only shown once type is set to Variable, †Components tab only shown once type is set to Bundle, showing a product+variant+quantity picker, the bundle's derived availability by warehouse, and per-row edit/remove; multi-image upload with primary selection) |
 | `/catalog/categories` | ✅ | 5 (hierarchical list, unlimited nesting, cycle-safe) |
 | `/catalog/categories/new`, `/catalog/categories/[id]` | ✅ | 5 |
 | `/catalog/brands` | ✅ | 5 (list, search, pagination) |
@@ -20,7 +20,7 @@ their backing functionality — no dead pages).
 | `/catalog/attributes/new`, `/catalog/attributes/[id]` | ✅ | 5 Wave 2a (edit page also manages the attribute's values inline: add/edit/delete, blocked while a value is still used by a variant) |
 | `/catalog/products/[id]` (Variants tab: Stock column + "Adjust stock" action) | ✅ | variant-aware retrofit — per-variant stock summary and adjustment entry point, since the global `/inventory/stock-levels` list stays product-centric (see `DATABASE_DESIGN.md` section 1c) |
 | `/orders/orders/new`, `/purchasing/purchase-orders/new`, `/inventory/transfers/new` (variant picker on line items) | ✅ | variant-aware retrofit — a variable product's row grows a second `Select` for its variant (required client-side before submit, though the API itself still accepts a bare product); `order_items`/`purchase_order_items`/`stock_transfer_items`/`stock_levels`/`stock_movements` are now all variant-aware, see `DATABASE_DESIGN.md` section 1i |
-| `/catalog/products` (bundle/combo types) | ⏳ | 5 Wave 2b — needs Orders-integrated component stock decrement, not just a new `type` value |
+| `/catalog/products/[id]` (Components tab, bundle/combo type) | ✅ | 5 Wave 2c — component picker (product + optional variant + quantity), derived per-warehouse availability, editable quantity, remove; `/orders/orders/[id]` shows a bundle line item's resolved component breakdown inline for packing; `/purchasing/purchase-orders/new`, `/inventory/transfers/new` exclude bundles from their product picker (a bundle is never purchased or transferred directly — see `DATABASE_DESIGN.md` section 1l) |
 | `/catalog/media` (reusable, browsable media library) | ⏳ | 5 Wave 2b — product/category/brand images upload directly today, no shared library yet |
 | `/inventory` | ✅ | 6 (redirects to Stock Levels) |
 | `/inventory/stock-levels` | ✅ | 6 (per-warehouse on-hand quantity, low-stock filter, search, adjust dialog) |
