@@ -37,10 +37,10 @@ class ReportController extends Controller
 
         $dayRows = $this->dailySalesRows($data);
         $byPeriod = $this->foldByGranularity($dayRows, $data['granularity'], $currencyCode);
+        $totals = $this->periodTotals($dayRows);
 
-        $ordersCount = (int) $dayRows->sum('orders_count');
-        $revenueMinor = (int) $dayRows->sum('revenue_minor');
-        $averageMinor = $ordersCount > 0 ? intdiv($revenueMinor, $ordersCount) : 0;
+        $previousRange = $this->previousPeriodRange($data);
+        $previousTotals = $this->periodTotals($this->dailySalesRows($previousRange));
 
         $byPaymentMethod = $this->paymentMethodQuery($data)->get()->map(fn ($row) => [
             'payment_method' => $row->payment_method,
@@ -57,13 +57,22 @@ class ReportController extends Controller
 
         return ApiResponse::success([
             'totals' => [
-                'revenue_amount' => (new Money($revenueMinor, $currencyCode))->toDecimal(),
-                'orders_count' => $ordersCount,
-                'average_order_value' => (new Money($averageMinor, $currencyCode))->toDecimal(),
+                'revenue_amount' => (new Money($totals['revenueMinor'], $currencyCode))->toDecimal(),
+                'orders_count' => $totals['ordersCount'],
+                'average_order_value' => (new Money($totals['averageMinor'], $currencyCode))->toDecimal(),
             ],
             'by_period' => $byPeriod,
             'by_payment_method' => $byPaymentMethod,
             'by_courier' => $byCourier,
+            'comparison' => [
+                'date_from' => $previousRange['date_from']->toDateString(),
+                'date_to' => $previousRange['date_to']->toDateString(),
+                'totals' => [
+                    'revenue_amount' => (new Money($previousTotals['revenueMinor'], $currencyCode))->toDecimal(),
+                    'orders_count' => $previousTotals['ordersCount'],
+                    'average_order_value' => (new Money($previousTotals['averageMinor'], $currencyCode))->toDecimal(),
+                ],
+            ],
         ], 'Sales report fetched successfully.');
     }
 
@@ -243,6 +252,40 @@ class ReportController extends Controller
             ->groupBy('date')
             ->orderBy('date')
             ->get();
+    }
+
+    /** @return array{ordersCount: int, revenueMinor: int, averageMinor: int} */
+    private function periodTotals(Collection $dayRows): array
+    {
+        $ordersCount = (int) $dayRows->sum('orders_count');
+        $revenueMinor = (int) $dayRows->sum('revenue_minor');
+        $averageMinor = $ordersCount > 0 ? intdiv($revenueMinor, $ordersCount) : 0;
+
+        return compact('ordersCount', 'revenueMinor', 'averageMinor');
+    }
+
+    /**
+     * The immediately preceding period of the same length as the requested
+     * range — e.g. a 30-day selection compares against the 30 days right
+     * before it, not a fixed "last calendar month" (which would be a
+     * different length for most selections anyway). Same store/warehouse
+     * filters as $data, so the comparison stays apples-to-apples; already
+     * within the 366-day cap `resolveFilters()` enforces on the primary
+     * range, so no separate validation is needed here.
+     *
+     * @return array{store_id: int, date_from: Carbon, date_to: Carbon, warehouse_id: ?int, granularity: string}
+     */
+    private function previousPeriodRange(array $data): array
+    {
+        // Diffed against date_to's own startOfDay, not the endOfDay instant
+        // resolveFilters() stored — date_from vs. an endOfDay operand is a
+        // near-whole-day fraction (23:59:59.999999) that Carbon's diffInDays
+        // rounds up, silently adding a day to $durationDays.
+        $durationDays = $data['date_from']->diffInDays($data['date_to']->copy()->startOfDay()) + 1;
+        $previousTo = $data['date_from']->copy()->subDay()->endOfDay();
+        $previousFrom = $previousTo->copy()->subDays($durationDays - 1)->startOfDay();
+
+        return [...$data, 'date_from' => $previousFrom, 'date_to' => $previousTo];
     }
 
     /**

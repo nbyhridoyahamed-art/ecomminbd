@@ -287,7 +287,11 @@ Wave 2a** — a `by_courier` breakdown on the sales report, inner-joining
 `orders` to `shipments`/`couriers` (same shape as the existing
 by-payment-method breakdown) so only orders that actually reached a
 courier are counted, shown as a second table beside it on the Sales
-report page.
+report page. Also built since: **Phase 18 Wave 2b** — a period-over-period
+`comparison` on the sales report, computed over the immediately
+preceding period of equal length and wired into `StatCard`'s existing
+(previously unused) `trend` prop on the Revenue/Orders/Average Order
+Value cards.
 CMS/builder, blog, SEO, storefront, customer account, the adapter
 implementations described in section 6, the rest of Catalog Wave 2b
 (bundles, reviews, a reusable media library), Purchasing Wave 2 (purchase
@@ -301,6 +305,6 @@ dashboard widget itself* — Reports above now covers date-range/
 per-warehouse/payment-method/CSV/low-stock-with-names as its own admin
 section, so only per-courier breakdowns and folding any of that back into
 the dashboard remain open there), and the rest of Reporting Wave 2 (PDF
-export, period-over-period comparisons, and any materialized/scheduled
-aggregate table — see `DATABASE_DESIGN.md` section 2) are designed here
-but built in later phases per `DEVELOPMENT_ROADMAP.md`.
+export, and any materialized/scheduled aggregate table — see
+`DATABASE_DESIGN.md` section 2) are designed here but built in later
+phases per `DEVELOPMENT_ROADMAP.md`.

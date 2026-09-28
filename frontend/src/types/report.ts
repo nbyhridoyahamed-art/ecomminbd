@@ -25,11 +25,18 @@ export interface SalesReportCourier {
   revenue_amount: number;
 }
 
+export interface SalesReportComparison {
+  date_from: string;
+  date_to: string;
+  totals: SalesReportTotals;
+}
+
 export interface SalesReport {
   totals: SalesReportTotals;
   by_period: SalesReportPeriod[];
   by_payment_method: SalesReportPaymentMethod[];
   by_courier: SalesReportCourier[];
+  comparison: SalesReportComparison;
 }
 
 export interface ProductPerformanceRow {

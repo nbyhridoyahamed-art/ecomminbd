@@ -602,7 +602,7 @@ the create-time default — every other nullable column is written
 literally, including to `null` on blank, since the file is meant to be
 the source of truth for whatever column it contains.
 
-## 1k. Reporting (Phase 18 Wave 1 + Wave 2a)
+## 1k. Reporting (Phase 18 Wave 1 + Wave 2a + Wave 2b)
 
 No new tables — `ReportController`'s three endpoints (sales, product
 performance, low stock) are pure read-side aggregation over the same
@@ -633,6 +633,20 @@ section 1f, so this join can't fan out beyond what the earlier
 `order_items` join already produces), so an order still awaiting
 dispatch correctly has no courier row yet even though it's still counted
 in the report's own `totals`.
+
+**Wave 2b addendum:** the sales report also computes a `comparison` — the
+same `totals` shape, over the immediately preceding period of equal
+length (`previousPeriodRange()`), reusing the same `dailySalesRows()`
+query and a newly-extracted `periodTotals()` helper (shared by both the
+primary and comparison period, so there's exactly one place that sums a
+day-row collection into revenue/orders/average). Computing the
+comparison window's day count is the one subtlety worth recording: it
+must diff two `startOfDay` instants, not `date_from` (`startOfDay`)
+against `date_to` (`endOfDay`, i.e. `23:59:59.999999`) — Carbon's
+`diffInDays` rounds that near-whole-day fraction up, which silently
+extended the window by a day and shifted its start a day early. A
+feature test asserting the exact comparison boundary caught it before
+this addendum was written.
 
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
@@ -714,11 +728,12 @@ compatible with them.
 - **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,
   description, focus_keyword, og_*, twitter_*, schema_json, canonical,
   robots), `redirects`, `seo_templates`.
-- **Reporting/Analytics:** Phase 18 Wave 1 + Wave 2a (section 1k) shipped
-  sales/product-performance/low-stock reports plus a by-courier
-  breakdown, all as runtime aggregation — still open: materialized/
-  aggregated tables populated by scheduled jobs once runtime aggregation
-  gets too slow, plus PDF export and period-over-period comparisons.
+- **Reporting/Analytics:** Phase 18 Wave 1 + Wave 2a + Wave 2b (section 1k)
+  shipped sales/product-performance/low-stock reports plus a by-courier
+  breakdown and a period-over-period comparison, all as runtime
+  aggregation — still open: PDF export, and materialized/aggregated
+  tables populated by scheduled jobs once runtime aggregation gets too
+  slow.
 
 All money columns in future phases use integer minor-unit columns
 (`*_amount` in paisa) — never `float`/`double` — per spec rule 27.

@@ -24,7 +24,7 @@ in place and the app still builds/runs.
 | 15 | SEO | ⏳ Not started | No |
 | 16 | Storefront | ⏳ Not started | No |
 | 17 | Customer Dashboard | ⏳ Not started | No |
-| 18 | Reporting | ✅ Wave 1 + Wave 2a (per-courier breakdown) done (PDF export, period-over-period comparisons, materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
+| 18 | Reporting | ✅ Wave 1 + Wave 2a (per-courier breakdown) + Wave 2b (period-over-period comparison) done (PDF export, materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters, vs.-previous-period trend on each KPI card), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
 | 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ⏳ Not started | No |
 | 20 | Analytics | ⏳ Not started | No |
 | 21 | Security Hardening | ⏳ Ongoing baseline only | Partial — Sanctum, policies, rate limiting, validation from day one |
@@ -378,13 +378,42 @@ for period-level data, on-screen tables are for the per-dimension
 breakdowns. 1 new backend test (174 → 175), all green, plus the existing
 frontend build/lint/typecheck.
 
+**Phase 18 Wave 2b scope note:** adds a period-over-period trend to each
+of the sales report's three KPI cards (revenue, orders, average order
+value) — "vs previous period," where "previous period" is the same
+number of days immediately before the requested range (a 30-day
+selection compares against the 30 days right before it), not a fixed
+"last calendar month." `ReportController::previousPeriodRange()`
+computes that window and `periodTotals()` (extracted from `salesReport()`'s
+previously-inline totals math, now shared by both the current and
+comparison period) sums it the same way as the primary totals; same
+store/warehouse filters, so the comparison stays apples-to-apples. One
+subtlety worth flagging for the next date-math change in this file:
+the first cut of `previousPeriodRange()` diffed `date_from` (a
+`startOfDay`) directly against `date_to` (an `endOfDay`, so a
+23:59:59.999999 instant) to get the range's day count, and Carbon's
+`diffInDays` rounds that near-whole-day fraction *up* — silently adding
+an extra day and shifting the comparison window's start a full day
+early. A test asserting the exact comparison boundary caught it; the fix
+diffs against `date_to`'s own `startOfDay()` instead, an exact whole-day
+difference with no rounding involved. Response-shape addition only: a
+new `comparison: {date_from, date_to, totals}` alongside the existing
+`totals`/`by_period`/`by_payment_method`/`by_courier`; not added to the
+by-period chart or the CSV export (same "on-screen only" reasoning as
+`by_payment_method`/`by_courier`). Frontend wires this into `StatCard`'s
+existing `trend` prop, which had been defined since early in the
+project but had no real consumer until now — "New" is shown instead of
+a nonsensical percentage when the previous period had zero orders. 1 new
+backend test (175 → 176), all green, plus the existing frontend
+build/lint/typecheck.
+
 ## Next Session Should Start With
 
-Phase 18 Reporting Wave 2a (per-courier breakdown) is done. Bundles/combos
-(needs Orders-integrated component stock decrement) or the rest of
-Reporting Wave 2 (PDF export, period-over-period comparisons) are the
-reasonable pickups next — neither blocks the other, pick whichever the
-user prioritizes. Customer reviews stays off the table until Phase 16/17
+Phase 18 Reporting Wave 2b (period-over-period comparison) is done.
+Bundles/combos (needs Orders-integrated component stock decrement) or
+the last remaining Reporting Wave 2 item (PDF export) are the reasonable
+pickups next — neither blocks the other, pick whichever the user
+prioritizes. Customer reviews stays off the table until Phase 16/17
 gives a customer somewhere to actually write one; a reusable media
 library still has no real consumer either (today's
 direct-upload-per-record images work fine). Follow the phase order

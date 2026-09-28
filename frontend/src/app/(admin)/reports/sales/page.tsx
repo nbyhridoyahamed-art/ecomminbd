@@ -22,6 +22,31 @@ function toDateInput(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function formatShortDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** previous === 0 makes a percent change undefined, not zero — "New" beats a nonsensical +Infinity%. */
+function computeTrend(
+  current: number,
+  previous: number,
+  comparisonFrom: string,
+  comparisonTo: string,
+): { direction: "up" | "down" | "flat"; label: string } {
+  const range = `${formatShortDate(comparisonFrom)}–${formatShortDate(comparisonTo)}`;
+
+  if (previous === 0) {
+    return current === 0
+      ? { direction: "flat", label: `No orders vs ${range}` }
+      : { direction: "up", label: `New vs ${range}` };
+  }
+
+  const percent = ((current - previous) / previous) * 100;
+  const direction = percent > 0 ? "up" : percent < 0 ? "down" : "flat";
+  const sign = percent > 0 ? "+" : "";
+  return { direction, label: `${sign}${percent.toFixed(1)}% vs ${range}` };
+}
+
 function defaultDateRange() {
   const to = new Date();
   const from = new Date();
@@ -128,12 +153,46 @@ export default function SalesReportPage() {
           label="Revenue"
           value={isLoading ? "—" : formatMoney(report?.totals.revenue_amount ?? 0, "BDT")}
           icon={<DollarSign />}
+          trend={
+            report
+              ? computeTrend(
+                  report.totals.revenue_amount,
+                  report.comparison.totals.revenue_amount,
+                  report.comparison.date_from,
+                  report.comparison.date_to,
+                )
+              : undefined
+          }
         />
-        <StatCard label="Orders" value={isLoading ? "—" : (report?.totals.orders_count ?? 0)} icon={<Receipt />} />
+        <StatCard
+          label="Orders"
+          value={isLoading ? "—" : (report?.totals.orders_count ?? 0)}
+          icon={<Receipt />}
+          trend={
+            report
+              ? computeTrend(
+                  report.totals.orders_count,
+                  report.comparison.totals.orders_count,
+                  report.comparison.date_from,
+                  report.comparison.date_to,
+                )
+              : undefined
+          }
+        />
         <StatCard
           label="Average order value"
           value={isLoading ? "—" : formatMoney(report?.totals.average_order_value ?? 0, "BDT")}
           icon={<TrendingUp />}
+          trend={
+            report
+              ? computeTrend(
+                  report.totals.average_order_value,
+                  report.comparison.totals.average_order_value,
+                  report.comparison.date_from,
+                  report.comparison.date_to,
+                )
+              : undefined
+          }
         />
       </div>
 

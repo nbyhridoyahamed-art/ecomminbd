@@ -136,6 +136,37 @@ class ReportTest extends TestCase
         $this->assertEquals(80.0, $byCourier['Courier B']['revenue_amount']);
     }
 
+    public function test_sales_report_includes_period_over_period_comparison(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $otherWarehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create();
+
+        // Requested range: 2026-06-10..2026-06-19 (10 days).
+        $this->orderOn($store, $warehouse, $customer, 'delivered', 'cod', '2026-06-15 10:00:00', $product, 1, 20000);
+
+        // The previous period is the 10 days right before it: 2026-05-31..2026-06-09.
+        $this->orderOn($store, $warehouse, $customer, 'delivered', 'cod', '2026-06-05 10:00:00', $product, 1, 10000);
+        // One day before the previous period starts — must be excluded.
+        $this->orderOn($store, $warehouse, $customer, 'delivered', 'cod', '2026-05-30 10:00:00', $product, 1, 99999);
+        // Inside the previous period but a different warehouse — excluded once warehouse-filtered.
+        $this->orderOn($store, $otherWarehouse, $customer, 'delivered', 'cod', '2026-06-01 10:00:00', $product, 1, 50000);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/reports/sales?store_id={$store->id}&date_from=2026-06-10&date_to=2026-06-19&warehouse_id={$warehouse->id}")
+            ->assertOk();
+
+        $response->assertJsonPath('data.totals.revenue_amount', 200)
+            ->assertJsonPath('data.comparison.date_from', '2026-05-31')
+            ->assertJsonPath('data.comparison.date_to', '2026-06-09')
+            ->assertJsonPath('data.comparison.totals.revenue_amount', 100)
+            ->assertJsonPath('data.comparison.totals.orders_count', 1)
+            ->assertJsonPath('data.comparison.totals.average_order_value', 100);
+    }
+
     public function test_sales_report_folds_days_into_weeks_when_requested(): void
     {
         $admin = $this->admin();
