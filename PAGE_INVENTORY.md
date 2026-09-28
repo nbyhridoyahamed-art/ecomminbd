@@ -43,9 +43,9 @@ their backing functionality — no dead pages).
 | `/orders/orders` | ✅ | 8 (status/customer filters, total shown per order); 16 added a Source column (Admin/Storefront badge, once guest checkout existed to actually produce the latter) |
 | `/orders/orders/new` | ✅ | 8 (customer/warehouse/payment method + saved-or-manual shipping address + line-item builder) |
 | `/orders/orders/[id]` | ✅ | 8/9/10/16 (items, shipping address, status badge, Process/Ship/Deliver/Cancel actions gated by status+permission, status history timeline — ship drives real `stock_movements`; courier-assignment + shipment status card from Phase 9; Returns list + "Request a return" form, shown once `delivered`, from Phase 10; Source badge next to the status badge from Phase 16) |
-| `/orders/customers` | ✅ | 8 (list, search, pagination) |
+| `/orders/customers` | ✅ | 8 (list, search, pagination); 17 added an Account column (Claimed/Guest badge, once customers could actually claim one) |
 | `/orders/customers/new` | ✅ | 8 |
-| `/orders/customers/[id]` | ✅ | 8 (edit customer + inline saved-address manager, no separate address pages) |
+| `/orders/customers/[id]` | ✅ | 8 (edit customer + inline saved-address manager, no separate address pages); 17 added the same Claimed/Guest badge next to the page title |
 | `/orders` (payments/refunds, order edit-while-pending UI, guest checkout) | ⏳ | 8 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
 | `/delivery` | ✅ | 9 (redirects to Shipments) |
 | `/delivery/shipments` | ✅ | 9 (status/courier filters) |
@@ -94,16 +94,27 @@ their backing functionality — no dead pages).
 | `/checkout` | ✅ | 16 (guest-only: name/phone/email, shipping address w/ live BD division/district/upazila cascade, order summary; payment method is a fixed "Cash on Delivery" label, not a selector — Wave 1 has only the one method, so a picker would be a fake choice) |
 | `/order-confirmation/[uuid]` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had a `/checkout` row but nowhere named where a successful checkout lands; looked up by uuid only, same public-receipt contract as the API route |
 
-## Customer Account (`frontend/src/app/(account)/`)
+## Customer Account (`frontend/src/app/account/`)
+
+Lives at the real `account/` segment, not a parenthesized group as this
+table's original sketch implied — `/account/login` and `/account/register`
+must stay reachable while signed out, and a parenthesized group can't gate
+some of its own pages but not others under one layout. The outer
+`account/layout.tsx` carries no auth gate (just storefront chrome —
+header/footer/cart drawer, reused as-is); a nested `account/(dashboard)/`
+route group carries its own gated layout (redirects to `/account/login`,
+tab nav) around everything that actually needs a signed-in customer.
 
 | Route | Status | Phase |
 |---|---|---|
-| `/account` | ⏳ | 17 |
-| `/account/orders`, `/account/orders/[id]` | ⏳ | 17 |
-| `/account/addresses` | ⏳ | 17 |
-| `/account/wishlist` | ⏳ | 17 |
-| `/account/profile` | ⏳ | 17 |
-| `/account/returns` | ⏳ | 17 |
+| `/account/login` | ✅ | 17 |
+| `/account/register` | ✅ | 17 — copy calls out the claim mechanic directly ("Already ordered as a guest? Use the same phone number to link your past orders automatically") |
+| `/account` | ✅ | 17 (dashboard overview: order count, a Manage-addresses link, sign out, and up to 3 most recent orders) |
+| `/account/orders`, `/account/orders/[uuid]` | ✅ | 17 — `[uuid]`, not `[id]` as this table's original sketch had it, matching the storefront's own no-sequential-id convention (`order-confirmation/[uuid]`); the detail page adds a status-history timeline the storefront's public receipt view doesn't have |
+| `/account/addresses` | ✅ | 17 (reuses the admin's own `CustomerAddressForm` directly, inside the same add/edit `Dialog` + delete-confirmation pattern as the admin customer detail page's address manager — its location pickers needed repointing to a public endpoint for this signed-in-customer context to work at all; see `DEVELOPMENT_ROADMAP.md`'s Phase 17 Wave 1 scope note) |
+| `/account/profile` | ✅ | 17 (name/email only; phone is the login identifier and isn't editable here) |
+| `/account/wishlist` | ⏳ | 17 Wave 2 — no backing schema or consumer anywhere yet (see `DATABASE_DESIGN.md` section 2) |
+| `/account/returns` | ⏳ | 17 Wave 2 — return creation is still the staff-only admin flow (Phase 10); a customer-initiated version reuses the same `returns` table, just needs its own `Auth::id()`-scoped creation endpoint |
 
 ## API Routes (`backend/routes/api.php`)
 
@@ -156,6 +167,11 @@ their backing functionality — no dead pages).
 | `GET /api/v1/storefront/products` (search/category/brand/featured/sort, paginated), `GET .../{slug}` (PDP: variants, bundle components + availability) | ✅ |
 | `GET /api/v1/storefront/locations/divisions` `/districts` `/upazilas` (same `LocationController` the admin app uses, reachable without a token — nationwide reference data, nothing store-scoped or sensitive) | ✅ |
 | `POST /api/v1/storefront/checkout` (guest-only, server-priced, auto-selects warehouse — see `DATABASE_DESIGN.md` section 1n), `GET /api/v1/storefront/orders/{uuid}` (receipt lookup by uuid only) | ✅ |
+| `POST /api/v1/account/auth/register` (claims an unclaimed guest `customers` row by phone, or creates a fresh one — see `DATABASE_DESIGN.md` section 1o), `POST .../login` | ✅ |
+| `POST /api/v1/account/auth/logout`, `GET .../me` (all three `account/*` groups below are gated by `auth:sanctum` + the new `customer` middleware, never `staff`) | ✅ |
+| `GET /api/v1/account/orders` (own orders only, never a client-supplied customer id), `GET .../{uuid}` (404, not 403, for someone else's) | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/account/addresses(/{address})` (own addresses only) | ✅ |
+| `PUT /api/v1/account/profile` (name/email only) | ✅ |
 | Everything under CMS/blog/SEO/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in

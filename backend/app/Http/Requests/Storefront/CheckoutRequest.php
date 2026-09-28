@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Storefront;
 
+use App\Rules\BdPhone;
 use App\Rules\VariantBelongsToProduct;
+use App\Support\BdPhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -11,8 +13,11 @@ use Illuminate\Validation\Validator;
  * a cart line is never accepted, only product_id/product_variant_id/
  * quantity, so CheckoutController must always compute price itself from
  * the current catalog. There's also no payment_method (Wave 1 is COD-only,
- * hardcoded server-side) and no customer_address_id (guest checkout has no
- * saved address book yet — that's Phase 17/Customer Dashboard).
+ * hardcoded server-side) and no customer_address_id — checkout always
+ * collects a fresh shipping address, even for a customer now signed in
+ * (Phase 17 Wave 1); offering their saved-address book here instead is a
+ * real, separate integration left for its own pass, not bundled in just
+ * because the two features are related.
  */
 class CheckoutRequest extends FormRequest
 {
@@ -21,11 +26,25 @@ class CheckoutRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        // customer_phone is the identity CheckoutController::firstOrCreate()s
+        // a Customer by, and the same field Phase 17's account registration
+        // matches an existing guest checkout against to "claim" it — both
+        // sides must normalize identically or that match silently fails.
+        // shipping_phone is just the delivery contact, not an identity key,
+        // so it stays as freely entered as the admin order form's own
+        // shipping_phone.
+        if ($this->filled('customer_phone')) {
+            $this->merge(['customer_phone' => BdPhoneNumber::normalize($this->string('customer_phone')) ?? $this->input('customer_phone')]);
+        }
+    }
+
     public function rules(): array
     {
         return [
             'customer_name' => ['required', 'string', 'max:255'],
-            'customer_phone' => ['required', 'string', 'max:20'],
+            'customer_phone' => ['required', 'string', new BdPhone],
             'customer_email' => ['nullable', 'email', 'max:255'],
 
             'shipping_recipient_name' => ['required', 'string', 'max:255'],

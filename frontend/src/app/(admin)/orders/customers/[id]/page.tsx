@@ -9,6 +9,7 @@ import { PermissionDenied } from "@/components/permission-denied";
 import { CustomerAddressList } from "@/components/customers/customer-address-list";
 import { CustomerForm } from "@/components/customers/customer-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/types/api";
@@ -41,8 +42,11 @@ export default function EditCustomerPage({ params }: PageProps<"/orders/customer
   return (
     <div className="max-w-2xl space-y-4">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Edit {customer.name}</CardTitle>
+          <Badge variant={customer.has_account ? "info" : "neutral"}>
+            {customer.has_account ? "Account claimed" : "Guest (no account)"}
+          </Badge>
         </CardHeader>
         <CardContent>
           <CustomerForm

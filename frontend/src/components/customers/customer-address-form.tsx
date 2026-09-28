@@ -10,7 +10,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useDistricts, useDivisions, useUpazilas } from "@/hooks/use-locations";
+import {
+  useStorefrontDistricts as useDistricts,
+  useStorefrontDivisions as useDivisions,
+  useStorefrontUpazilas as useUpazilas,
+} from "@/hooks/use-storefront-catalog";
 import type { CustomerAddressFormValues } from "@/hooks/use-customers";
 import type { CustomerAddress } from "@/types/customer";
 

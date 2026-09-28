@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureCustomerUser;
+use App\Http\Middleware\EnsureStaffUser;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -20,7 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'staff' => EnsureStaffUser::class,
+            'customer' => EnsureCustomerUser::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $isApi = fn (Request $request) => $request->is('api/*') || $request->expectsJson();

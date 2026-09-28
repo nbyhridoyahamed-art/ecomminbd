@@ -826,8 +826,44 @@ already exist (section 1a) for real multi-tenant routing, but no
 environment this project runs in seeds a second store to route between
 yet, so building that dispatch logic now would have nothing real to test
 it against. See `DEVELOPMENT_ROADMAP.md`'s Phase 16 Wave 1 scope note for
-the rest of what's deliberately deferred (customer accounts, non-COD
-payment, homepage-builder-driven content, per-page SEO metadata) and why.
+the rest of what's deliberately deferred (non-COD payment,
+homepage-builder-driven content, per-page SEO metadata) and why.
+
+## 1o. Customer Account Schema (Phase 17 Wave 1)
+
+```
+customers
+  ... (unchanged from section 1e, plus:)
+  password (varchar, nullable, hashed cast — null means a guest-checkout-
+    only record nobody has ever registered against; set the moment a
+    registration claims it)
+```
+
+No other new tables, and no new guard in `config/auth.php`. `Customer`
+now extends `Illuminate\Foundation\Auth\User` (`Authenticatable`) and
+uses `Laravel\Sanctum\HasApiTokens`, exactly like `App\Models\User`
+already did — the same `personal_access_tokens` table now holds both
+staff and customer tokens, told apart by its existing polymorphic
+`tokenable_type`/`tokenable_id` columns, which is what lets one
+`auth:sanctum` middleware keep authenticating both without a second
+guard. See `ARCHITECTURE.md` for the `staff`/`customer` middleware pair
+that does the actual access-separation work `config/auth.php` isn't
+doing here.
+
+`POST account/auth/register` is the one write path that matters for this
+section: it looks up `customers` by `(store_id, phone)` before deciding
+whether to `UPDATE` (claiming an unclaimed guest row — `password` was
+`null`) or `INSERT` (no existing row), never both, so a returning guest
+never ends up with two disconnected `customers` rows for the same real
+person. That lookup is why section 1n's guest-checkout `firstOrCreate` by
+`(store_id, phone)` and this registration lookup have to agree on phone
+formatting bit-for-bit — see `DEVELOPMENT_ROADMAP.md`'s Phase 17 Wave 1
+scope note for the `BdPhone`/`BdPhoneNumber::normalize()` gap that fix
+closed. `customer_addresses` (section 1e) and `orders`/`order_items`/
+`order_status_history` (sections 1e/1n) needed no schema change at all to
+become customer-visible — `api/v1/account/*` just scopes the same rows to
+`Auth::id()` instead of an admin-supplied `customer_id`/`{customer}` route
+parameter.
 
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
@@ -837,12 +873,11 @@ deletes, currency as a table not a hardcoded symbol) are already
 compatible with them.
 
 - **Catalog Wave 2 (now fully shipped):** `reviews` (Phase 8's
-  `customers`/`orders` now exist to back "verified purchase", and Phase
-  16 Wave 1 gives a real storefront too, but the reviews table itself
-  isn't built, and its checkout is guest-only — nothing yet lets a
-  customer *log back in* to write a review against their own past order,
-  so it still waits on Phase 17's real customer identity), and a
-  reusable/browsable `media` library with folders and cross-entity
+  `customers`/`orders`, Phase 16's real storefront, and now Phase 17's
+  real customer identity/login all exist to back a "verified purchase"
+  review, but the `reviews` table itself still isn't built — no longer
+  blocked on anything, just not yet picked), and a reusable/browsable
+  `media` library with folders and cross-entity
   reuse (today, product/category/brand images upload directly against
   their own record — see section 1b) remain the only deferred items, for
   the reasons just given. Everything else this bullet used to list is
@@ -923,6 +958,16 @@ compatible with them.
   `seo_description` (already there — section 1b) once a deliberate
   server-fetch design pass wires `generateMetadata()` up to them (see
   `DEVELOPMENT_ROADMAP.md`'s Phase 16 Wave 1 scope note).
+- **Customer Dashboard Wave 2 (Wave 1 shipped — section 1o):** a
+  `wishlists`/`wishlist_items` pair (no backing table or consumer exists
+  anywhere yet), customer-initiated return requests from `/account/orders`
+  (no new schema — reuses `returns`/`return_items` from section 1g, just
+  needs `POST account/orders/{uuid}/returns` scoped to `Auth::id()`
+  instead of today's staff-only admin flow), and wiring
+  `customer_addresses` (section 1e, already customer-visible via section
+  1o) into a saved-address picker on checkout (no schema change either —
+  a UI/flow pass on top of what section 1n's `CheckoutRequest` already
+  accepts).
 - **Reporting/Analytics:** Phase 18 Wave 1 + Wave 2 (section 1k) shipped
   sales/product-performance/low-stock reports plus a by-courier
   breakdown, a period-over-period comparison, and a PDF export twin

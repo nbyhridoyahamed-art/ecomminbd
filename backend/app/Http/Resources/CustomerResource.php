@@ -17,6 +17,7 @@ class CustomerResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'status' => $this->status,
+            'has_account' => $this->password !== null,
             'orders_count' => $this->whenCounted('orders'),
             'addresses' => CustomerAddressResource::collection($this->whenLoaded('addresses')),
             'created_at' => $this->created_at,

@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, Search, ShoppingCart } from "lucide-react";
+import { Menu, Search, ShoppingCart, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { CategoryMegaMenu } from "@/components/storefront/category-mega-menu";
 import { useStorefrontCategories, useStorefrontStore } from "@/hooks/use-storefront-catalog";
+import { useCustomerAuthToken } from "@/lib/customer-auth-token";
 import { useCartStore } from "@/stores/cart-store";
 
 export function StorefrontHeader() {
@@ -17,6 +18,7 @@ export function StorefrontHeader() {
   const { data: store } = useStorefrontStore();
   const { data: categories } = useStorefrontCategories();
   const { items, openCart } = useCartStore();
+  const customerToken = useCustomerAuthToken();
   const [search, setSearch] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -99,6 +101,12 @@ export function StorefrontHeader() {
             <Search className="size-4" />
           </Button>
         </form>
+
+        <Button asChild variant="ghost" size="icon" className="shrink-0" aria-label={customerToken ? "My account" : "Sign in"}>
+          <Link href="/account">
+            <User />
+          </Link>
+        </Button>
 
         <Button type="button" variant="ghost" size="icon" className="relative shrink-0" aria-label="Open cart" onClick={openCart}>
           <ShoppingCart />

@@ -50,8 +50,14 @@ shape — controllers never hand-build error JSON.
 - `POST /api/v1/auth/reset-password` — consumes the token, sets new password.
 
 Every other `/api/v1/*` route requires `auth:sanctum` middleware except
-the `api/v1/storefront/*` prefix (Phase 16 Wave 1 — see section 9),
-listed there explicitly and never left ungated by omission.
+the `api/v1/storefront/*` prefix (Phase 16 Wave 1 — see section 9) and
+two routes inside `api/v1/account/*` (Phase 17 Wave 1 — also section 9),
+`POST account/auth/register` and `POST account/auth/login` themselves;
+every other route under that prefix is `auth:sanctum` plus a `customer`
+middleware, never `staff` — see `ARCHITECTURE.md` section 3 for how one
+`auth:sanctum` middleware authenticates both staff and customer bearer
+tokens. Every exception is listed here explicitly and never left ungated
+by omission.
 
 ## 4. Authorization
 
@@ -109,7 +115,9 @@ No global `throttle:api` is actually wired up (verified empirically:
 nothing here does). What's real is per-route: `auth/register`,
 `auth/login`, `auth/forgot-password`, and `auth/reset-password` each get
 `throttle:6,1` to blunt credential-stuffing/brute force per spec section
-107, and `POST storefront/checkout` (Phase 16 Wave 1) gets `throttle:15,1`
+107 — `account/auth/register` and `account/auth/login` (Phase 17 Wave 1)
+get the same `throttle:6,1` for the same reason — and `POST
+storefront/checkout` (Phase 16 Wave 1) gets `throttle:15,1`
 — slightly more permissive since a real shopper legitimately retrying a
 declined checkout isn't an attack the way six failed logins is, but
 still bounded, since unlike every other route on the public storefront
@@ -452,5 +460,37 @@ it's the primary key everywhere else in this API. `POST checkout` is
 throttled `throttle:15,1`, the same abuse-guard reasoning as `auth/login`
 in section 8, since unlike every other endpoint on this prefix it writes
 a real order and reserves real stock.
+
+Customer Account (Phase 17 Wave 1): a new `api/v1/account/*` prefix,
+customer-facing rather than public (Storefront above) or staff (every
+other prefix). `POST account/auth/register` (`name`, `phone`, optional
+`email`, `password`+`password_confirmation`) either creates a fresh
+`Customer` or, if `(store_id, phone)` already matches an unclaimed
+guest-checkout row (`password === null`), claims it — sets the password,
+updates name/email — instead of creating a duplicate; a match with a
+password already set 422s ("...sign in instead"). `POST account/auth/login`
+(`phone`, `password`) rejects an unclaimed phone the same way a wrong
+password does, a deliberately generic "incorrect credentials" response
+rather than confirming whether an account exists. Both return `{customer,
+token}` via the existing admin `CustomerResource` (safe here — a customer
+reading their own record isn't the leak scenario Storefront's *public*
+resources guard against) plus a new bearer token; `POST .../logout` and
+`GET .../me` behave exactly like their staff `auth/*` equivalents, just
+`customer`-gated instead of `staff`-gated. `GET account/orders` and `GET
+.../orders/{uuid}` are always scoped to `Auth::id()` — there is no
+`customer_id` parameter to override, and someone else's order 404s rather
+than 403ing, so a valid UUID can't be used to confirm another customer's
+order exists. `account/addresses` is full CRUD over the caller's own
+`customer_addresses`, identical semantics to the admin
+`customers/{id}/addresses` (including the same single-default-address
+transaction) but with no `{customer}` route parameter to substitute
+someone else's id into; a mismatch on update/delete 404s the same way.
+`PUT account/profile` only accepts `name`/`email` — `phone` is the login
+identifier and isn't editable here, since changing it would need a
+re-verification flow this Wave doesn't build. `CustomerResource` also
+gained `has_account` (`password !== null`) for the admin Customers
+list/detail to show a Claimed/Guest badge. See `DATABASE_DESIGN.md`
+section 1o and `ARCHITECTURE.md` section 3 for the schema and the
+two-identity Sanctum design behind all of the above.
 
 Section 7 (webhooks) remains documented intent for future phases.

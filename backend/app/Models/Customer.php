@@ -3,17 +3,34 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['store_id', 'name', 'email', 'phone', 'status'])]
-class Customer extends Model
+/**
+ * Extends the same Authenticatable base + HasApiTokens as User (Phase 17),
+ * so a customer can hold their own Sanctum tokens — deliberately a
+ * separate model/token space from staff, never the same guard: see
+ * EnsureCustomerUser/EnsureStaffUser and DATABASE_DESIGN.md section 1o.
+ * password is nullable — null means a guest-checkout-only record; Phase
+ * 17 registration "claims" one by phone rather than creating a second,
+ * disconnected row for the same customer.
+ */
+#[Fillable(['store_id', 'name', 'email', 'phone', 'password', 'status'])]
+#[Hidden(['password'])]
+class Customer extends Authenticatable
 {
-    use HasFactory, SoftDeletes;
+    use HasApiTokens, HasFactory, SoftDeletes;
+
+    protected function casts(): array
+    {
+        return ['password' => 'hashed'];
+    }
 
     protected static function boot(): void
     {

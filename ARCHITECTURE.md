@@ -81,6 +81,19 @@ Folder responsibilities (`backend/app/`):
 | `Services/` | Cross-cutting orchestration (e.g. `OrderCalculationService`, `InventoryLedgerService`) that multiple Actions depend on. |
 | `Support/` | Small framework-agnostic helpers (e.g. `ApiResponse`, `Money` value object). |
 
+Two authenticated identities share the one `auth:sanctum` middleware
+above rather than a second Sanctum guard: `App\Models\User` (staff) and,
+since Phase 17, `App\Models\Customer` both use `HasApiTokens`, and
+Sanctum resolves whichever one actually owns the bearer token via
+`personal_access_tokens`' polymorphic `tokenable` relation — no
+`config/auth.php` change needed. The access boundary between them is two
+small `staff`/`customer` middleware aliases
+(`EnsureStaffUser`/`EnsureCustomerUser`) stacked alongside `auth:sanctum`,
+type-checking `$request->user()` and 401ing on a mismatch, rather than
+left to an unverified assumption that a `User`-type-hinted Policy would
+fail closed against a `Customer` instance. See `DATABASE_DESIGN.md`
+section 1o and this doc's section 10 for the rest of the Phase 17 design.
+
 ## 4. Multi-Store / Multi-Tenant Foundation
 
 ```
@@ -362,8 +375,31 @@ only (no payment gateway — Phase 19), a client-side-only
 homepage (not block-driven — Phase 13 doesn't exist yet to feed it), and
 no real per-page SEO metadata (see section 9's note on why that's a
 separate, deliberate pass, not a quick add-on here).
-CMS/builder, blog, SEO, customer account, the adapter
-items (reviews, a reusable media library), Purchasing Wave 2's remaining
+Also built since: **Phase 17 Wave 1** — real customer accounts (register/
+login/logout/me under a new `api/v1/account/*` prefix) that close
+Storefront Wave 1's guest-only gap, via the two-identity Sanctum design
+section 3 above describes, plus an `/account/*` shell (order history with
+a status-history timeline, saved addresses, profile) at
+`frontend/src/app/account/` (see `PAGE_INVENTORY.md`). The one
+schema change is `customers.password` (nullable — see `DATABASE_DESIGN.md`
+section 1o); registering claims an existing guest-checkout `Customer` row
+by `(store_id, phone)` instead of creating a duplicate, which is also why
+`Storefront\CheckoutRequest.customer_phone` gained the same `BdPhone`
+normalization staff `User.phone` already had — checkout-time and
+registration-time phone formatting have to agree for the claim lookup to
+match. A second, fully separate frontend token/API-client pair
+(`nby_customer_auth_token`/`accountApi`) keeps a customer session on a
+browser from clobbering an admin session on the same browser, or vice
+versa. Deliberately scoped down, each for lack of a real consumer/design
+pass yet: no wishlist, no customer-initiated return requests (still the
+Phase 10 staff-only flow), and checkout's own address collection is
+unchanged — a saved-address picker at checkout is a real, separate
+feature tracked as its own Wave 2 item, not bundled in just because it's
+related.
+CMS/builder, blog, SEO, the adapter
+items (reviews — no longer blocked on anything, just not yet picked, now
+that Phase 17 gives the real customer identity it was waiting on — see
+`DATABASE_DESIGN.md` section 2; a reusable media library), Purchasing Wave 2's remaining
 items (supplier ledger, PO approval workflow, reorder suggestions —
 no longer blocked on reporting infra, just not yet picked), Orders Wave 2 (a
 non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery

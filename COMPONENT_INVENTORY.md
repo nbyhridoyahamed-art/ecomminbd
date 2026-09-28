@@ -31,7 +31,7 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Pagination | ✅ | ships with DataTable (prev/next, server-driven) |
 | Breadcrumb | ✅ | topbar |
 | Toast | ✅ | global toaster for mutations |
-| Timeline | ✅ | order, shipment, and return status history — a plain `<ol>` of status badges + timestamp/actor, same "plain markup over a new primitive" call as Tabs; now has three consumers with the identical shape (order show page, shipment show page, return show page) but still duplicated inline rather than extracted, since each instance is small and none has diverged — promote to a real shared component the next time it actually needs to change in more than one place at once |
+| Timeline | ✅ | order, shipment, and return status history — a plain `<ol>` of status badges + timestamp/actor, same "plain markup over a new primitive" call as Tabs; now has four consumers (order/shipment/return show pages, plus Phase 17's `/account/orders/[uuid]`) but still duplicated inline rather than extracted — the newest one isn't even the same shape (a customer-safe version with no staff note/actor, see `Account\OrderResource` in `API_DESIGN.md`), which if anything argues against a shared component more than for one; promote only once a consumer actually needs to change in a way the others must match |
 | Chart | ✅ | Recharts (v3, React 19-compatible); see the Charts section below — no generic `ui/chart.tsx` wrapper, each chart is its own focused component under `components/charts/` since the two built so far (trend vs. breakdown) have different enough shapes that a shared abstraction would be premature |
 | Date Picker | ⏳ | Not needed yet — nothing shipped so far has a date field (products have no scheduled-publish date in Wave 1; orders use server-set timestamps, not a user-picked date) |
 | Command Palette | ⏳ | Products is now a searchable resource, but the palette itself is still unbuilt — next natural pickup |
@@ -66,6 +66,43 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | CartLineItem | ✅ | Phase 16 — image/name/variant-label, a quantity stepper, remove button, and line total; shared as-is between `CartDrawer` (compact) and the full `/cart` page, both reading/writing the same `useCartStore` (`zustand` + `persist`, `localStorage`-backed — see `ARCHITECTURE.md` section 9) |
 | ProductCard | ✅ | Phase 16 — the product-grid tile used on the homepage, `/products`, `/category/[slug]`, and `/brand/[slug]`: image (or a `Package` icon placeholder), name, price with a strikethrough original price when on sale, and an Out of Stock/Featured badge. Links to the PDP only — no quick-add-to-cart from a listing card, since a variable product needs a real variant selection first and a bundle needs its own availability check, both of which only the PDP does |
 | StorefrontPagination | ✅ | Phase 16 — the same server-paginated Previous/Next footer, reused identically across `/products`, `/category/[slug]`, and `/brand/[slug]` rather than copied three times |
+
+## Customer Account (`frontend/src/app/account/`)
+
+No new components under `components/` — Phase 17's account pages
+(overview, orders list/detail, addresses, profile) are each self-contained
+page components in the same style as the Reports pages, built directly on
+existing primitives (Card/Badge/Skeleton/EmptyState/Dialog) rather than
+introducing new ones. Two reuse decisions worth recording: `/account/
+addresses` renders the existing `components/customers/CustomerAddressForm`,
+but it wasn't quite "completely unchanged" — a real bug only Playwright
+verification against a production build caught. The form's division/
+district/upazila `Select`s originally called `useDivisions`/`useDistricts`/
+`useUpazilas` (`@/hooks/use-locations`), which hit `/locations/*` — and
+that prefix sits behind the admin `staff` middleware (see
+`ARCHITECTURE.md` section 3), so a signed-in *customer* (no staff token at
+all) got a silent 401 and every cascading picker rendered permanently
+empty. Fixed by pointing the same form at `useStorefrontDivisions`/
+`useStorefrontDistricts`/`useStorefrontUpazilas` (`@/hooks/
+use-storefront-catalog`) instead — the identical, already-public
+`/storefront/locations/*` endpoints Storefront Wave 1's own checkout page
+already uses, returning the exact same `BdLocation`-shaped rows. Safe for
+the *admin* call site too, precisely because this reference data was
+already documented as "nationwide reference data, not store-scoped or
+sensitive" — a staff token attached to the request changes nothing, since
+the endpoint never checks for one. Its companion
+`CustomerAddressList`, by contrast, was *not* reused as-is — it's wired
+directly to admin hooks that take an explicit `customerId`
+(`useCreateCustomerAddress(customerId)`, etc.), while the account
+equivalents are always implicitly scoped to the signed-in customer via
+their token, so `/account/addresses` reimplements that list/dialog shell
+itself around the account hooks rather than forcing an admin-shaped
+dependency into a customer page. `StorefrontHeader` (Phase 16, above)
+gained one addition: an account icon (`User`, `lucide-react`) linking to
+`/account`, reading the new `useCustomerAuthToken()` only to choose its
+`aria-label` ("My account" vs "Sign in") — the `(dashboard)` route
+group's own auth gate, not this icon, is what actually decides where a
+click lands.
 
 ## Charts (`frontend/src/components/charts/`)
 

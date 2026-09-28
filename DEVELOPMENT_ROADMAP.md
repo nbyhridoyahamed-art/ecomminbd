@@ -22,8 +22,8 @@ in place and the app still builds/runs.
 | 13 | Homepage Builder | ⏳ Not started | No |
 | 14 | Blog | ⏳ Not started | No |
 | 15 | SEO | ⏳ Not started | No |
-| 16 | Storefront | ✅ Wave 1 done (customer accounts, multi-store domain routing, non-COD payment, homepage builder integration deferred — see note) | Yes — public unauthenticated catalog browsing (products/categories/brands) and guest COD checkout against the single active store |
-| 17 | Customer Dashboard | ⏳ Not started | No |
+| 16 | Storefront | ✅ Wave 1 done (multi-store domain routing, non-COD payment, homepage builder integration deferred — see note) | Yes — public unauthenticated catalog browsing (products/categories/brands) and guest COD checkout against the single active store |
+| 17 | Customer Dashboard | ✅ Wave 1 done (wishlist, customer-initiated returns, checkout saved-address integration deferred — see note) | Yes — customer register/login/logout against a new `customers.password` column, guest-checkout orders auto-linked by phone on registration, and an `/account/*` shell (order history + status timeline, saved addresses, profile) |
 | 18 | Reporting | ✅ Wave 1 + Wave 2 (per-courier breakdown, period-over-period comparison, PDF export) done (materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters, vs.-previous-period trend on each KPI card), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV and PDF export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
 | 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ⏳ Not started | No |
 | 20 | Analytics | ⏳ Not started | No |
@@ -496,6 +496,111 @@ selection → cart → guest checkout with the live BD division/district/
 upazila cascade → confirmation → verified in the admin Orders list and
 detail page with the correct `source` badge, warehouse, and total).
 
+**Phase 17 Wave 1 scope note:** gives customers real accounts —
+register/login/logout against a new `customers.password` column
+(nullable; null means a guest-checkout-only record) — and an
+authenticated `/account/*` shell, without a second Sanctum guard.
+`Customer` now extends `Authenticatable` and uses `HasApiTokens` exactly
+like `User` does; no `config/auth.php` change was needed, since Sanctum's
+`auth:sanctum` middleware resolves whichever model actually owns the
+bearer token through `personal_access_tokens`' polymorphic `tokenable`
+relation, regardless of guard config. The real security boundary —
+keeping a customer token off admin routes and a staff token off account
+routes — is two new small, explicit middleware aliases, `staff` and
+`customer` (`EnsureStaffUser`/`EnsureCustomerUser`), that type-check
+`$request->user() instanceof User`/`instanceof Customer` and 401
+otherwise; deliberately not left to an unverified assumption that a
+`User`-type-hinted Policy would fail closed against a `Customer`
+instance, since that would be an implicit, untested boundary for a
+brand-new cross-model auth surface. Both are stacked alongside
+`auth:sanctum` on the existing admin route block and the new
+`api/v1/account/*` one.
+
+The headline mechanic is claiming a guest order history: `POST
+account/auth/register` looks up an existing `Customer` by `(store_id,
+phone)` before creating anything — a match with `password === null` (an
+unclaimed guest-checkout record, e.g. from Storefront Wave 1's
+`firstOrCreate`) gets claimed (password set, name/email updated) rather
+than duplicated into a second, disconnected row; a match with a password
+already set is rejected (422, "sign in instead"); no match creates a
+fresh row. Because guest checkout already resolves a `Customer` by the
+same `(store_id, phone)` pair, every past guest order attaches
+automatically the moment the same phone number registers — verified
+end-to-end by a dedicated test that places a real no-Authorization-header
+storefront checkout after registering with the same number and confirms
+both that `Customer::count()` stays at 1 and that the order shows up in
+`GET account/orders`. That match only works if checkout-time and
+registration-time phone formatting agree, which surfaced a real
+pre-existing gap: `App\Rules\BdPhone`/`BdPhoneNumber::normalize()` were
+already used for staff `User.phone` but nowhere on `Customer.phone` — not
+the admin `CustomerRequest`, not `CustomerAddressRequest`, not
+Storefront's own `CheckoutRequest`. Fixed narrowly: `BdPhone` validation
+plus `prepareForValidation()` normalization was added to Storefront
+`CheckoutRequest.customer_phone` (the identity field) and the new
+`Account\RegisterRequest`/`LoginRequest`; `shipping_phone` (a delivery
+contact, not an identity key) and the admin customer forms were
+deliberately left as they were, matching admin's own already-loose
+`OrderRequest.shipping_phone`.
+
+`api/v1/account/*` (customer-gated beyond register/login) exposes: orders
+(`index`/`show`, always scoped to `Auth::id()`, never a client-supplied
+customer id — someone else's order 404s, never 403, so a UUID can't be
+used to probe which orders exist), addresses (full CRUD, the same
+default-address-transaction logic as the admin `CustomerAddressController`
+but scoped to `Auth::user()`), and profile (name/email only — phone is
+the login identifier and stays immutable here, since changing it would
+need a re-verification flow this Wave doesn't build). `CustomerResource`/
+`CustomerAddressResource` are reused as-is for a customer viewing their
+own data; a new `Account\OrderResource` mirrors Storefront's public
+receipt shape but adds a customer-safe `status_history` (from/to status
+and timestamp only, no staff note or `created_by`) since real order
+tracking is the point of being signed in. `CustomerResource` also gained
+`has_account` (`password !== null`), surfaced as a Claimed/Guest badge on
+the admin Customers list and detail page.
+
+Frontend keeps a customer session fully separate from an admin session on
+the same browser: a second token key (`nby_customer_auth_token`, its own
+`localStorage` event) and a second minimal API client (`accountApi`)
+rather than extending the existing `auth-token.ts`/`api.ts` in place.
+Routing splits `/account/*` into an outer, ungated `layout.tsx` (so
+`/account/login` and `/account/register` stay reachable signed out,
+reusing the storefront's own header/footer/cart chrome per
+`UI_UX_ARCHITECTURE.md`) and a nested `(dashboard)` route group with its
+own gated layout (redirects to `/account/login`, tab nav) wrapping the
+overview/orders/addresses/profile pages; the addresses page reuses
+`CustomerAddressForm` directly rather than building a second, near-
+identical form. That reuse surfaced one real bug, caught only by the
+Playwright walkthrough against a production build (not by tests, lint, or
+typecheck — none of which exercise cross-token runtime behavior): the
+form's division/district/upazila pickers called the admin `useDivisions`/
+`useDistricts`/`useUpazilas` (`/locations/*`), which sits behind the
+`staff` middleware — so a signed-in customer, with no staff token, got a
+silent 401 and a permanently empty dropdown. Fixed by pointing the same
+form at `useStorefrontDivisions`/`useStorefrontDistricts`/
+`useStorefrontUpazilas` instead, the already-public `/storefront/
+locations/*` endpoints Storefront Wave 1's own checkout already relies
+on — safe for the admin call site too, since that reference data was
+already "nationwide, not store-scoped or sensitive" and the endpoint
+never checks for a token either way (see `COMPONENT_INVENTORY.md`'s
+Customer Account note). The storefront header gained one small
+addition, an account icon linking to `/account` (lands on login when
+signed out, the dashboard when signed in) — deliberately just
+navigational; checkout's own address collection was left unchanged (it
+still always collects a fresh address, even for a signed-in customer),
+since wiring a saved-address picker into checkout is a real, separate,
+non-trivial feature (detecting sign-in state via a second token,
+branching checkout's form) that deserves its own pass rather than being
+bundled in because it's related.
+
+Deliberately deferred to a Wave 2, each for lack of a real consumer or
+design pass yet: wishlist (no backing schema or consumer anywhere in the
+app today); customer-initiated return requests from `/account/orders`
+(return creation is still the staff-only flow Phase 10 built); and the
+checkout saved-address integration described above. 17 new backend tests
+(247 → 264), all green, Pint-clean, plus the existing frontend
+build/lint/typecheck and a real Playwright walkthrough against a
+production build.
+
 **Phase 18 Wave 1 scope note:** ships three read-only, permission-gated
 report endpoints on `ReportController`, activating the `reports.view`
 permission the RBAC seeder has carried since Phase 3 but no controller
@@ -592,43 +697,38 @@ green, plus the existing frontend build/lint/typecheck.
 
 ## Next Session Should Start With
 
-Phase 16 (Storefront) Wave 1 is done — the app's first public storefront,
-guest COD checkout included; see the Phase 16 Wave 1 scope note for what
-it deliberately still cuts. That changes the calculus this section used
-to give: Phase 17 (Customer Dashboard) is now the clearest, most directly
-motivated next pickup, not just next-in-line by phase number — Storefront
-Wave 1's single biggest cut (guest-only checkout, no accounts) points
-straight at it, `customers` already exists to extend with real
-authentication, and `UI_UX_ARCHITECTURE.md` already sketches
-`/account/*` reusing storefront chrome. Picking it now also finally
-unblocks customer reviews (Catalog Wave 2's last deferred item — a
-review needs a real customer identity plus a verified order to attach
-to, and only Phase 17 gives both). Phase 18 Reporting Wave 2 is done —
-all three items (per-courier breakdown, period-over-period comparison,
-PDF export) are shipped; only materialized/scheduled aggregate tables
-remain there, and per rule 178 that's infra to build once real data
-volume demands it, not a pick-able feature today. Catalog Wave 2 is
-otherwise fully closed — bundles/combos (Wave 2c) shipped. Purchasing
-Wave 2a (purchase returns) is also done; supplier ledger/multi-currency
-POs and a PO approval workflow remain deferred there for lack of a real
-consumer (see the Phase 7 Wave 2a scope note), and low-stock-driven
-reorder suggestions is no longer blocked (Phase 18's reporting infra
-exists now) but hasn't been picked yet. Any already-started phase's own
-remaining Wave 2 (Orders, Delivery, Returns, Dashboard, or Purchasing's
-own remaining items) is still a reasonable alternative pickup, whichever
-the user prefers — but Phase 17 is the one with a real, waiting consumer
-now, not a hypothetical one. A reusable media library still has no real
-consumer (today's direct-upload-per-record images work fine). Storefront
-Wave 2 (multi-store domain routing, non-COD payment methods, real
-per-page SEO metadata) stays deferred for the reasons its own scope note
-gives — each needs either a second store to route between, Phase 19's
-payment adapters, or its own deliberate server-fetch design pass, none
-of which exist yet. Do not skip ahead to CMS/Homepage Builder/Blog/SEO
-(Phases 12–15) on the theory that a real storefront now exists to feed
-them — that's true, and unlike before this makes them legitimately
-reachable rather than pure speculation, but the master spec's own
-incremental-phases rule (176) still means they wait behind Phase 17,
-which has the more direct, already-flagged dependency.
+Phase 17 (Customer Dashboard) Wave 1 is done — real customer accounts,
+past guest orders auto-claimed by phone on registration, and an
+`/account/*` order history/addresses/profile shell; see the Phase 17
+Wave 1 scope note for what it deliberately still cuts. That finally
+unblocks the one item Catalog Wave 2 was left waiting on: customer
+reviews. The reason it was deferred no longer holds — a review needs a
+real customer identity plus a verified order to attach to, and Phase 17
+now gives both (`/account/orders` already shows a signed-in customer
+their own delivered orders). That makes reviews the clearest next
+pickup: it closes out Phase 5, whose Wave 2 has been waiting on exactly
+this since the CSV import/export pass, and finishing an earlier phase is
+the correct incremental order (rule 176) rather than jumping ahead to
+Phases 12–15 just because Phase 16 gave them somewhere to eventually
+render. Reasonable alternatives, whichever the user prefers: Phase 17
+Wave 2 itself (wishlist, customer-initiated returns, checkout
+saved-address integration — see that scope note); Storefront Wave 2
+(multi-store domain routing, non-COD payment, real per-page SEO
+metadata — each still blocked on a second store to route between,
+Phase 19's payment adapters, or its own deliberate server-fetch design
+pass, per the Phase 16 Wave 1 scope note); or any already-started
+phase's own remaining Wave 2 (Orders, Delivery, Returns, Dashboard, or
+Purchasing's supplier ledger/PO approval workflow/reorder suggestions).
+Phase 18 Reporting stays fully shipped through Wave 2; only
+materialized/scheduled aggregate tables remain there, still infra to
+build once real data volume demands it, not a pick-able feature today. A
+reusable media library still has no real consumer (today's
+direct-upload-per-record images work fine). Do not skip ahead to
+CMS/Homepage Builder/Blog/SEO (Phases 12–15) on the theory that a real
+storefront and account portal now exist to feed them — that's true, and
+unlike before this makes them legitimately reachable rather than pure
+speculation, but rule 176 still means they wait behind the earlier phases
+that have a more direct, already-flagged dependency waiting on them.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

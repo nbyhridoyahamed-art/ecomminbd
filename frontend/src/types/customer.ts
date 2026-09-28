@@ -22,6 +22,7 @@ export interface Customer {
   email: string | null;
   phone: string;
   status: "active" | "inactive";
+  has_account: boolean;
   orders_count?: number;
   addresses?: CustomerAddress[];
   created_at: string;

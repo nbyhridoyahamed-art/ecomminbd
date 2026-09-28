@@ -51,6 +51,11 @@ export default function CustomersPage() {
       cell: (c) => <Badge variant={c.status === "active" ? "success" : "warning"}>{c.status}</Badge>,
     },
     {
+      id: "account",
+      header: "Account",
+      cell: (c) => <Badge variant={c.has_account ? "info" : "neutral"}>{c.has_account ? "Claimed" : "Guest"}</Badge>,
+    },
+    {
       id: "actions",
       header: "",
       className: "text-right",

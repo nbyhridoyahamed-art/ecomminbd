@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Account\AddressController as AccountAddressController;
+use App\Http\Controllers\Api\V1\Account\AuthController as AccountAuthController;
+use App\Http\Controllers\Api\V1\Account\OrderController as AccountOrderController;
+use App\Http\Controllers\Api\V1\Account\ProfileController as AccountProfileController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\BrandController;
 use App\Http\Controllers\Api\V1\CategoryController;
@@ -47,7 +51,7 @@ Route::prefix('v1')->group(function () {
         Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:6,1');
         Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:6,1');
 
-        Route::middleware('auth:sanctum')->group(function () {
+        Route::middleware(['auth:sanctum', 'staff'])->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
@@ -83,7 +87,32 @@ Route::prefix('v1')->group(function () {
         Route::get('orders/{uuid}', [StorefrontCheckoutController::class, 'show']);
     });
 
-    Route::middleware('auth:sanctum')->group(function () {
+    // Customer account (Phase 17 Wave 1) — a customer's own Sanctum
+    // tokens, a completely separate space from staff's (see
+    // EnsureCustomerUser/EnsureStaffUser). register/login are public like
+    // auth/register|login above; everything else requires a customer
+    // token specifically, not just any valid one.
+    Route::prefix('account')->group(function () {
+        Route::post('auth/register', [AccountAuthController::class, 'register'])->middleware('throttle:6,1');
+        Route::post('auth/login', [AccountAuthController::class, 'login'])->middleware('throttle:6,1');
+
+        Route::middleware(['auth:sanctum', 'customer'])->group(function () {
+            Route::post('auth/logout', [AccountAuthController::class, 'logout']);
+            Route::get('auth/me', [AccountAuthController::class, 'me']);
+
+            Route::get('orders', [AccountOrderController::class, 'index']);
+            Route::get('orders/{uuid}', [AccountOrderController::class, 'show']);
+
+            Route::get('addresses', [AccountAddressController::class, 'index']);
+            Route::post('addresses', [AccountAddressController::class, 'store']);
+            Route::put('addresses/{address}', [AccountAddressController::class, 'update']);
+            Route::delete('addresses/{address}', [AccountAddressController::class, 'destroy']);
+
+            Route::put('profile', [AccountProfileController::class, 'update']);
+        });
+    });
+
+    Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::apiResource('stores', StoreController::class);
         Route::apiResource('warehouses', WarehouseController::class);
         Route::apiResource('users', UserController::class);
