@@ -11,7 +11,7 @@ in place and the app still builds/runs.
 | 2 | Design System | ✅ Done | Yes — tokens, theme, first primitives |
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
-| 5 | Catalog | ✅ Wave 1 done (variants/attributes/bundles/reviews/bulk import-export/media library deferred — see note) | Yes — categories (hierarchy), brands, simple products w/ pricing/SEO/images, full admin UI |
+| 5 | Catalog | ✅ Wave 1 + Wave 2a done (bundles/reviews/bulk import-export/media library still deferred — see note) | Yes — categories (hierarchy), brands, simple + variable products w/ pricing/SEO/images, attributes + a variant generator, full admin UI |
 | 6 | Inventory | ✅ Wave 1 done (order reservations/variant-level stock deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Wave 1 done (purchase returns/supplier ledger/PO approval workflow deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements |
 | 8 | Orders | ✅ Wave 1 done (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
@@ -84,6 +84,35 @@ CSV bulk import/export, and a reusable cross-entity media library
 its own right and every one currently has no real consumer to justify
 shipping it early — spec rule 178.
 
+**Phase 5 Wave 2a scope note:** narrowed Wave 2 down to the one piece
+several later phases actually block on — variable products, not all
+five deferred items at once (spec rule 176: incremental, not a grab-bag
+pass). Ships `product_attributes`/`product_attribute_values` (store-
+scoped reference data, own CRUD + permissions, reused across products —
+same shape as categories/brands) and `product_variants`/
+`product_variant_attribute_values` (a variant belongs to one product,
+carries its own SKU and nullable price/sale-price/cost-price overrides
+that fall back to the parent product's own price when null). A
+"Generate variants" action computes the cartesian product of the
+selected attribute values and skips any combination that already exists
+as a variant, so re-running it after adding one new value only creates
+the new combinations. This is catalog data only — no order line item,
+stock level, or stock movement is variant-aware yet (`orders`/
+`order_items`/`stock_levels`/`stock_movements` all still key off
+`product_id`); a variable product's variants exist for catalog
+management (distinct SKUs/prices/barcodes) the same way Wave 1's simple
+products existed before Phase 8's orders ever consumed them. Wiring
+Orders/Inventory/Purchasing to be variant-aware (a `product_variant_id`
+on `stock_levels`/`stock_movements`/`order_items`/`purchase_order_items`)
+is real, substantial, cross-cutting work of its own and is left as the
+next Catalog-adjacent pickup rather than attempted alongside this —
+touching every phase built so far in one pass is exactly the kind of
+un-incremental change rule 176 warns against. Bundles/combos (needs
+Orders-integrated component stock decrement, not just a new `type`
+value), customer reviews, CSV bulk import/export, and a reusable media
+library remain deferred for the reasons Wave 1's note above already
+gives — none has a real consumer yet.
+
 **Phase 6 scope note:** Wave 1 ships on-hand stock tracking per
 warehouse (`stock_levels`), a full audit ledger of every change
 (`stock_movements`), manual adjustments (increase/decrease with a
@@ -95,7 +124,9 @@ since Phase 4, but there was no screen to add a second warehouse and no
 demo data seeded either, which would have made Inventory unusable out
 of the box. Deliberately deferred to a Wave 2 (see `DATABASE_DESIGN.md`
 section 2): order *returns* movements (needs Phase 10), variant-level
-stock (needs Phase 5 Wave 2), a pending/in-transit/received transfer
+stock (Phase 5 Wave 2a built the variant catalog data itself, but
+`stock_levels`/`stock_movements` still key off `product_id` only — see
+its scope note above), a pending/in-transit/received transfer
 approval workflow, and a `stock_adjustments` header table for grouping a
 stocktake's many adjustments. None of these has a real consumer yet —
 spec rule 178. (Purchase-receipt-driven movements and order
@@ -196,11 +227,13 @@ restocks on-hand quantity and writes a real `return` movement when a
 failed delivery is marked back to the seller, since `Order.ship()` had
 already decremented it before any shipment existed. Deliberately
 deferred to a Wave 2 (see `DATABASE_DESIGN.md` section 2): exchanges
-(swap for a different product/variant — no variant system yet, Phase 5
-Wave 2), store credit as a refund method (no wallet/ledger concept
-exists), and reconciling `payment_status` across *partial* refunds spread
-over multiple separate return records (today only a full-coverage refund
-reconciles it — see above).
+(swap for a different product/variant — Phase 5 Wave 2a's variant
+catalog data exists now, but no order line item is variant-aware yet,
+so there's nothing to swap *to* within an order), store credit as a
+refund method (no wallet/ledger concept exists), and reconciling
+`payment_status` across *partial* refunds spread over multiple separate
+return records (today only a full-coverage refund reconciles it — see
+above).
 
 **Phase 11 scope note:** Wave 1 ships two new store-scoped aggregate
 endpoints (`DashboardController::salesTrend()`/`orderStatusBreakdown()`,
@@ -229,16 +262,24 @@ all of that is Phase 18 Reporting's job, not a dashboard widget's.
 
 ## Next Session Should Start With
 
-Phase 5 Wave 2 (variants/attributes, bundles, bulk import/export, media
-library) — the other reasonable starting point flagged since Phase 5's
-own scope note, and now the most natural next unblock: every Wave 1
-phase through Admin Dashboard is done, and Phase 5 Wave 2 is a
-prerequisite several later phases (variant-aware inventory, storefront
-product pages) will eventually need. Phase 18 Reporting (a full report
-suite building on the aggregate-endpoint pattern Phase 11 established)
-is the other reasonable pickup. Follow the phase order above; do not
-skip ahead to CMS/SEO/Storefront before catalog variants exist, since
-storefront product pages depend on them.
+Variant-aware Orders/Inventory/Purchasing — Phase 5 Wave 2a shipped the
+variant catalog data (attributes, generated variants with their own
+SKU/price overrides), but `order_items`/`stock_levels`/`stock_movements`/
+`purchase_order_items` all still key off `product_id` alone, so a
+variable product's variants can't actually be sold, stocked, or
+purchased against yet. Adding a nullable `product_variant_id` across
+those tables (and updating `OrderController`'s reservation logic,
+`StockAdjustmentController`/`StockTransferController`, and
+`PurchaseOrderController`/`PurchaseReceiptController` to accept an
+optional variant) is the real unblock several later phases (storefront
+product pages, Returns' exchange feature) still need, and is substantial
+enough to deserve its own focused pass rather than being bolted onto
+Wave 2a — see its scope note above for why. Phase 5 Wave 2b (bundles,
+reviews, bulk import/export, media library) and Phase 18 Reporting are
+the other reasonable pickups. Follow the phase order above; do not skip
+ahead to CMS/SEO/Storefront before catalog variants are actually
+sellable, since storefront product pages depend on that, not just the
+catalog data existing.
 
 ## Execution Protocol for Every Future Phase (spec section 177)
 

@@ -68,8 +68,8 @@ A single reusable `DataTable` component (`components/ui/data-table.tsx`)
 handles server-driven pagination, loading skeletons, and empty states,
 reused by every list screen (Users, Roles, Categories, Brands, Products,
 Warehouses, Stock Levels, Movements, Transfers, Suppliers, Purchase
-Orders, Customers, Orders, Couriers, Shipments, COD Settlements, Returns
-today; later phases' resources as they ship). It's a small dependency-free
+Orders, Customers, Orders, Couriers, Shipments, COD Settlements, Returns,
+Attributes today; later phases' resources as they ship). It's a small dependency-free
 implementation rather than
 built on TanStack Table — the version available at build time (v9) ships
 a materially different API from what's documented/commonly known, so

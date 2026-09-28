@@ -99,8 +99,9 @@ products
   id, uuid, store_id (FK→stores, cascade),
   category_id (FK→categories, nullOnDelete), brand_id (FK→brands, nullOnDelete),
   name, slug, sku, barcode (nullable),
-  type (varchar, default 'simple' — variable/digital/service/bundle/combo
-    are reserved column values, not yet implemented; see section 2),
+  type (varchar, default 'simple' — 'variable' is functional since
+    Phase 5 Wave 2a, see section 1i; digital/service/bundle/combo remain
+    reserved column values, not yet implemented — see section 2),
   description (nullable), short_description (nullable),
   currency_code (char(3), default 'BDT'),
   price_amount, sale_price_amount (nullable), cost_price_amount (nullable),
@@ -488,6 +489,61 @@ one. A materialized/scheduled aggregate table only becomes worth it once
 Phase 18 Reporting needs heavier queries than a dashboard's trailing-14-
 days window — see the Reporting/Analytics bullet in section 2.
 
+## 1i. Product Variants Schema (Phase 5 Wave 2a)
+
+```
+product_attributes
+  id, uuid, store_id (FK→stores, cascade), name, slug, timestamps
+  unique(store_id, slug)
+  — store-scoped reference data, same shape as categories/brands (section
+    1b), just without a status/soft-delete column: an attribute with no
+    values yet is harmless, so there's no "inactive" state worth adding.
+
+product_attribute_values
+  id, product_attribute_id (FK→product_attributes, cascade),
+  value, slug, sort_order (default 0), timestamps
+  unique(product_attribute_id, slug)
+
+product_variants
+  id, uuid, store_id (FK→stores, cascade — denormalized, same
+    reasoning as stock_movements.store_id: the sku-uniqueness check and
+    store-scoped queries don't need a join through product_id),
+  product_id (FK→products, cascade),
+  sku, barcode (nullable),
+  price_amount, sale_price_amount, cost_price_amount (all bigint minor
+    units, nullable — null means "use the parent product's own price,"
+    so most variants of a product don't need to repeat it),
+  status (varchar, default 'active'), timestamps
+  unique(store_id, sku), index(product_id)
+
+product_variant_attribute_values (pivot, plain belongsToMany — no extra
+    columns, same pattern as store_user/cod_settlement_shipments)
+  id, product_variant_id (FK→product_variants, cascade),
+  product_attribute_value_id (FK→product_attribute_values, cascade),
+  timestamps
+  unique(product_variant_id, product_attribute_value_id)
+```
+
+A variant's exact set of attribute-value ids (e.g. Color:Red + Size:XL)
+is never stored as a separate "combination" record — it's just whichever
+rows exist in the pivot table for that `product_variant_id`, compared by
+their sorted id list when `ProductVariantController::generate()` needs
+to skip a combination that already has a variant. There is deliberately
+no "which attributes does this product use" table either: that set is
+just derived from the union of its variants' own attribute values, so
+selecting attributes in the UI and generating variants are the same
+action rather than a selection step that has to stay in sync with a
+separately persisted choice.
+
+**Not yet variant-aware:** `order_items`, `stock_levels`,
+`stock_movements`, and `purchase_order_items` all still key off
+`product_id` alone — a variable product's variants exist as catalog
+data (their own SKU/price/barcode) but can't yet be ordered, stocked, or
+purchased against individually. Adding a nullable `product_variant_id`
+to each of those tables is real, substantial, cross-cutting work left
+for its own future pass — see `DEVELOPMENT_ROADMAP.md`'s Phase 5 Wave 2a
+scope note and "Next Session Should Start With".
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -495,19 +551,25 @@ shape, and so the foundation tables above (store_id placement, soft
 deletes, currency as a table not a hardcoded symbol) are already
 compatible with them.
 
-- **Catalog Wave 2:** `product_variants`, `product_attributes`,
-  `product_attribute_values` (variable products — `products.type` already
-  reserves the column value, schema not yet built), `reviews` (Phase 8's
-  `customers`/`orders` now exist to back "verified purchase", but the
-  reviews table itself isn't built), a reusable/browsable
-  `media` library with folders and cross-entity reuse (today, product/
-  category/brand images upload directly against their own record — see
-  section 1b). `products`, `categories`, `brands`, `product_images` are
-  built — see section 1b.
+- **Catalog Wave 2b:** `bundles`/`bundle_items` (a bundle's stock
+  decrement needs to hit its component products, not itself — real
+  Orders-integrated work, not just a new `products.type` value),
+  `reviews` (Phase 8's `customers`/`orders` now exist to back "verified
+  purchase", but the reviews table itself isn't built, and nothing lets
+  a customer actually write one before a storefront/account portal
+  exists — Phase 16/17), a reusable/browsable `media` library with
+  folders and cross-entity reuse (today, product/category/brand images
+  upload directly against their own record — see section 1b), and CSV
+  bulk import/export. `products`, `categories`, `brands`,
+  `product_images` are built — see section 1b; `product_attributes`,
+  `product_attribute_values`, `product_variants`,
+  `product_variant_attribute_values` are built — see section 1i.
 - **Inventory Wave 2:** `product_variant_id` on `stock_levels`/
-  `stock_movements` (needs Phase 5 Wave 2 variants), a pending/in-transit/
-  received transfer approval workflow, and a `stock_adjustments` header
-  table for grouping a stocktake's many per-product adjustments under one
+  `stock_movements` (Phase 5 Wave 2a built the variant catalog data
+  itself — see section 1i — but stock still isn't tracked per variant),
+  a pending/in-transit/received transfer approval workflow, and a
+  `stock_adjustments` header table for grouping a stocktake's many
+  per-product adjustments under one
   reference (today each adjustment is its own `stock_movements` row —
   see section 1c). `stock_levels` (incl. `quantity_reserved`),
   `stock_movements`, `stock_transfers`, `stock_transfer_items` are built
@@ -544,7 +606,9 @@ compatible with them.
   `shipments`, `shipment_status_history`, `cod_settlements`,
   `cod_settlement_shipments` are built — see section 1f.
 - **Returns Wave 2:** `exchanges` (swap for a different product/variant
-  — no variant system yet, needs Phase 5 Wave 2), store credit as a
+  — Phase 5 Wave 2a's variant catalog data exists now, see section 1i,
+  but no order line item is variant-aware yet, so there's nothing to
+  swap *to* within an order), store credit as a
   refund method (no wallet/ledger concept exists), and reconciling
   `orders.payment_status` across *partial* refunds spread over multiple
   separate return records (today only a full-coverage refund reconciles

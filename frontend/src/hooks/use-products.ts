@@ -11,6 +11,7 @@ export interface ProductFormValues {
   store_id: number;
   category_id?: number | null;
   brand_id?: number | null;
+  type?: "simple" | "variable";
   name: string;
   slug: string;
   sku: string;

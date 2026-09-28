@@ -116,6 +116,21 @@ Sections 2–5 (envelope, Sanctum auth endpoints, `auth:sanctum` +
 `currencies` and BD `locations`. A generic `POST /uploads` endpoint
 handles category/brand image uploads.
 
+Catalog — variable products (Phase 5 Wave 2a): full CRUD for
+`product-attributes` (`attributes.view/create/update/delete`, standard
+Eloquent policy) plus nested `POST/PUT/DELETE
+/product-attributes/{id}/values(/{value})` for managing an attribute's
+values (same nested-sub-resource pattern as
+`customers/{id}/addresses`). `POST /products/{id}/variants/generate`
+takes `attribute_value_ids` and creates the cartesian product of those
+values as variants, skipping any combination that already exists as a
+variant; `PUT/DELETE /products/{id}/variants/{variantId}` edit or
+remove one. All three variant actions check `products.update` directly
+(the same `$user->can()` pattern as `ProductImageController`, since a
+variant is a product sub-resource, not its own policy). Generating
+variants for a `simple` product, or for attribute values from a
+different store, returns a 422.
+
 Inventory (Phase 6 Wave 1): `GET /stock-levels` (per-warehouse on-hand
 quantity per product, `low_stock` filter) + `GET .../low-stock-count`
 (scalar count backing the dashboard KPI), `GET /stock-movements` (the

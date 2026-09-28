@@ -11,13 +11,16 @@ their backing functionality — no dead pages).
 | `/login` | ✅ | 3 (Auth) |
 | `/dashboard` | ✅ | 3/11 (real KPI stat cards, each permission-gated so a card never shows a misleading 0; sales-trend + order-status-breakdown Recharts visuals; recent-orders widget) |
 | `/catalog/products` | ✅ | 5 (search, filter by category/brand/status, pagination) |
-| `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5 (tabbed form: General/Pricing/Media/SEO; multi-image upload with primary selection) |
+| `/catalog/products/new`, `/catalog/products/[id]` | ✅ | 5/5-Wave2a (tabbed form: General/Pricing/Variants*/Media/SEO — *Variants tab only shown once type is set to Variable; multi-image upload with primary selection) |
 | `/catalog/categories` | ✅ | 5 (hierarchical list, unlimited nesting, cycle-safe) |
 | `/catalog/categories/new`, `/catalog/categories/[id]` | ✅ | 5 |
 | `/catalog/brands` | ✅ | 5 (list, search, pagination) |
 | `/catalog/brands/new`, `/catalog/brands/[id]` | ✅ | 5 |
-| `/catalog/products` (variable/bundle/combo types, attributes, variant generator) | ⏳ | 5 Wave 2 — schema reserves `type` for this; only `simple` is functional |
-| `/catalog/media` (reusable, browsable media library) | ⏳ | 5 Wave 2 — product/category/brand images upload directly today, no shared library yet |
+| `/catalog/attributes` | ✅ | 5 Wave 2a (list showing each attribute's values inline) |
+| `/catalog/attributes/new`, `/catalog/attributes/[id]` | ✅ | 5 Wave 2a (edit page also manages the attribute's values inline: add/edit/delete, blocked while a value is still used by a variant) |
+| `/catalog/products` (variant generator wired into order line items/stock/purchasing) | ⏳ | 5 Wave 2b — variants exist as catalog data (own SKU/price) but `order_items`/`stock_levels`/`purchase_order_items` are still `product_id`-only, see `DATABASE_DESIGN.md` section 1i |
+| `/catalog/products` (bundle/combo types) | ⏳ | 5 Wave 2b — needs Orders-integrated component stock decrement, not just a new `type` value |
+| `/catalog/media` (reusable, browsable media library) | ⏳ | 5 Wave 2b — product/category/brand images upload directly today, no shared library yet |
 | `/inventory` | ✅ | 6 (redirects to Stock Levels) |
 | `/inventory/stock-levels` | ✅ | 6 (per-warehouse on-hand quantity, low-stock filter, search, adjust dialog) |
 | `/inventory/movements` | ✅ | 6 (read-only ledger, filter by warehouse/type) |
@@ -113,6 +116,9 @@ their backing functionality — no dead pages).
 | `GET/POST/PUT/DELETE /api/v1/products` | ✅ |
 | `POST /api/v1/products/{id}/images`, `DELETE .../images/{id}`, `POST .../images/{id}/primary` | ✅ |
 | `POST /api/v1/uploads` (generic category/brand image upload) | ✅ |
+| `GET/POST/PUT/DELETE /api/v1/product-attributes` | ✅ |
+| `POST/PUT/DELETE /api/v1/product-attributes/{id}/values(/{value})` | ✅ |
+| `POST /api/v1/products/{id}/variants/generate`, `PUT/DELETE .../variants/{variantId}` | ✅ |
 | `GET /api/v1/stock-levels`, `GET .../low-stock-count` | ✅ |
 | `GET /api/v1/stock-movements` | ✅ |
 | `POST /api/v1/stock-adjustments` | ✅ |

@@ -241,17 +241,28 @@ endpoints — a 14-day sales trend and an order-status breakdown, both
 pure read-side `GROUP BY` queries with no new tables, see
 `DATABASE_DESIGN.md` section 1h — wired into real Recharts visuals, plus
 every dashboard stat card now gated behind the permission that backs its
-number instead of showing a misleading 0).
+number instead of showing a misleading 0), and Phase 5 Wave 2a variable
+products (`product_attributes`/`product_attribute_values`, own CRUD +
+permissions, same shape as categories/brands; `product_variants`/
+`product_variant_attribute_values`, with a "generate the cartesian
+product of selected attribute values" action that skips combinations
+that already exist as a variant — see `DATABASE_DESIGN.md` section 1i.
+Catalog-only: no order line item, stock level, or stock movement is
+variant-aware yet, so a variant can't actually be sold, stocked, or
+purchased against individually — that's the next Catalog-adjacent pass,
+not folded into this one, per rule 176's incremental-phases mandate).
 CMS/builder, blog, SEO, storefront, customer account, the full reporting
 suite (Phase 18), the adapter implementations described in section 6,
-Catalog Wave 2 (variants/attributes, bundles, bulk import/export, a
-reusable media library), Inventory Wave 2 (variant-level stock — the
-order-*return* movement gap this used to list is closed, see above),
-Purchasing Wave 2 (purchase returns, supplier ledger, PO approval
-workflow), Orders Wave 2 (a non-COD gateway-payments ledger, coupons),
-Delivery Wave 2 (delivery zones/rates, multi-shipment orders — the
-return-driven stock reversal gap this used to list is closed, see
-above), Returns Wave 2 (exchanges, store credit, cross-return
+Catalog Wave 2b (bundles, reviews, bulk import/export, a reusable media
+library), variant-aware Orders/Inventory/Purchasing (a
+`product_variant_id` on `order_items`/`stock_levels`/`stock_movements`/
+`purchase_order_items` — the real unblock Catalog Wave 2a's variants
+still need before storefront product pages or Returns' exchange
+feature can use them), Purchasing Wave 2 (purchase returns, supplier
+ledger, PO approval workflow), Orders Wave 2 (a non-COD gateway-payments
+ledger, coupons), Delivery Wave 2 (delivery zones/rates, multi-shipment
+orders — the return-driven stock reversal gap this used to list is
+closed, see above), Returns Wave 2 (exchanges, store credit, cross-return
 partial-refund reconciliation), and Dashboard Wave 2 (a custom
 date-range picker, per-warehouse/per-courier breakdowns, a low-stock-
 products widget with names, export — see `DATABASE_DESIGN.md` section 2)

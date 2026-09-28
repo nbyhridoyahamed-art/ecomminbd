@@ -69,6 +69,11 @@ class Product extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

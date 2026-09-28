@@ -45,7 +45,23 @@ export interface Product {
   focus_keyword: string | null;
 
   images: ProductImage[];
+  variants: ProductVariant[];
 
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductVariant {
+  id: number;
+  uuid: string;
+  product_id: number;
+  sku: string;
+  barcode: string | null;
+  price: number | null;
+  sale_price: number | null;
+  cost_price: number | null;
+  status: "active" | "inactive";
+  attribute_values: { attribute_id: number; attribute_name: string; value_id: number; value: string }[];
   created_at: string;
   updated_at: string;
 }

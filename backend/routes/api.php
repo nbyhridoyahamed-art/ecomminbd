@@ -11,8 +11,10 @@ use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\OrderController;
+use App\Http\Controllers\Api\V1\ProductAttributeController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
+use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\PurchaseReceiptController;
 use App\Http\Controllers\Api\V1\ReturnController;
@@ -70,6 +72,15 @@ Route::prefix('v1')->group(function () {
         Route::post('products/{product}/images', [ProductImageController::class, 'store']);
         Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
         Route::post('products/{product}/images/{image}/primary', [ProductImageController::class, 'markPrimary']);
+
+        Route::apiResource('product-attributes', ProductAttributeController::class);
+        Route::post('product-attributes/{productAttribute}/values', [ProductAttributeController::class, 'storeValue']);
+        Route::put('product-attributes/{productAttribute}/values/{value}', [ProductAttributeController::class, 'updateValue']);
+        Route::delete('product-attributes/{productAttribute}/values/{value}', [ProductAttributeController::class, 'destroyValue']);
+
+        Route::post('products/{product}/variants/generate', [ProductVariantController::class, 'generate']);
+        Route::put('products/{product}/variants/{variant}', [ProductVariantController::class, 'update']);
+        Route::delete('products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy']);
 
         Route::get('stock-levels', [StockLevelController::class, 'index']);
         Route::get('stock-levels/low-stock-count', [StockLevelController::class, 'lowStockCount']);

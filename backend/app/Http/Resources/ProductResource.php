@@ -60,6 +60,7 @@ class ProductResource extends JsonResource
             'focus_keyword' => $this->focus_keyword,
 
             'images' => ProductImageResource::collection($this->whenLoaded('images')),
+            'variants' => ProductVariantResource::collection($this->whenLoaded('variants')),
 
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

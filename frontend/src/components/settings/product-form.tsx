@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ProductImageGallery } from "@/components/settings/product-image-gallery";
+import { VariantsManager } from "@/components/catalog/variants-manager";
 import type { ProductFormValues } from "@/hooks/use-products";
 import type { Brand } from "@/types/brand";
 import type { Category } from "@/types/category";
@@ -28,6 +29,7 @@ const productSchema = z
   .object({
     category_id: z.string(),
     brand_id: z.string(),
+    type: z.enum(["simple", "variable"]),
     name: z.string().min(1, "Name is required."),
     slug: z
       .string()
@@ -60,8 +62,9 @@ type FormValues = z.infer<typeof productSchema>;
 
 const STATUS_LABELS: Record<string, string> = { draft: "Draft", active: "Active", archived: "Archived" };
 const WEIGHT_UNIT_LABELS: Record<string, string> = { kg: "kg", g: "g", lb: "lb" };
+const TYPE_LABELS: Record<string, string> = { simple: "Simple", variable: "Variable (has variants)" };
 
-const TABS = ["General", "Pricing", "Media", "SEO"] as const;
+const TABS = ["General", "Pricing", "Variants", "Media", "SEO"] as const;
 
 interface ProductFormProps {
   storeId: number;
@@ -99,6 +102,7 @@ export function ProductForm({
     defaultValues: {
       category_id: defaultValues?.category_id ? String(defaultValues.category_id) : "",
       brand_id: defaultValues?.brand_id ? String(defaultValues.brand_id) : "",
+      type: defaultValues?.type === "variable" ? "variable" : "simple",
       name: defaultValues?.name ?? "",
       slug: defaultValues?.slug ?? "",
       sku: defaultValues?.sku ?? "",
@@ -129,6 +133,7 @@ export function ProductForm({
 
   const categoryId = useWatch({ control, name: "category_id" });
   const brandId = useWatch({ control, name: "brand_id" });
+  const type = useWatch({ control, name: "type" });
   const status = useWatch({ control, name: "status" });
   const weightUnit = useWatch({ control, name: "weight_unit" });
   const trackStock = useWatch({ control, name: "track_stock" });
@@ -148,6 +153,7 @@ export function ProductForm({
       store_id: storeId,
       category_id: values.category_id ? Number(values.category_id) : null,
       brand_id: values.brand_id ? Number(values.brand_id) : null,
+      type: values.type,
       name: values.name,
       slug: values.slug,
       sku: values.sku,
@@ -180,7 +186,7 @@ export function ProductForm({
 
       <div className="border-b border-border">
         <nav className="flex gap-1">
-          {TABS.map((t) => (
+          {TABS.filter((t) => t !== "Variants" || type === "variable").map((t) => (
             <button
               key={t}
               type="button"
@@ -283,6 +289,27 @@ export function ProductForm({
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Product type</Label>
+          <Select
+            value={type}
+            onValueChange={(value) => setValue("type", value as "simple" | "variable", { shouldDirty: true })}
+          >
+            <SelectTrigger className="max-w-xs">
+              <SelectValue placeholder="Select type">{type ? TYPE_LABELS[type] : undefined}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="simple">Simple</SelectItem>
+              <SelectItem value="variable">Variable (has variants)</SelectItem>
+            </SelectContent>
+          </Select>
+          {type === "variable" ? (
+            <p className="text-xs text-text-muted">
+              Save the product, then use the Variants tab to define its attributes and generate variants.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-1.5">
@@ -396,6 +423,25 @@ export function ProductForm({
           </p>
         ) : null}
       </div>
+
+      {type === "variable" ? (
+        <div className={tab === "Variants" ? "space-y-4" : "hidden"}>
+          {productId ? (
+            <VariantsManager
+              storeId={storeId}
+              productId={productId}
+              currencyCode={defaultValues?.currency_code ?? "BDT"}
+              basePrice={defaultValues?.price ?? 0}
+              variants={defaultValues?.variants ?? []}
+              canEdit
+            />
+          ) : (
+            <Alert variant="info">
+              <AlertDescription>Save the product first, then come back here to add variants.</AlertDescription>
+            </Alert>
+          )}
+        </div>
+      ) : null}
 
       <div className={tab === "Media" ? "space-y-4" : "hidden"}>
         {productId ? (

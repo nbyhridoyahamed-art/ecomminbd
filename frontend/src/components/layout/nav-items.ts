@@ -20,7 +20,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Catalog",
     href: "/catalog/products",
     icon: Package,
-    anyPermission: ["products.view", "categories.view", "brands.view"],
+    anyPermission: ["products.view", "categories.view", "brands.view", "attributes.view"],
   },
   {
     label: "Inventory",
