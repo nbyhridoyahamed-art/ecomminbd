@@ -16,7 +16,7 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Separator | ✅ | |
 | Skeleton | ✅ | used for dashboard/table loading states |
 | Alert | ✅ | inline error/success/info banners |
-| Dropdown Menu | ✅ | used in topbar (profile, theme) |
+| Dropdown Menu | ✅ | used in topbar (profile, theme); since Phase 18 Wave 2c also backs the Export button on all three Reports pages (CSV/PDF) |
 | Sheet (drawer) | ✅ | mobile sidebar |
 | Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment, product category/brand/status, warehouse pickers, stock adjustment direction, supplier/warehouse pickers on purchase orders, customer/warehouse/payment-method/saved-address pickers on orders, cascading BD division/district/upazila pickers (customer addresses + order shipping), courier pickers on shipments/COD settlements, variant pickers on order/purchase-order/stock-transfer line items and the variant stock-adjustment dialog's warehouse picker, warehouse/granularity filters on the Sales report and warehouse filter on the Product Performance report |
 | Textarea | ✅ | category/brand/product descriptions, SEO meta description, warehouse address, transfer note, supplier address, PO notes/receipt note, order notes, shipment delivered/failed/returned notes, COD settlement note, return request reason, return reject/receive notes |

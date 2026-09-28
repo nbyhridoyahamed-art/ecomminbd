@@ -1,18 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, Download, Receipt, TrendingUp } from "lucide-react";
+import { DollarSign, Download, FileSpreadsheet, FileText, Receipt, TrendingUp } from "lucide-react";
 
 import { can } from "@/lib/permissions";
 import { formatMoney } from "@/lib/money";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useAllWarehouses } from "@/hooks/use-warehouses";
-import { useExportSalesReport, useSalesReport } from "@/hooks/use-reports";
+import { useExportSalesReport, useExportSalesReportPdf, useSalesReport } from "@/hooks/use-reports";
 import { PermissionDenied } from "@/components/permission-denied";
 import { SalesTrendChart } from "@/components/charts/sales-trend-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
@@ -72,7 +78,8 @@ export default function SalesReportPage() {
 
   const filters = { dateFrom: dateRange.from, dateTo: dateRange.to, warehouseId, granularity };
   const { data: report, isLoading } = useSalesReport(storeId, filters);
-  const exportReport = useExportSalesReport();
+  const exportCsv = useExportSalesReport();
+  const exportPdf = useExportSalesReportPdf();
 
   if (currentUser && !can(currentUser, "reports.view")) {
     return <PermissionDenied />;
@@ -138,14 +145,24 @@ export default function SalesReportPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          variant="outline"
-          loading={exportReport.isPending}
-          onClick={() => storeId && exportReport.mutate({ storeId, filters })}
-        >
-          <Download />
-          Export
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" loading={exportCsv.isPending || exportPdf.isPending}>
+              <Download />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => storeId && exportCsv.mutate({ storeId, filters })}>
+              <FileSpreadsheet />
+              Export CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => storeId && exportPdf.mutate({ storeId, filters })}>
+              <FileText />
+              Export PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

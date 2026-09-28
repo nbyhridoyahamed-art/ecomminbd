@@ -144,9 +144,12 @@ Route::prefix('v1')->group(function () {
 
         Route::get('reports/sales', [ReportController::class, 'salesReport']);
         Route::get('reports/sales/export', [ReportController::class, 'salesReportExport']);
+        Route::get('reports/sales/export-pdf', [ReportController::class, 'salesReportExportPdf']);
         Route::get('reports/products-performance', [ReportController::class, 'productPerformance']);
         Route::get('reports/products-performance/export', [ReportController::class, 'productPerformanceExport']);
+        Route::get('reports/products-performance/export-pdf', [ReportController::class, 'productPerformanceExportPdf']);
         Route::get('reports/low-stock', [ReportController::class, 'lowStock']);
         Route::get('reports/low-stock/export', [ReportController::class, 'lowStockExport']);
+        Route::get('reports/low-stock/export-pdf', [ReportController::class, 'lowStockExportPdf']);
     });
 });

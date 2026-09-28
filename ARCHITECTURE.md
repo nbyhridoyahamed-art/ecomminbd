@@ -291,7 +291,14 @@ report page. Also built since: **Phase 18 Wave 2b** — a period-over-period
 `comparison` on the sales report, computed over the immediately
 preceding period of equal length and wired into `StatCard`'s existing
 (previously unused) `trend` prop on the Revenue/Orders/Average Order
-Value cards.
+Value cards. Also built since: **Phase 18 Wave 2c** — a PDF export twin
+alongside each report's existing CSV export, via the new
+`barryvdh/laravel-dompdf` dependency rendering Blade views that call the
+same private query helpers the JSON/CSV endpoints already use, so the
+PDF can't drift from what's on screen; richer than the CSV on purpose
+(KPI totals, trend, payment-method/courier breakdowns included) since a
+PDF is a presentable snapshot of the page, not a spreadsheet export.
+This closes out Reporting Wave 2.
 CMS/builder, blog, SEO, storefront, customer account, the adapter
 implementations described in section 6, the rest of Catalog Wave 2b
 (bundles, reviews, a reusable media library), Purchasing Wave 2 (purchase
@@ -304,7 +311,7 @@ custom date-range picker and per-warehouse/per-courier breakdowns *on the
 dashboard widget itself* — Reports above now covers date-range/
 per-warehouse/payment-method/CSV/low-stock-with-names as its own admin
 section, so only per-courier breakdowns and folding any of that back into
-the dashboard remain open there), and the rest of Reporting Wave 2 (PDF
-export, and any materialized/scheduled aggregate table — see
-`DATABASE_DESIGN.md` section 2) are designed here but built in later
-phases per `DEVELOPMENT_ROADMAP.md`.
+the dashboard remain open there), and Reporting's remaining
+materialized/scheduled aggregate table (see `DATABASE_DESIGN.md`
+section 2 — Reporting Wave 2 itself is fully shipped) are designed here
+but built in later phases per `DEVELOPMENT_ROADMAP.md`.

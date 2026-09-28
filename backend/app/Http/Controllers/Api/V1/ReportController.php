@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Store;
+use App\Models\Warehouse;
 use App\Support\ApiResponse;
 use App\Support\Money;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -96,6 +99,68 @@ class ReportController extends Controller
         }, 'sales-report-'.now()->format('Ymd-His').'.csv', ['Content-Type' => 'text/csv']);
     }
 
+    /** Richer than the CSV twin on purpose — a PDF is a presentable, shareable snapshot of the whole page, not a spreadsheet-analysis export, so it includes the KPI totals, the vs.-previous-period trend, and the payment-method/courier breakdowns the CSV deliberately leaves out. */
+    public function salesReportExportPdf(Request $request): Response
+    {
+        if (! $request->user()->can('reports.view')) {
+            throw new AuthorizationException;
+        }
+
+        $data = $this->resolveFilters($request);
+        $currencyCode = Store::find($data['store_id'])?->currency?->code ?? 'BDT';
+
+        $dayRows = $this->dailySalesRows($data);
+        $byPeriod = $this->foldByGranularity($dayRows, $data['granularity'], $currencyCode);
+        $totals = $this->periodTotals($dayRows);
+
+        $previousRange = $this->previousPeriodRange($data);
+        $previousTotals = $this->periodTotals($this->dailySalesRows($previousRange));
+
+        $byPaymentMethod = $this->paymentMethodQuery($data)->get()->map(fn ($row) => [
+            'payment_method' => $row->payment_method,
+            'orders_count' => (int) $row->orders_count,
+            'revenue_amount' => (new Money((int) $row->revenue_minor, $currencyCode))->toDecimal(),
+        ]);
+
+        $byCourier = $this->courierQuery($data)->get()->map(fn ($row) => [
+            'courier_name' => $row->courier_name,
+            'orders_count' => (int) $row->orders_count,
+            'revenue_amount' => (new Money((int) $row->revenue_minor, $currencyCode))->toDecimal(),
+        ]);
+
+        $revenueAmount = (new Money($totals['revenueMinor'], $currencyCode))->toDecimal();
+        $averageOrderValue = (new Money($totals['averageMinor'], $currencyCode))->toDecimal();
+        $previousRevenue = (new Money($previousTotals['revenueMinor'], $currencyCode))->toDecimal();
+        $previousAverage = (new Money($previousTotals['averageMinor'], $currencyCode))->toDecimal();
+
+        $pdf = Pdf::loadView('reports.sales-pdf', [
+            'storeName' => Store::find($data['store_id'])?->name ?? 'Store',
+            'currencyCode' => $currencyCode,
+            'subtitle' => sprintf(
+                '%s to %s · %s · vs. previous period (%s to %s)',
+                $data['date_from']->toDateString(),
+                $data['date_to']->toDateString(),
+                $this->warehouseName($data['warehouse_id']),
+                $previousRange['date_from']->toDateString(),
+                $previousRange['date_to']->toDateString(),
+            ),
+            'generatedAt' => now()->format('Y-m-d H:i'),
+            'totals' => [
+                'revenue_amount' => $revenueAmount,
+                'orders_count' => $totals['ordersCount'],
+                'average_order_value' => $averageOrderValue,
+            ],
+            'revenueTrend' => $this->trendLabel($revenueAmount, $previousRevenue),
+            'ordersTrend' => $this->trendLabel($totals['ordersCount'], $previousTotals['ordersCount']),
+            'aovTrend' => $this->trendLabel($averageOrderValue, $previousAverage),
+            'byPeriod' => $byPeriod,
+            'byPaymentMethod' => $byPaymentMethod,
+            'byCourier' => $byCourier,
+        ])->setPaper('a4');
+
+        return $pdf->download('sales-report-'.now()->format('Ymd-His').'.pdf');
+    }
+
     /** Rolls a variable product's variant sales up into one row — a merchandising view of "how did this product do," not a per-variant breakdown (that lives on the product's own Variants tab). */
     public function productPerformance(Request $request): JsonResponse
     {
@@ -150,6 +215,38 @@ class ReportController extends Controller
             }
             fclose($handle);
         }, 'product-performance-'.now()->format('Ymd-His').'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    public function productPerformanceExportPdf(Request $request): Response
+    {
+        if (! $request->user()->can('reports.view')) {
+            throw new AuthorizationException;
+        }
+
+        $data = $this->resolveFilters($request);
+        $currencyCode = Store::find($data['store_id'])?->currency?->code ?? 'BDT';
+
+        $rows = $this->productPerformanceQuery($data)->get()->map(fn ($row) => [
+            'name' => $row->name,
+            'sku' => $row->sku,
+            'units_sold' => (int) $row->units_sold,
+            'revenue_amount' => (new Money((int) $row->revenue_minor, $currencyCode))->toDecimal(),
+        ]);
+
+        $pdf = Pdf::loadView('reports.product-performance-pdf', [
+            'storeName' => Store::find($data['store_id'])?->name ?? 'Store',
+            'currencyCode' => $currencyCode,
+            'subtitle' => sprintf(
+                '%s to %s · %s',
+                $data['date_from']->toDateString(),
+                $data['date_to']->toDateString(),
+                $this->warehouseName($data['warehouse_id']),
+            ),
+            'generatedAt' => now()->format('Y-m-d H:i'),
+            'rows' => $rows,
+        ])->setPaper('a4');
+
+        return $pdf->download('product-performance-'.now()->format('Ymd-His').'.pdf');
     }
 
     /** Cross-warehouse, unlike StockLevelController::index() — a low-stock product's name should surface regardless of which warehouse is short, and a variable product's variants are summed together, same convention as the Stock Levels list. */
@@ -208,6 +305,33 @@ class ReportController extends Controller
             }
             fclose($handle);
         }, 'low-stock-report-'.now()->format('Ymd-His').'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    public function lowStockExportPdf(Request $request): Response
+    {
+        if (! $request->user()->can('reports.view')) {
+            throw new AuthorizationException;
+        }
+
+        $request->validate(['store_id' => ['required', 'exists:stores,id']]);
+        $storeId = $request->integer('store_id');
+
+        $rows = $this->lowStockQuery($storeId)->get()->map(fn ($row) => [
+            'name' => $row->name,
+            'sku' => $row->sku,
+            'total_quantity' => (int) $row->total_quantity,
+            'total_reserved' => (int) $row->total_reserved,
+            'low_stock_threshold' => (int) $row->low_stock_threshold,
+        ]);
+
+        $pdf = Pdf::loadView('reports.low-stock-pdf', [
+            'storeName' => Store::find($storeId)?->name ?? 'Store',
+            'subtitle' => 'As of '.now()->format('Y-m-d H:i'),
+            'generatedAt' => now()->format('Y-m-d H:i'),
+            'rows' => $rows,
+        ])->setPaper('a4');
+
+        return $pdf->download('low-stock-report-'.now()->format('Ymd-His').'.pdf');
     }
 
     /**
@@ -386,5 +510,30 @@ class ReportController extends Controller
             ->groupBy('products.id', 'products.name', 'products.sku', 'products.low_stock_threshold')
             ->havingRaw('(COALESCE(SUM(stock_levels.quantity), 0) - COALESCE(SUM(stock_levels.quantity_reserved), 0)) <= products.low_stock_threshold')
             ->orderBy('products.name');
+    }
+
+    private function warehouseName(?int $warehouseId): string
+    {
+        if (! $warehouseId) {
+            return 'All warehouses';
+        }
+
+        return Warehouse::find($warehouseId)?->name ?? 'All warehouses';
+    }
+
+    /** Mirrors the frontend's computeTrend() (sales/page.tsx) so the PDF and the on-screen KPI cards never disagree. */
+    private function trendLabel(float $current, float $previous): array
+    {
+        if ($previous == 0.0) {
+            return $current == 0.0
+                ? ['direction' => 'flat', 'label' => 'No orders vs previous period']
+                : ['direction' => 'up', 'label' => 'New vs previous period'];
+        }
+
+        $percent = (($current - $previous) / $previous) * 100;
+        $direction = $percent > 0 ? 'up' : ($percent < 0 ? 'down' : 'flat');
+        $sign = $percent > 0 ? '+' : '';
+
+        return ['direction' => $direction, 'label' => sprintf('%s%.1f%% vs previous period', $sign, $percent)];
     }
 }

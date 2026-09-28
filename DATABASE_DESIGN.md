@@ -602,7 +602,7 @@ the create-time default — every other nullable column is written
 literally, including to `null` on blank, since the file is meant to be
 the source of truth for whatever column it contains.
 
-## 1k. Reporting (Phase 18 Wave 1 + Wave 2a + Wave 2b)
+## 1k. Reporting (Phase 18 Wave 1 + Wave 2)
 
 No new tables — `ReportController`'s three endpoints (sales, product
 performance, low stock) are pure read-side aggregation over the same
@@ -647,6 +647,17 @@ against `date_to` (`endOfDay`, i.e. `23:59:59.999999`) — Carbon's
 extended the window by a day and shifted its start a day early. A
 feature test asserting the exact comparison boundary caught it before
 this addendum was written.
+
+**Wave 2c addendum:** all three reports gain a PDF twin alongside their
+CSV export, rendered via `barryvdh/laravel-dompdf` from a Blade view
+under `resources/views/reports/` — still no new tables, and each PDF
+controller method calls the exact same private query helpers
+(`dailySalesRows()`/`periodTotals()`/`paymentMethodQuery()`/
+`courierQuery()`/`productPerformanceQuery()`/`lowStockQuery()`) the
+JSON/CSV endpoints already use, so there is exactly one place each
+number is computed and the PDF can't drift from the on-screen report.
+Money renders as `{currency code} {amount}` rather than the ৳ glyph,
+since dompdf's bundled fonts have no Bengali-script coverage.
 
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
@@ -728,12 +739,12 @@ compatible with them.
 - **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,
   description, focus_keyword, og_*, twitter_*, schema_json, canonical,
   robots), `redirects`, `seo_templates`.
-- **Reporting/Analytics:** Phase 18 Wave 1 + Wave 2a + Wave 2b (section 1k)
-  shipped sales/product-performance/low-stock reports plus a by-courier
-  breakdown and a period-over-period comparison, all as runtime
-  aggregation — still open: PDF export, and materialized/aggregated
-  tables populated by scheduled jobs once runtime aggregation gets too
-  slow.
+- **Reporting/Analytics:** Phase 18 Wave 1 + Wave 2 (section 1k) shipped
+  sales/product-performance/low-stock reports plus a by-courier
+  breakdown, a period-over-period comparison, and a PDF export twin
+  alongside each CSV, all as runtime aggregation — still open:
+  materialized/aggregated tables populated by scheduled jobs, once
+  runtime aggregation actually gets too slow to justify them.
 
 All money columns in future phases use integer minor-unit columns
 (`*_amount` in paisa) — never `float`/`double` — per spec rule 27.

@@ -1,15 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Download } from "lucide-react";
+import { AlertTriangle, Download, FileSpreadsheet, FileText } from "lucide-react";
 
 import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
-import { useExportLowStockReport, useLowStockReport } from "@/hooks/use-reports";
+import { useExportLowStockReport, useExportLowStockReportPdf, useLowStockReport } from "@/hooks/use-reports";
 import { PermissionDenied } from "@/components/permission-denied";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { LowStockReportRow } from "@/types/report";
 
@@ -19,7 +25,8 @@ export default function LowStockReportPage() {
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useLowStockReport(storeId, page);
-  const exportReport = useExportLowStockReport();
+  const exportCsv = useExportLowStockReport();
+  const exportPdf = useExportLowStockReportPdf();
 
   if (currentUser && !can(currentUser, "reports.view")) {
     return <PermissionDenied />;
@@ -50,14 +57,24 @@ export default function LowStockReportPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end">
-        <Button
-          variant="outline"
-          loading={exportReport.isPending}
-          onClick={() => storeId && exportReport.mutate({ storeId })}
-        >
-          <Download />
-          Export
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" loading={exportCsv.isPending || exportPdf.isPending}>
+              <Download />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => storeId && exportCsv.mutate({ storeId })}>
+              <FileSpreadsheet />
+              Export CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => storeId && exportPdf.mutate({ storeId })}>
+              <FileText />
+              Export PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <DataTable

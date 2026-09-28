@@ -293,8 +293,8 @@ direct-permission pattern as `StockLevelController::lowStockCount()`,
 since a dashboard aggregate spans multiple models rather than one
 Eloquent policy. No new resource — see `DATABASE_DESIGN.md` section 2.
 
-Reporting (Phase 18 Wave 1 + Wave 2a + Wave 2b): `GET /reports/sales`
-(`store_id`, `date_from`, `date_to` — capped at a 366-day span, optional
+Reporting (Phase 18 Wave 1 + Wave 2): `GET /reports/sales` (`store_id`,
+`date_from`, `date_to` — capped at a 366-day span, optional
 `warehouse_id`, optional `granularity` of `day`/`week`/`month`, default
 `day`) returns `{totals: {revenue_amount, orders_count,
 average_order_value}, by_period: [...], by_payment_method: [...],
@@ -306,17 +306,20 @@ awaiting dispatch; `comparison` (Wave 2b) is the same `totals` shape
 computed over the immediately preceding period of equal length (not a
 fixed "last calendar month"), same `store_id`/`warehouse_id` filters —
 plus a `GET /reports/sales/export` CSV twin (period rows only; neither
-`by_payment_method`, `by_courier`, nor `comparison` are in the CSV).
-`GET /reports/products-performance`
-(same date/warehouse filters, paginated) ranks products by revenue,
-rolling a variable product's variant sales up to the parent product —
-plus a `GET /reports/products-performance/export` CSV twin (unpaginated,
-every matching row). `GET /reports/low-stock` (`store_id` only,
-paginated) sums quantity/reserved across every warehouse per product and
-returns only rows at or below their `low_stock_threshold` — plus a
-`GET /reports/low-stock/export` CSV twin. All six actions check
-`reports.view` directly (same direct-permission pattern as the Dashboard
-endpoints above), activating a permission the RBAC seeder has carried
-since Phase 3. No new resource — see `DATABASE_DESIGN.md` section 1k.
+`by_payment_method`, `by_courier`, nor `comparison` are in the CSV) and
+a `GET /reports/sales/export-pdf` twin (Wave 2c — deliberately richer
+than the CSV: KPI totals, trend, and both breakdowns included, since a
+PDF is a presentable snapshot of the whole page). `GET
+/reports/products-performance` (same date/warehouse filters, paginated)
+ranks products by revenue, rolling a variable product's variant sales up
+to the parent product — plus `GET /reports/products-performance/export`
+(CSV, unpaginated, every matching row) and `.../export-pdf` twins. `GET
+/reports/low-stock` (`store_id` only, paginated) sums quantity/reserved
+across every warehouse per product and returns only rows at or below
+their `low_stock_threshold` — plus `GET /reports/low-stock/export` (CSV)
+and `.../export-pdf` twins. All nine actions check `reports.view`
+directly (same direct-permission pattern as the Dashboard endpoints
+above), activating a permission the RBAC seeder has carried since
+Phase 3. No new resource — see `DATABASE_DESIGN.md` section 1k.
 
 Section 7 (webhooks) remains documented intent for future phases.

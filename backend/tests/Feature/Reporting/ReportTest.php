@@ -237,6 +237,23 @@ class ReportTest extends TestCase
         $this->assertStringContainsString('2026-06-10', $response->streamedContent());
     }
 
+    public function test_sales_report_export_pdf_streams_a_pdf(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create();
+        $this->orderOn($store, $warehouse, $customer, 'delivered', 'cod', '2026-06-10 10:00:00', $product, 1, 10000);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->get("/api/v1/reports/sales/export-pdf?store_id={$store->id}&date_from=2026-06-01&date_to=2026-06-30");
+
+        $response->assertOk();
+        $this->assertStringContainsString('application/pdf', $response->headers->get('Content-Type'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+    }
+
     public function test_product_performance_ranks_by_revenue_and_rolls_up_variant_sales(): void
     {
         $admin = $this->admin();
@@ -288,6 +305,23 @@ class ReportTest extends TestCase
         $this->assertStringContainsString('Exported Product', $response->streamedContent());
     }
 
+    public function test_product_performance_export_pdf_streams_a_pdf(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['name' => 'Exported Product']);
+        $this->orderOn($store, $warehouse, $customer, 'delivered', 'cod', '2026-06-10 10:00:00', $product, 1, 10000);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->get("/api/v1/reports/products-performance/export-pdf?store_id={$store->id}&date_from=2026-06-01&date_to=2026-06-30");
+
+        $response->assertOk();
+        $this->assertStringContainsString('application/pdf', $response->headers->get('Content-Type'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+    }
+
     public function test_low_stock_report_sums_across_warehouses_and_variants(): void
     {
         $admin = $this->admin();
@@ -336,6 +370,21 @@ class ReportTest extends TestCase
         $this->assertStringContainsString('Exported Low Item', $response->streamedContent());
     }
 
+    public function test_low_stock_report_export_pdf_streams_a_pdf(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['name' => 'Exported Low Item', 'low_stock_threshold' => 10]);
+        StockLevel::create(['product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'quantity' => 1, 'quantity_reserved' => 0]);
+
+        $response = $this->actingAs($admin, 'sanctum')->get("/api/v1/reports/low-stock/export-pdf?store_id={$store->id}");
+
+        $response->assertOk();
+        $this->assertStringContainsString('application/pdf', $response->headers->get('Content-Type'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+    }
+
     public function test_a_user_without_reports_view_is_forbidden(): void
     {
         $viewer = User::factory()->create();
@@ -350,6 +399,15 @@ class ReportTest extends TestCase
             ->assertForbidden();
         $this->actingAs($viewer, 'sanctum')
             ->getJson("/api/v1/reports/low-stock?store_id={$store->id}")
+            ->assertForbidden();
+        $this->actingAs($viewer, 'sanctum')
+            ->get("/api/v1/reports/sales/export-pdf?store_id={$store->id}&date_from=2026-06-01&date_to=2026-06-30")
+            ->assertForbidden();
+        $this->actingAs($viewer, 'sanctum')
+            ->get("/api/v1/reports/products-performance/export-pdf?store_id={$store->id}&date_from=2026-06-01&date_to=2026-06-30")
+            ->assertForbidden();
+        $this->actingAs($viewer, 'sanctum')
+            ->get("/api/v1/reports/low-stock/export-pdf?store_id={$store->id}")
             ->assertForbidden();
     }
 }

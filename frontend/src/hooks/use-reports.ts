@@ -57,6 +57,19 @@ export function useExportSalesReport() {
   });
 }
 
+export function useExportSalesReportPdf() {
+  return useMutation({
+    mutationFn: ({ storeId, filters }: { storeId: number; filters: SalesReportFilters }) => {
+      const params = buildReportFilterParams(storeId, filters);
+      params.set("granularity", filters.granularity);
+      return api.download(`/reports/sales/export-pdf?${params.toString()}`, "sales-report.pdf");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not export the sales report.");
+    },
+  });
+}
+
 export function useProductPerformance(
   storeId: number | null | undefined,
   filters: DateRangeFilters,
@@ -86,6 +99,18 @@ export function useExportProductPerformance() {
   });
 }
 
+export function useExportProductPerformancePdf() {
+  return useMutation({
+    mutationFn: ({ storeId, filters }: { storeId: number; filters: DateRangeFilters }) => {
+      const params = buildReportFilterParams(storeId, filters);
+      return api.download(`/reports/products-performance/export-pdf?${params.toString()}`, "product-performance.pdf");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not export the product performance report.");
+    },
+  });
+}
+
 export function useLowStockReport(storeId: number | null | undefined, page: number) {
   return useQuery({
     queryKey: ["reports", "low-stock", storeId, page],
@@ -101,6 +126,16 @@ export function useExportLowStockReport() {
   return useMutation({
     mutationFn: ({ storeId }: { storeId: number }) =>
       api.download(`/reports/low-stock/export?store_id=${storeId}`, "low-stock-report.csv"),
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not export the low stock report.");
+    },
+  });
+}
+
+export function useExportLowStockReportPdf() {
+  return useMutation({
+    mutationFn: ({ storeId }: { storeId: number }) =>
+      api.download(`/reports/low-stock/export-pdf?store_id=${storeId}`, "low-stock-report.pdf"),
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : "Could not export the low stock report.");
     },

@@ -24,7 +24,7 @@ in place and the app still builds/runs.
 | 15 | SEO | ⏳ Not started | No |
 | 16 | Storefront | ⏳ Not started | No |
 | 17 | Customer Dashboard | ⏳ Not started | No |
-| 18 | Reporting | ✅ Wave 1 + Wave 2a (per-courier breakdown) + Wave 2b (period-over-period comparison) done (PDF export, materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters, vs.-previous-period trend on each KPI card), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
+| 18 | Reporting | ✅ Wave 1 + Wave 2 (per-courier breakdown, period-over-period comparison, PDF export) done (materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters, vs.-previous-period trend on each KPI card), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV and PDF export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
 | 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ⏳ Not started | No |
 | 20 | Analytics | ⏳ Not started | No |
 | 21 | Security Hardening | ⏳ Ongoing baseline only | Partial — Sanctum, policies, rate limiting, validation from day one |
@@ -407,13 +407,40 @@ a nonsensical percentage when the previous period had zero orders. 1 new
 backend test (175 → 176), all green, plus the existing frontend
 build/lint/typecheck.
 
+**Phase 18 Wave 2c scope note:** adds a PDF twin alongside the existing
+CSV export on all three reports, closing out Reporting Wave 2. New
+dependency: `barryvdh/laravel-dompdf` (pure-PHP, no headless-browser or
+system binary needed, so it works the same in this sandbox as it would
+on a normal server). Deliberately richer than the CSV twin, not just a
+different file format of the same rows: a PDF is a presentable,
+shareable snapshot of the whole page, so the sales PDF includes the KPI
+totals, the vs.-previous-period trend, and the payment-method/courier
+breakdowns the CSV leaves out for spreadsheet-friendliness; product
+performance and low stock render their one table plus a header (store
+name, date range or "as of" timestamp, generated-at). All three reuse
+the exact same private query helpers (`dailySalesRows()`,
+`periodTotals()`, `paymentMethodQuery()`, `courierQuery()`,
+`productPerformanceQuery()`, `lowStockQuery()`) the JSON/CSV endpoints
+already use, so the PDF can't drift from what's on screen. One deliberate
+cut: amounts render as `{code} {amount}` (e.g. "BDT 1,234.00") rather
+than the ৳ glyph — dompdf's default fonts have no Bengali coverage, and
+bundling a Bengali-support font for one symbol wasn't worth it for a
+first cut. Frontend swaps each report's single Export button for a
+`DropdownMenu` (Export CSV / Export PDF), activating that primitive's
+first use outside the topbar. 3 new backend tests (176 → 179), all
+green, plus the existing frontend build/lint/typecheck.
+
 ## Next Session Should Start With
 
-Phase 18 Reporting Wave 2b (period-over-period comparison) is done.
-Bundles/combos (needs Orders-integrated component stock decrement) or
-the last remaining Reporting Wave 2 item (PDF export) are the reasonable
-pickups next — neither blocks the other, pick whichever the user
-prioritizes. Customer reviews stays off the table until Phase 16/17
+Phase 18 Reporting Wave 2 is done — all three items (per-courier
+breakdown, period-over-period comparison, PDF export) are shipped;
+only materialized/scheduled aggregate tables remain there, and per
+rule 178 that's infra to build once real data volume demands it, not a
+pick-able feature today. Bundles/combos (needs Orders-integrated
+component stock decrement, Catalog Wave 2b's last piece) is the clearest
+next pickup; any other already-started phase's own Wave 2 (Purchasing,
+Orders, Delivery, Returns, Dashboard) is equally available if the user
+prefers it. Customer reviews stays off the table until Phase 16/17
 gives a customer somewhere to actually write one; a reusable media
 library still has no real consumer either (today's
 direct-upload-per-record images work fine). Follow the phase order

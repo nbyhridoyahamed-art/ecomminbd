@@ -1,16 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Package } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Package } from "lucide-react";
 
 import { can } from "@/lib/permissions";
 import { formatMoney } from "@/lib/money";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useAllWarehouses } from "@/hooks/use-warehouses";
-import { useExportProductPerformance, useProductPerformance } from "@/hooks/use-reports";
+import {
+  useExportProductPerformance,
+  useExportProductPerformancePdf,
+  useProductPerformance,
+} from "@/hooks/use-reports";
 import { PermissionDenied } from "@/components/permission-denied";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,7 +49,8 @@ export default function ProductPerformanceReportPage() {
 
   const filters = { dateFrom: dateRange.from, dateTo: dateRange.to, warehouseId };
   const { data, isLoading } = useProductPerformance(storeId, filters, page);
-  const exportReport = useExportProductPerformance();
+  const exportCsv = useExportProductPerformance();
+  const exportPdf = useExportProductPerformancePdf();
 
   if (currentUser && !can(currentUser, "reports.view")) {
     return <PermissionDenied />;
@@ -105,14 +116,24 @@ export default function ProductPerformanceReportPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          variant="outline"
-          loading={exportReport.isPending}
-          onClick={() => storeId && exportReport.mutate({ storeId, filters })}
-        >
-          <Download />
-          Export
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" loading={exportCsv.isPending || exportPdf.isPending}>
+              <Download />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => storeId && exportCsv.mutate({ storeId, filters })}>
+              <FileSpreadsheet />
+              Export CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => storeId && exportPdf.mutate({ storeId, filters })}>
+              <FileText />
+              Export PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <DataTable
