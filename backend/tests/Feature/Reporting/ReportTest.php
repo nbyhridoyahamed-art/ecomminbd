@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\Reporting;
 
+use App\Models\Courier;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductAttribute;
 use App\Models\ProductVariant;
+use App\Models\Shipment;
 use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\User;
@@ -92,6 +94,46 @@ class ReportTest extends TestCase
         $this->assertEquals(300.0, $byMethod['cod']['revenue_amount']);
         $this->assertSame(2, $byMethod['cod']['orders_count']);
         $this->assertEquals(50.0, $byMethod['bkash']['revenue_amount']);
+    }
+
+    public function test_sales_report_computes_by_courier_breakdown_from_shipped_orders_only(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create();
+        $courierA = Courier::factory()->for($store)->create(['name' => 'Courier A']);
+        $courierB = Courier::factory()->for($store)->create(['name' => 'Courier B']);
+
+        $order1 = $this->orderOn($store, $warehouse, $customer, 'delivered', 'cod', '2026-06-10 10:00:00', $product, 1, 10000);
+        Shipment::factory()->for($store)->for($order1)->for($courierA)->create();
+
+        $order2 = $this->orderOn($store, $warehouse, $customer, 'shipped', 'cod', '2026-06-11 10:00:00', $product, 1, 5000);
+        Shipment::factory()->for($store)->for($order2)->for($courierA)->create();
+
+        $order3 = $this->orderOn($store, $warehouse, $customer, 'delivered', 'bkash', '2026-06-12 10:00:00', $product, 1, 8000);
+        Shipment::factory()->for($store)->for($order3)->for($courierB)->create();
+
+        // Not yet dispatched — must count in totals but not appear under any courier.
+        $this->orderOn($store, $warehouse, $customer, 'processing', 'cod', '2026-06-13 10:00:00', $product, 1, 20000);
+
+        // Cancelled, even though it has a shipment — must be excluded from both.
+        $order5 = $this->orderOn($store, $warehouse, $customer, 'cancelled', 'cod', '2026-06-14 10:00:00', $product, 1, 99999);
+        Shipment::factory()->for($store)->for($order5)->for($courierA)->create();
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/reports/sales?store_id={$store->id}&date_from=2026-06-01&date_to=2026-06-30")
+            ->assertOk();
+
+        $response->assertJsonPath('data.totals.orders_count', 4);
+
+        $byCourier = collect($response->json('data.by_courier'))->keyBy('courier_name');
+        $this->assertCount(2, $byCourier);
+        $this->assertSame(2, $byCourier['Courier A']['orders_count']);
+        $this->assertEquals(150.0, $byCourier['Courier A']['revenue_amount']);
+        $this->assertSame(1, $byCourier['Courier B']['orders_count']);
+        $this->assertEquals(80.0, $byCourier['Courier B']['revenue_amount']);
     }
 
     public function test_sales_report_folds_days_into_weeks_when_requested(): void

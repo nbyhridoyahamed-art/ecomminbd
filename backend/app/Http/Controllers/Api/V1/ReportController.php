@@ -48,6 +48,13 @@ class ReportController extends Controller
             'revenue_amount' => (new Money((int) $row->revenue_minor, $currencyCode))->toDecimal(),
         ]);
 
+        $byCourier = $this->courierQuery($data)->get()->map(fn ($row) => [
+            'courier_id' => (int) $row->courier_id,
+            'courier_name' => $row->courier_name,
+            'orders_count' => (int) $row->orders_count,
+            'revenue_amount' => (new Money((int) $row->revenue_minor, $currencyCode))->toDecimal(),
+        ]);
+
         return ApiResponse::success([
             'totals' => [
                 'revenue_amount' => (new Money($revenueMinor, $currencyCode))->toDecimal(),
@@ -56,6 +63,7 @@ class ReportController extends Controller
             ],
             'by_period' => $byPeriod,
             'by_payment_method' => $byPaymentMethod,
+            'by_courier' => $byCourier,
         ], 'Sales report fetched successfully.');
     }
 
@@ -285,6 +293,29 @@ class ReportController extends Controller
             ->when($data['warehouse_id'], fn ($q) => $q->where('orders.warehouse_id', $data['warehouse_id']))
             ->selectRaw('orders.payment_method, COUNT(DISTINCT orders.id) as orders_count, SUM(order_items.quantity * order_items.unit_price_amount) as revenue_minor')
             ->groupBy('orders.payment_method');
+    }
+
+    /**
+     * Inner-joined to `shipments`/`couriers` — unlike the totals/by-period/
+     * by-payment-method breakdowns above, this one only covers orders that
+     * actually reached a courier. An order still awaiting dispatch isn't
+     * "this courier's" or any courier's yet, so it correctly drops out of
+     * this breakdown while still counting in the report's overall totals;
+     * the two are expected to disagree once orders are in flight.
+     */
+    private function courierQuery(array $data)
+    {
+        return DB::table('orders')
+            ->join('order_items', 'order_items.order_id', '=', 'orders.id')
+            ->join('shipments', 'shipments.order_id', '=', 'orders.id')
+            ->join('couriers', 'couriers.id', '=', 'shipments.courier_id')
+            ->where('orders.store_id', $data['store_id'])
+            ->where('orders.status', '!=', 'cancelled')
+            ->whereBetween('orders.created_at', [$data['date_from'], $data['date_to']])
+            ->when($data['warehouse_id'], fn ($q) => $q->where('orders.warehouse_id', $data['warehouse_id']))
+            ->selectRaw('couriers.id as courier_id, couriers.name as courier_name, COUNT(DISTINCT orders.id) as orders_count, SUM(order_items.quantity * order_items.unit_price_amount) as revenue_minor')
+            ->groupBy('couriers.id', 'couriers.name')
+            ->orderByDesc('revenue_minor');
     }
 
     private function productPerformanceQuery(array $data)

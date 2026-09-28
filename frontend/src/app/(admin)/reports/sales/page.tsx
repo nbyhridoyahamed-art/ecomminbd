@@ -11,11 +11,12 @@ import { useExportSalesReport, useSalesReport } from "@/hooks/use-reports";
 import { PermissionDenied } from "@/components/permission-denied";
 import { SalesTrendChart } from "@/components/charts/sales-trend-chart";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
-import type { ReportGranularity, SalesReportPaymentMethod } from "@/types/report";
+import type { ReportGranularity, SalesReportCourier, SalesReportPaymentMethod } from "@/types/report";
 
 function toDateInput(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -52,8 +53,14 @@ export default function SalesReportPage() {
     return <PermissionDenied />;
   }
 
-  const columns: DataTableColumn<SalesReportPaymentMethod>[] = [
+  const paymentMethodColumns: DataTableColumn<SalesReportPaymentMethod>[] = [
     { id: "method", header: "Payment method", cell: (row) => row.payment_method },
+    { id: "orders", header: "Orders", cell: (row) => row.orders_count },
+    { id: "revenue", header: "Revenue", cell: (row) => formatMoney(row.revenue_amount, "BDT") },
+  ];
+
+  const courierColumns: DataTableColumn<SalesReportCourier>[] = [
+    { id: "courier", header: "Courier", cell: (row) => row.courier_name },
     { id: "orders", header: "Orders", cell: (row) => row.orders_count },
     { id: "revenue", header: "Revenue", cell: (row) => formatMoney(row.revenue_amount, "BDT") },
   ];
@@ -132,7 +139,36 @@ export default function SalesReportPage() {
 
       <SalesTrendChart data={report?.by_period} isLoading={isLoading} currencyCode="BDT" title="Revenue & orders trend" />
 
-      <DataTable columns={columns} data={report?.by_payment_method ?? []} rowKey={(row) => row.payment_method} isLoading={isLoading} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>By payment method</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={paymentMethodColumns}
+              data={report?.by_payment_method ?? []}
+              rowKey={(row) => row.payment_method}
+              isLoading={isLoading}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>By courier</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={courierColumns}
+              data={report?.by_courier ?? []}
+              rowKey={(row) => row.courier_id}
+              isLoading={isLoading}
+              emptyState={<p className="text-center text-sm text-text-muted">No dispatched orders in range.</p>}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

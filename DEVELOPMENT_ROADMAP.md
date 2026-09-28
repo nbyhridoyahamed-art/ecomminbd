@@ -24,7 +24,7 @@ in place and the app still builds/runs.
 | 15 | SEO | ⏳ Not started | No |
 | 16 | Storefront | ⏳ Not started | No |
 | 17 | Customer Dashboard | ⏳ Not started | No |
-| 18 | Reporting | ✅ Wave 1 done (per-courier breakdowns, PDF export, period-over-period comparisons, materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method, day/week/month granularity, date-range + warehouse filters), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
+| 18 | Reporting | ✅ Wave 1 + Wave 2a (per-courier breakdown) done (PDF export, period-over-period comparisons, materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
 | 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ⏳ Not started | No |
 | 20 | Analytics | ⏳ Not started | No |
 | 21 | Security Hardening | ⏳ Ongoing baseline only | Partial — Sanctum, policies, rate limiting, validation from day one |
@@ -361,15 +361,32 @@ aggregate table — like `DashboardController`, every report here computes
 fresh on each request, fine at current data volume. 10 new backend tests
 (164 → 174), all green, plus the existing frontend build/lint/typecheck.
 
+**Phase 18 Wave 2a scope note:** picked per-courier breakdown as the
+first Wave 2 item — lowest risk of the three, and reuses a proven
+pattern rather than introducing anything new. Adds a `by_courier` array
+to `GET /reports/sales`'s response (`courierQuery()`, same shape as the
+existing `paymentMethodQuery()`) by inner-joining `orders` to
+`shipments`/`couriers`. That inner join is deliberate: an order still
+awaiting dispatch has no shipment row yet, so it correctly drops out of
+`by_courier` while still counting in the report's own `totals` — the two
+are expected to disagree once orders are in flight, not a bug. Shown as
+a second table beside "By payment method" on the Sales report page (both
+now wrapped in a `Card` for a heading, since a second unlabeled table
+would've been confusing); not added to the CSV export, matching the
+existing choice not to put `by_payment_method` there either — the CSV is
+for period-level data, on-screen tables are for the per-dimension
+breakdowns. 1 new backend test (174 → 175), all green, plus the existing
+frontend build/lint/typecheck.
+
 ## Next Session Should Start With
 
-Phase 18 Reporting Wave 1 is done. Bundles/combos (needs
-Orders-integrated component stock decrement) or a Reporting Wave 2 item
-(per-courier breakdowns, PDF export, period-over-period comparisons) are
-the reasonable pickups next — neither blocks the other, pick whichever
-the user prioritizes. Customer reviews stays off the table until
-Phase 16/17 gives a customer somewhere to actually write one; a reusable
-media library still has no real consumer either (today's
+Phase 18 Reporting Wave 2a (per-courier breakdown) is done. Bundles/combos
+(needs Orders-integrated component stock decrement) or the rest of
+Reporting Wave 2 (PDF export, period-over-period comparisons) are the
+reasonable pickups next — neither blocks the other, pick whichever the
+user prioritizes. Customer reviews stays off the table until Phase 16/17
+gives a customer somewhere to actually write one; a reusable media
+library still has no real consumer either (today's
 direct-upload-per-record images work fine). Follow the phase order
 above; do not skip ahead to CMS/SEO/Storefront (Phases 12–17) — nothing
 currently blocks them specifically, but the master spec's own

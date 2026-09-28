@@ -18,10 +18,18 @@ export interface SalesReportPaymentMethod {
   revenue_amount: number;
 }
 
+export interface SalesReportCourier {
+  courier_id: number;
+  courier_name: string;
+  orders_count: number;
+  revenue_amount: number;
+}
+
 export interface SalesReport {
   totals: SalesReportTotals;
   by_period: SalesReportPeriod[];
   by_payment_method: SalesReportPaymentMethod[];
+  by_courier: SalesReportCourier[];
 }
 
 export interface ProductPerformanceRow {

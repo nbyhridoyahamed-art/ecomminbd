@@ -602,7 +602,7 @@ the create-time default — every other nullable column is written
 literally, including to `null` on blank, since the file is meant to be
 the source of truth for whatever column it contains.
 
-## 1k. Reporting (Phase 18 Wave 1)
+## 1k. Reporting (Phase 18 Wave 1 + Wave 2a)
 
 No new tables — `ReportController`'s three endpoints (sales, product
 performance, low stock) are pure read-side aggregation over the same
@@ -624,6 +624,15 @@ the Stock Levels list (section 1i), reused here rather than re-derived.
 All three gate on the `reports.view` permission the RBAC seeder has
 seeded since Phase 3 (see `API_DESIGN.md`) but which sat unused until
 this phase checked it for the first time.
+
+**Wave 2a addendum:** the sales report also joins `orders` to
+`shipments`/`couriers` (`courierQuery()`) for a `by_courier` breakdown —
+still no new tables, and still an inner join, deliberately: it only
+covers orders that reached a courier (`shipments.order_id` is unique per
+section 1f, so this join can't fan out beyond what the earlier
+`order_items` join already produces), so an order still awaiting
+dispatch correctly has no courier row yet even though it's still counted
+in the report's own `totals`.
 
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
@@ -705,11 +714,11 @@ compatible with them.
 - **SEO:** `seo_metadata` (polymorphic: entity_type/entity_id, title,
   description, focus_keyword, og_*, twitter_*, schema_json, canonical,
   robots), `redirects`, `seo_templates`.
-- **Reporting/Analytics:** Phase 18 Wave 1 (section 1k) shipped
-  sales/product-performance/low-stock reports as runtime aggregation —
-  still open for a Wave 2: materialized/aggregated tables populated by
-  scheduled jobs once runtime aggregation gets too slow, plus
-  per-courier breakdowns, PDF export, and period-over-period comparisons.
+- **Reporting/Analytics:** Phase 18 Wave 1 + Wave 2a (section 1k) shipped
+  sales/product-performance/low-stock reports plus a by-courier
+  breakdown, all as runtime aggregation — still open: materialized/
+  aggregated tables populated by scheduled jobs once runtime aggregation
+  gets too slow, plus PDF export and period-over-period comparisons.
 
 All money columns in future phases use integer minor-unit columns
 (`*_amount` in paisa) — never `float`/`double` — per spec rule 27.
