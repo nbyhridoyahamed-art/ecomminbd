@@ -142,6 +142,50 @@ export interface CheckoutItemPayload {
   quantity: number;
 }
 
+export interface StorefrontTestimonial {
+  id: number;
+  name: string;
+  role: string | null;
+  quote: string;
+  avatar_url: string | null;
+  rating: number | null;
+}
+
+export interface StorefrontBlogPostSummary {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  featured_image_url: string | null;
+  published_at: string | null;
+}
+
+export interface StorefrontFlashSaleItem {
+  product: StorefrontProduct;
+  sale_price: number;
+}
+
+/** The shape of `data` on a resolved homepage block — only the keys relevant to its type are present. */
+export interface StorefrontHomepageBlockData {
+  products?: StorefrontProduct[];
+  categories?: StorefrontCategory[];
+  brands?: StorefrontBrand[];
+  testimonials?: StorefrontTestimonial[];
+  posts?: StorefrontBlogPostSummary[];
+  items?: StorefrontFlashSaleItem[];
+}
+
+export interface StorefrontHomepageBlock {
+  id: number;
+  type: import("./homepage-block").HomepageBlockType;
+  settings: Record<string, unknown>;
+  styles: import("./homepage-block").HomepageBlockStyles;
+  responsive: import("./homepage-block").HomepageBlockResponsive;
+  visibility: import("./homepage-block").HomepageBlockVisibility;
+  animation: import("./homepage-block").HomepageBlockAnimation;
+  data: StorefrontHomepageBlockData;
+}
+
 export interface CheckoutPayload {
   customer_name: string;
   customer_phone: string;

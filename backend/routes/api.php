@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Account\AuthController as AccountAuthController;
 use App\Http\Controllers\Api\V1\Account\OrderController as AccountOrderController;
 use App\Http\Controllers\Api\V1\Account\ProfileController as AccountProfileController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\BlogPostController;
 use App\Http\Controllers\Api\V1\BrandController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CodSettlementController;
@@ -13,7 +14,9 @@ use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\HomepageBlockController;
 use App\Http\Controllers\Api\V1\LocationController;
+use App\Http\Controllers\Api\V1\NewsletterSubscriberController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\PageController;
@@ -29,6 +32,7 @@ use App\Http\Controllers\Api\V1\PurchaseReturnController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReturnController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\SavedSectionController;
 use App\Http\Controllers\Api\V1\ShipmentController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
 use App\Http\Controllers\Api\V1\StockLevelController;
@@ -38,10 +42,13 @@ use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\Storefront\BrandController as StorefrontBrandController;
 use App\Http\Controllers\Api\V1\Storefront\CategoryController as StorefrontCategoryController;
 use App\Http\Controllers\Api\V1\Storefront\CheckoutController as StorefrontCheckoutController;
+use App\Http\Controllers\Api\V1\Storefront\HomepageController as StorefrontHomepageController;
+use App\Http\Controllers\Api\V1\Storefront\NewsletterController as StorefrontNewsletterController;
 use App\Http\Controllers\Api\V1\Storefront\PageController as StorefrontPageController;
 use App\Http\Controllers\Api\V1\Storefront\ProductController as StorefrontProductController;
 use App\Http\Controllers\Api\V1\Storefront\StoreController as StorefrontStoreController;
 use App\Http\Controllers\Api\V1\SupplierController;
+use App\Http\Controllers\Api\V1\TestimonialController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\WarehouseController;
@@ -73,6 +80,8 @@ Route::prefix('v1')->group(function () {
         Route::get('brands/{slug}', [StorefrontBrandController::class, 'show']);
         Route::get('pages', [StorefrontPageController::class, 'index']);
         Route::get('pages/{slug}', [StorefrontPageController::class, 'show']);
+        Route::get('homepage-blocks', [StorefrontHomepageController::class, 'index']);
+        Route::post('newsletter/subscribe', [StorefrontNewsletterController::class, 'subscribe'])->middleware('throttle:15,1');
 
         // Same controller the admin app uses under auth:sanctum below —
         // Bangladesh division/district/upazila names are nationwide
@@ -147,6 +156,28 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('categories', CategoryController::class);
         Route::apiResource('brands', BrandController::class);
         Route::apiResource('pages', PageController::class);
+
+        // Registered before the apiResource — otherwise its GET
+        // homepage-blocks/{homepage_block} route would swallow "preview"
+        // as a route-key first (same gotcha as products/export above).
+        Route::get('homepage-blocks/preview', [HomepageBlockController::class, 'preview']);
+        Route::apiResource('homepage-blocks', HomepageBlockController::class);
+        Route::post('homepage-blocks/reorder', [HomepageBlockController::class, 'reorder']);
+        Route::post('homepage-blocks/{homepageBlock}/duplicate', [HomepageBlockController::class, 'duplicate']);
+        Route::post('homepage-blocks/{homepageBlock}/publish', [HomepageBlockController::class, 'publish']);
+        Route::post('homepage-blocks/{homepageBlock}/unpublish', [HomepageBlockController::class, 'unpublish']);
+        Route::post('homepage-blocks/{homepageBlock}/schedule', [HomepageBlockController::class, 'schedule']);
+        Route::get('homepage-blocks/{homepageBlock}/revisions', [HomepageBlockController::class, 'revisions']);
+        Route::post('homepage-blocks/{homepageBlock}/revisions/{revision}/restore', [HomepageBlockController::class, 'restore']);
+        Route::post('homepage-blocks/{homepageBlock}/save-as-section', [HomepageBlockController::class, 'saveAsSection']);
+
+        Route::apiResource('saved-sections', SavedSectionController::class)->only(['index', 'store', 'destroy']);
+        Route::post('saved-sections/{savedSection}/insert', [SavedSectionController::class, 'insert']);
+
+        Route::apiResource('testimonials', TestimonialController::class);
+        Route::apiResource('blog-posts', BlogPostController::class);
+        Route::get('newsletter-subscribers', [NewsletterSubscriberController::class, 'index']);
+        Route::delete('newsletter-subscribers/{newsletterSubscriber}', [NewsletterSubscriberController::class, 'destroy']);
 
         // Registered before the products apiResource — otherwise its
         // GET products/{product} route would swallow "export" as a

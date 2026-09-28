@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             RoleAndPermissionSeeder::class,
             BdLocationSeeder::class,
             DemoDataSeeder::class,
+            HomepageBlockSeeder::class,
         ]);
     }
 }
