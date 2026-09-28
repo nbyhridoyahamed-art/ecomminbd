@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\LocationController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\ProductAttributeController;
 use App\Http\Controllers\Api\V1\ProductComponentController;
@@ -118,6 +119,12 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('users', UserController::class);
 
         Route::get('currencies', [CurrencyController::class, 'index']);
+
+        // Always the current staff user's own inbox — no permission to
+        // gate beyond being authenticated, same reasoning as auth/me.
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
+        Route::post('notifications/{id}/read', [NotificationController::class, 'markRead']);
 
         Route::get('roles', [RoleController::class, 'index']);
         Route::get('permissions', [RoleController::class, 'permissions']);

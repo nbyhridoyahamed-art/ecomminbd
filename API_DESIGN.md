@@ -493,4 +493,24 @@ list/detail to show a Claimed/Guest badge. See `DATABASE_DESIGN.md`
 section 1o and `ARCHITECTURE.md` section 3 for the schema and the
 two-identity Sanctum design behind all of the above.
 
+Notifications (Phase 19 Wave 1): no new public endpoints — order/return
+lifecycle actions that already existed (`OrderController::store/process/
+ship/deliver/cancel`, `ReturnController`'s approve/reject/receive/refund)
+now also fire a Notification as their last step, customer-facing ones via
+`mail` + a custom `sms` channel (see `ARCHITECTURE.md` section 6 for the
+`SmsGateway` contract behind it), a storefront-order-only one to staff via
+Laravel's `database` channel. The one new surface is a staff member's own
+notification inbox: `GET notifications` (paginated, newest first, `meta.
+unread_count` alongside the usual pagination fields), `POST
+notifications/read-all`, and `POST notifications/{id}/read` — all three
+always resolve against `$request->user()->notifications()`, never a
+client-supplied user id, so there's no permission to gate beyond being an
+authenticated staff user (`auth:sanctum` + `staff`, same as every other
+route in this block) — the same reasoning `auth/me` already established.
+A notification not belonging to the caller simply isn't found (`{id}/read`
+404s), never leaked or reassigned. `data` on a listed notification is raw
+structured fields (`order_id`, `order_number`, `customer_name`, a `type`
+discriminator), not a pre-formatted string — the frontend renders it, same
+split every other resource in this API follows.
+
 Section 7 (webhooks) remains documented intent for future phases.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Bell, LogOut, Menu, Moon, Sun, User as UserIcon } from "lucide-react";
 
@@ -16,10 +16,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { useLogout } from "@/hooks/use-auth";
+import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from "@/hooks/use-notifications";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import type { User } from "@/types/auth";
+
+function timeAgo(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
 function initials(name: string) {
   return name
@@ -67,11 +79,16 @@ function getBreadcrumb(pathname: string): string[] {
 
 export function AdminTopbar({ user }: { user?: User }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const logout = useLogout();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { data: notifications, isLoading: notificationsLoading } = useNotifications();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
 
   const breadcrumb = getBreadcrumb(pathname);
+  const unreadCount = notifications?.meta?.unread_count ?? 0;
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
@@ -109,16 +126,59 @@ export function AdminTopbar({ user }: { user?: User }) {
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Notifications">
+            <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
               <Bell />
+              {unreadCount > 0 ? (
+                <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              ) : null}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+          <DropdownMenuContent align="end" className="w-80">
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+              {unreadCount > 0 ? (
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => markAllRead.mutate()}
+                >
+                  Mark all read
+                </Button>
+              ) : null}
+            </div>
             <DropdownMenuSeparator />
-            <p className="px-2 py-6 text-center text-sm text-text-muted">
-              No notifications yet.
-            </p>
+            {notificationsLoading ? (
+              <div className="space-y-2 p-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : !notifications || notifications.data.length === 0 ? (
+              <p className="px-2 py-6 text-center text-sm text-text-muted">No notifications yet.</p>
+            ) : (
+              <div className="max-h-80 overflow-y-auto">
+                {notifications.data.map((notification) => (
+                  <DropdownMenuItem
+                    key={notification.id}
+                    className="flex flex-col items-start gap-0.5 whitespace-normal"
+                    onSelect={() => {
+                      if (!notification.read_at) markRead.mutate(notification.id);
+                      router.push(`/orders/orders/${notification.data.order_id}`);
+                    }}
+                  >
+                    <div className="flex w-full items-center gap-1.5">
+                      {!notification.read_at ? <span className="size-1.5 shrink-0 rounded-full bg-primary" /> : null}
+                      <span className="text-sm font-medium text-text-primary">New order placed</span>
+                    </div>
+                    <p className="text-xs text-text-secondary">
+                      {notification.data.order_number} from {notification.data.customer_name}
+                    </p>
+                    <p className="text-xs text-text-muted">{timeAgo(notification.created_at)}</p>
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 

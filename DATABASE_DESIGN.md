@@ -865,6 +865,40 @@ become customer-visible — `api/v1/account/*` just scopes the same rows to
 `Auth::id()` instead of an admin-supplied `customer_id`/`{customer}` route
 parameter.
 
+## 1p. Notifications Schema (Phase 19 Wave 1)
+
+```
+notifications
+  id (uuid, primary key)
+  type (varchar — the notification class's FQCN, Laravel's own convention)
+  notifiable_type, notifiable_id (polymorphic — a User or a Customer)
+  data (json — see below)
+  read_at (timestamp, nullable)
+  created_at, updated_at
+```
+
+Laravel's own stock table (`php artisan notifications:table`), not a
+hand-designed one — nothing here is BD- or app-specific enough to need a
+custom shape, and every `Notifiable` model (`User`, and now `Customer`
+too — see below) gets `->notifications()`/`->unreadNotifications()` for
+free from the trait. `data` is deliberately raw, structured fields
+(`order_id`, `order_uuid`, `order_number`, `customer_name`, a `type`
+discriminator like `order.placed`), never a pre-formatted display string —
+the frontend renders it, the same "backend returns data, frontend
+formats it" split every other resource in this API already follows (see
+`API_DESIGN.md`). Only one notification class writes to this table today
+(`NewOrderPlacedNotification`, staff-facing); the customer-facing ones
+(`OrderPlacedNotification`, `OrderStatusChangedNotification`,
+`ReturnStatusChangedNotification`) use the `mail` and a custom `sms`
+channel instead, neither of which persists anything — see
+`ARCHITECTURE.md` section 6 for the `SmsGateway` contract behind the SMS
+side, and `DEVELOPMENT_ROADMAP.md`'s Phase 19 Wave 1 scope note for
+exactly which controller method fires which class.
+
+The one model change: `Customer` (section 1o) gained Laravel's
+`Notifiable` trait — `User` already had it, unused, since nothing in this
+app sent a notification to anyone before now.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -974,6 +1008,17 @@ compatible with them.
   alongside each CSV, all as runtime aggregation — still open:
   materialized/aggregated tables populated by scheduled jobs, once
   runtime aggregation actually gets too slow to justify them.
+- **Integrations Wave 2 (Wave 1 shipped — section 1p):** no new tables
+  expected for the SMS side either — swapping `LogSmsGateway` for a real
+  BD provider is a container-binding change, not a schema one. A real
+  payment gateway ledger is the same `payments` table Orders Wave 2 above
+  already lists; a real courier API integration needs no new table
+  either, just an outbound call added to the existing `shipments`
+  lifecycle (section 1f) once `CourierInterface` (`ARCHITECTURE.md`
+  section 6) has a real implementation to bind; a WhatsApp channel is
+  another `via()` entry on the four notification classes section 1p
+  already lists, the same shape as the `sms` channel. None of these have
+  real provider credentials in this environment yet (`PROJECT_AUDIT.md`).
 
 All money columns in future phases use integer minor-unit columns
 (`*_amount` in paisa) — never `float`/`double` — per spec rule 27.

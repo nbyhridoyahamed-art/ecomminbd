@@ -12,11 +12,13 @@ use App\Models\OrderReturn;
 use App\Models\ReturnItem;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
+use App\Notifications\ReturnStatusChangedNotification;
 use App\Support\ApiResponse;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class ReturnController extends Controller
@@ -201,6 +203,8 @@ class ReturnController extends Controller
             ]);
         });
 
+        Notification::send($orderReturn->order->customer, new ReturnStatusChangedNotification($orderReturn));
+
         return ApiResponse::success(new ReturnResource($orderReturn->load(self::RELATIONS)), 'Return marked received.');
     }
 
@@ -242,6 +246,8 @@ class ReturnController extends Controller
             }
         });
 
+        Notification::send($orderReturn->order->customer, new ReturnStatusChangedNotification($orderReturn));
+
         return ApiResponse::success(new ReturnResource($orderReturn->load(self::RELATIONS)), 'Return refunded.');
     }
 
@@ -258,6 +264,8 @@ class ReturnController extends Controller
                 'created_by' => request()->user()->id,
             ]);
         });
+
+        Notification::send($orderReturn->order->customer, new ReturnStatusChangedNotification($orderReturn));
     }
 
     private function suggestedRefundAmount(OrderReturn $orderReturn): int

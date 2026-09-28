@@ -10,7 +10,10 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockLevel;
 use App\Models\Store;
+use App\Models\User;
 use App\Models\Warehouse;
+use App\Notifications\NewOrderPlacedNotification;
+use App\Notifications\OrderPlacedNotification;
 use App\Support\ApiResponse;
 use App\Support\BundleExpander;
 use App\Support\InsufficientStockException;
@@ -18,6 +21,7 @@ use App\Support\Money;
 use App\Support\OrderPlacement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class CheckoutController extends StorefrontController
@@ -100,11 +104,30 @@ class CheckoutController extends StorefrontController
             return ApiResponse::error($exception->getMessage(), [], 422);
         }
 
+        Notification::send($order->customer, new OrderPlacedNotification($order));
+        Notification::send($this->staffToNotify($store), new NewOrderPlacedNotification($order));
+
         return ApiResponse::success(
             new OrderResource($order->load(self::RELATIONS)),
             'Order placed successfully.',
             status: 201,
         );
+    }
+
+    /**
+     * Staff currently working in this store who can see orders — a guest
+     * checkout is the one case staff wouldn't otherwise know about until
+     * they refresh the Orders list, unlike an admin-created order the
+     * acting staff member already knows about. Small-scale filter (active
+     * users only), fine at Wave 1's staff-count scale.
+     */
+    private function staffToNotify(Store $store)
+    {
+        return User::query()
+            ->where('current_store_id', $store->id)
+            ->where('status', 'active')
+            ->get()
+            ->filter(fn (User $user) => $user->can('orders.view'));
     }
 
     public function show(string $uuid): JsonResponse

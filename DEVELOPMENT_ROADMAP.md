@@ -25,7 +25,7 @@ in place and the app still builds/runs.
 | 16 | Storefront | ✅ Wave 1 done (multi-store domain routing, non-COD payment, homepage builder integration deferred — see note) | Yes — public unauthenticated catalog browsing (products/categories/brands) and guest COD checkout against the single active store |
 | 17 | Customer Dashboard | ✅ Wave 1 done (wishlist, customer-initiated returns, checkout saved-address integration deferred — see note) | Yes — customer register/login/logout against a new `customers.password` column, guest-checkout orders auto-linked by phone on registration, and an `/account/*` shell (order history + status timeline, saved addresses, profile) |
 | 18 | Reporting | ✅ Wave 1 + Wave 2 (per-courier breakdown, period-over-period comparison, PDF export) done (materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters, vs.-previous-period trend on each KPI card), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV and PDF export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
-| 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ⏳ Not started | No |
+| 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ✅ Wave 1 done (real payment/courier/WhatsApp providers, real SMS provider, queued delivery deferred — see note) | Yes — the Adapter Pattern's first real instance: a `SmsGateway` contract + log-mock implementation, order/return lifecycle notifications (mail + SMS to the customer, a database notification to staff), and the admin topbar's notification bell finally wired to real data |
 | 20 | Analytics | ⏳ Not started | No |
 | 21 | Security Hardening | ⏳ Ongoing baseline only | Partial — Sanctum, policies, rate limiting, validation from day one |
 | 22 | Performance | ⏳ Not started | No |
@@ -695,31 +695,100 @@ first cut. Frontend swaps each report's single Export button for a
 first use outside the topbar. 3 new backend tests (176 → 179), all
 green, plus the existing frontend build/lint/typecheck.
 
+**Phase 19 Wave 1 scope note:** ships the Adapter Pattern
+(`ARCHITECTURE.md` section 6) for real for the first time — on
+notifications, the smallest of the phase's four integration categories,
+not payment/courier/WhatsApp. `App\Contracts\SmsGateway` (one method) is
+bound to `App\Services\Sms\LogSmsGateway` in
+`AppServiceProvider::register()`; no BD SMS provider credentials exist in
+this environment (`PROJECT_AUDIT.md` flagged this back in Phase 0), so it
+logs the message it would have sent rather than pretending to deliver
+it — every caller depends on the interface, so swapping in a real
+provider later is a binding change, not a rewrite. A custom
+`App\Notifications\Channels\SmsChannel` resolves that gateway from the
+container; email rides Laravel's own `mail` channel, already pointed at
+this environment's `log` mailer, so it's a real code path with a mock
+transport, same as the SMS side.
+
+Four notification classes cover every real event this app already fires
+without telling anyone: `OrderPlacedNotification` (customer, mail + SMS,
+fired from both `OrderController::store` and
+`Storefront\CheckoutController::store` — there's no single shared
+order-creation choke point to hook instead, since `OrderPlacement` only
+covers item-sync/reservation, not the `Order::create()` call itself, so
+this is one line added at each of the two existing call sites, not a
+refactor); `NewOrderPlacedNotification` (staff, database-only — powers
+the admin topbar bell, `COMPONENT_INVENTORY.md` — fired only for
+`source === 'storefront'` orders, since an admin-created order was just
+entered by a staff member themselves and notifying them about their own
+action would be pure noise, unlike a storefront order they'd otherwise
+only see by refreshing the Orders list); `OrderStatusChangedNotification`
+(customer, mail + SMS, fired from `process`/`ship`/`deliver`/`cancel`,
+reading `$order->status` fresh rather than taking a parameter, since by
+the time it fires the transaction that changed it has already committed);
+and `ReturnStatusChangedNotification` (customer, mail + SMS, fired from
+the shared `transition()` private method that already backs
+approve/reject, plus separately from `receive`/`refund`, which update
+status inline rather than through `transition()`). Every one of these
+fires synchronously, no `ShouldQueue` — this app has never dispatched a
+single queued job despite `QUEUE_CONNECTION=database` being configured
+since early in the project, so adding queue-worker ceremony for Wave 1's
+first notification consumer would be infra nobody runs, not a real
+capability. `Customer` gained the `Notifiable` trait (`User` already had
+it); `via()` on every customer-facing notification checks for a non-null
+email before including `mail`, since `Customer.email` is nullable and
+`phone` is not — a guest with no email on file still gets an SMS.
+
+Staff-facing notifications are scoped to `current_store_id` matching the
+order's store, filtered to users who `can('orders.view')` — the same
+"no new RBAC permission, just an existing one, queried directly" choice
+Inventory/Purchasing's direct `$user->can()` checks already established,
+not a new `notifications.*` permission, since no such permission would
+mean anything beyond "can you see orders" anyway. `GET /api/v1/notifications`,
+`POST .../{id}/read`, and `POST .../read-all` are always scoped to
+`$request->user()` — there is no way to pass another user's id and read
+their inbox, the same reasoning `auth/me` needs no permission gate beyond
+being authenticated. Deliberately deferred to a Wave 2, each for lack of
+real provider credentials in this environment: a real BD SMS provider, the
+`CourierInterface`/`PaymentGatewayInterface` contracts section 6 still
+documents as target-only (Delivery's `couriers` are manually-entered
+records with no outbound API to adapt yet; Orders Wave 2's payment ledger
+is still unbuilt — see `DATABASE_DESIGN.md` section 2), a WhatsApp
+channel, and queued (rather than synchronous) delivery once a real queue
+worker actually runs. 15 new backend tests (264 → 279), all green,
+Pint-clean, plus the existing frontend build/lint/typecheck and a real
+Playwright walkthrough against a production build.
+
 ## Next Session Should Start With
 
-Phase 17 (Customer Dashboard) Wave 1 is done — real customer accounts,
-past guest orders auto-claimed by phone on registration, and an
-`/account/*` order history/addresses/profile shell; see the Phase 17
-Wave 1 scope note for what it deliberately still cuts. That finally
-unblocks the one item Catalog Wave 2 was left waiting on: customer
-reviews. The reason it was deferred no longer holds — a review needs a
-real customer identity plus a verified order to attach to, and Phase 17
-now gives both (`/account/orders` already shows a signed-in customer
-their own delivered orders). That makes reviews the clearest next
-pickup: it closes out Phase 5, whose Wave 2 has been waiting on exactly
-this since the CSV import/export pass, and finishing an earlier phase is
-the correct incremental order (rule 176) rather than jumping ahead to
-Phases 12–15 just because Phase 16 gave them somewhere to eventually
-render. Reasonable alternatives, whichever the user prefers: Phase 17
-Wave 2 itself (wishlist, customer-initiated returns, checkout
-saved-address integration — see that scope note); Storefront Wave 2
-(multi-store domain routing, non-COD payment, real per-page SEO
-metadata — each still blocked on a second store to route between,
-Phase 19's payment adapters, or its own deliberate server-fetch design
-pass, per the Phase 16 Wave 1 scope note); or any already-started
-phase's own remaining Wave 2 (Orders, Delivery, Returns, Dashboard, or
-Purchasing's supplier ledger/PO approval workflow/reorder suggestions).
-Phase 18 Reporting stays fully shipped through Wave 2; only
+Phase 17 (Customer Dashboard) Wave 1 and Phase 19 (Integrations) Wave 1
+are both done — real customer accounts with guest orders auto-claimed by
+phone, an `/account/*` shell, and now real order/return lifecycle
+notifications (mail/SMS to the customer, a database notification driving
+the admin topbar bell); see each phase's own Wave 1 scope note for what
+they deliberately still cut. Phase 17 finally unblocks the one item
+Catalog Wave 2 was left waiting on: customer reviews. The reason it was
+deferred no longer holds — a review needs a real customer identity plus a
+verified order to attach to, and Phase 17 gives both (`/account/orders`
+already shows a signed-in customer their own delivered orders). That
+makes reviews the clearest next pickup: it closes out Phase 5, whose Wave
+2 has been waiting on exactly this since the CSV import/export pass, and
+finishing an earlier phase is the correct incremental order (rule 176)
+rather than jumping ahead to Phases 12–15 just because Phase 16 gave them
+somewhere to eventually render. Reasonable alternatives, whichever the
+user prefers: Phase 19 Wave 2 itself (a real BD SMS provider, the
+courier/payment gateway adapters section 6 of `ARCHITECTURE.md` documents
+as target-only, a WhatsApp channel, queued delivery — each still blocked
+on real provider credentials or a running queue worker, neither of which
+exist in this environment); Phase 17 Wave 2 (wishlist, customer-initiated
+returns, checkout saved-address integration — see that scope note);
+Storefront Wave 2 (multi-store domain routing, non-COD payment, real
+per-page SEO metadata — each still blocked on a second store to route
+between, Phase 19 Wave 2's payment adapters, or its own deliberate
+server-fetch design pass, per the Phase 16 Wave 1 scope note); or any
+already-started phase's own remaining Wave 2 (Orders, Delivery, Returns,
+Dashboard, or Purchasing's supplier ledger/PO approval workflow/reorder
+suggestions). Phase 18 Reporting stays fully shipped through Wave 2; only
 materialized/scheduled aggregate tables remain there, still infra to
 build once real data volume demands it, not a pick-able feature today. A
 reusable media library still has no real consumer (today's

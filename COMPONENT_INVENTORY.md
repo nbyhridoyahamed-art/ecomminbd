@@ -16,7 +16,7 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Separator | ✅ | |
 | Skeleton | ✅ | used for dashboard/table loading states |
 | Alert | ✅ | inline error/success/info banners |
-| Dropdown Menu | ✅ | used in topbar (profile, theme); since Phase 18 Wave 2c also backs the Export button on all three Reports pages (CSV/PDF) |
+| Dropdown Menu | ✅ | used in topbar (profile, notifications — real data since Phase 19); since Phase 18 Wave 2c also backs the Export button on all three Reports pages (CSV/PDF) |
 | Sheet (drawer) | ✅ | mobile sidebar; since Phase 16 also backs the storefront's mobile nav menu and the cart drawer — a `side="right"` `SheetContent`, no new primitive needed |
 | Select | ✅ | Radix-based; store currency/locale/status, user status, role assignment, product category/brand/status, warehouse pickers, stock adjustment direction, supplier/warehouse pickers on purchase orders, customer/warehouse/payment-method/saved-address pickers on orders, cascading BD division/district/upazila pickers (customer addresses + order shipping), courier pickers on shipments/COD settlements, variant pickers on order/purchase-order/stock-transfer line items and the variant stock-adjustment dialog's warehouse picker, warehouse/granularity filters on the Sales report and warehouse filter on the Product Performance report, bundle component picker (product + `VariantPicker`) on the product form's Components tab; since Phase 16, the identical primitive also backs the storefront checkout's own cascading BD division/district/upazila picker and the `/products` browse page's category/brand/sort filters — same component, no storefront-specific variant, confirming `UI_UX_ARCHITECTURE.md`'s "shared tokens/primitives, different layout" split holds in practice |
 | Textarea | ✅ | category/brand/product descriptions, SEO meta description, warehouse address, transfer note, supplier address, PO notes/receipt note, order notes, shipment delivered/failed/returned notes, COD settlement note, return request reason, return reject/receive notes |
@@ -50,7 +50,7 @@ phase lands — see `DEVELOPMENT_ROADMAP.md`).
 | Component | Status | Notes |
 |---|---|---|
 | AdminSidebar | ✅ | collapsible, responsive drawer below 768px |
-| AdminTopbar | ✅ | breadcrumb, theme toggle, profile menu, notifications placeholder (disabled — no notifications backend yet, so the bell is present but intentionally shows an empty state rather than fake data) |
+| AdminTopbar | ✅ | breadcrumb, theme toggle, profile menu, and — since Phase 19 — a real notification bell: `useNotifications()` polls `GET /notifications` every 30s, an unread-count badge on the Bell icon (same dot-badge pattern as the storefront cart icon), each row click marks it read and navigates to the order, plus a "Mark all read" action; empty/loading states still render honestly (a skeleton while loading, "No notifications yet." only once the real list has actually come back empty) |
 | AdminShell | ✅ | composes sidebar+topbar+content, persists sidebar collapsed state |
 | BuilderCanvas / BuilderPanel | ⏳ | Phase 13 |
 

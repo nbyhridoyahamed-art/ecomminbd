@@ -172,6 +172,7 @@ tab nav) around everything that actually needs a signed-in customer.
 | `GET /api/v1/account/orders` (own orders only, never a client-supplied customer id), `GET .../{uuid}` (404, not 403, for someone else's) | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/account/addresses(/{address})` (own addresses only) | ✅ |
 | `PUT /api/v1/account/profile` (name/email only) | ✅ |
+| `GET /api/v1/notifications` (own inbox, paginated, `meta.unread_count`), `POST .../read-all`, `POST .../{id}/read` — no order/return write endpoints of their own; a notification fires as a side effect of the order/return endpoints above (see `API_DESIGN.md`'s Notifications note) | ✅ |
 | Everything under CMS/blog/SEO/etc. | ⏳ — added phase by phase |
 
 This table is the map for future sessions: pick the next ⏳ row in

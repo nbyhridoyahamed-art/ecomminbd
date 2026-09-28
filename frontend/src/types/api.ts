@@ -19,6 +19,9 @@ export interface PaginationMeta {
   per_page: number;
   total: number;
   last_page: number;
+  // Only populated by GET /notifications — optional so every other list
+  // endpoint's meta stays exactly as it was.
+  unread_count?: number;
 }
 
 export class ApiError extends Error {

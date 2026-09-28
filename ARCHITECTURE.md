@@ -155,10 +155,27 @@ interface PaymentGatewayInterface {
 A `CourierManager` / `PaymentGatewayManager` resolves the concrete
 adapter from store settings at runtime (Laravel Manager pattern), so
 adding "Steadfast" later is a new adapter class + a config entry, never
-a change to `OrderService` or `ShipmentService`. These interfaces and
-their `Mock*` implementations ship in the Delivery/Payment phases
-(Phase 8–9), not this session — this section documents the contract so
-later phases implement against an agreed shape.
+a change to `OrderService` or `ShipmentService`. Neither interface is
+built yet — Delivery (Phase 9) shipped real `couriers`/`shipments`
+tracking without one (a courier is a manually-entered record; there is
+no outbound API call to Pathao/Steadfast to adapt in the first place),
+and Orders Wave 2's payment gateway ledger is still deferred (see
+`DATABASE_DESIGN.md` section 2) — this section still documents the
+target contract for whichever phase builds the real outbound call.
+
+Phase 19 Wave 1 is this pattern's first real, shipped instance, on a
+smaller integration: `App\Contracts\SmsGateway` (one method,
+`send(string $to, string $message): void`) bound to
+`App\Services\Sms\LogSmsGateway` in `AppServiceProvider::register()` —
+Wave 1's only implementation, since no BD SMS provider credentials exist
+in this environment (`PROJECT_AUDIT.md`), so it logs the message it would
+have sent rather than pretending to deliver it. Every caller depends on
+the interface; swapping in a real provider (SSL Wireless, Alpha SMS, ...)
+later is one binding change, not a rewrite. A custom Laravel notification
+channel, `App\Notifications\Channels\SmsChannel`, resolves `SmsGateway`
+from the container and is referenced by its class name directly from a
+notification's `via()` — see the Phase 19 Wave 1 scope note in
+`DEVELOPMENT_ROADMAP.md` for what actually triggers it.
 
 ## 7. Financial & Inventory Integrity
 
@@ -396,10 +413,35 @@ Phase 10 staff-only flow), and checkout's own address collection is
 unchanged — a saved-address picker at checkout is a real, separate
 feature tracked as its own Wave 2 item, not bundled in just because it's
 related.
-CMS/builder, blog, SEO, the adapter
+Also built since: **Phase 19 Wave 1** — the Adapter Pattern (section 6
+above) shipped for real for the first time, on notifications rather than
+payment/courier: a new `notifications` table (Laravel's own, via
+`php artisan notifications:table`) backs both a customer-facing
+mail+SMS channel and a staff-facing database channel that finally gives
+the admin topbar's bell (`COMPONENT_INVENTORY.md`) real data instead of
+its placeholder empty state. Four notification classes, each fired
+synchronously (no queue worker runs anywhere in this app yet, so
+`ShouldQueue` would just be unused ceremony) from the exact controller
+methods that already change an `Order`'s or `OrderReturn`'s status:
+`OrderPlacedNotification` (customer, on `OrderController::store` and
+`Storefront\CheckoutController::store`), `NewOrderPlacedNotification`
+(staff, database-only, storefront orders only — an admin-created order
+was just entered by a staff member themselves, so notifying them about it
+would be pure noise, unlike a storefront order they wouldn't otherwise
+know about), `OrderStatusChangedNotification` (customer, on
+`process`/`ship`/`deliver`/`cancel`), and `ReturnStatusChangedNotification`
+(customer, on approve/reject/receive/refund). Mail uses this environment's
+already-configured `log` mailer (real Laravel mail pipeline, mock
+transport); a customer with no email on file simply gets `sms` only,
+decided per-notification in `via()`. Deliberately deferred, each for lack
+of real provider credentials in this environment (`PROJECT_AUDIT.md`):
+a real BD SMS provider, the courier/payment gateway adapters section 6
+still documents as target-only, a WhatsApp channel, and queued
+(non-synchronous) delivery once a real queue worker actually runs.
+CMS/builder, blog, SEO, Catalog Wave 2's remaining
 items (reviews — no longer blocked on anything, just not yet picked, now
 that Phase 17 gives the real customer identity it was waiting on — see
-`DATABASE_DESIGN.md` section 2; a reusable media library), Purchasing Wave 2's remaining
+`DATABASE_DESIGN.md` section 2 — and a reusable media library), Purchasing Wave 2's remaining
 items (supplier ledger, PO approval workflow, reorder suggestions —
 no longer blocked on reporting infra, just not yet picked), Orders Wave 2 (a
 non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery

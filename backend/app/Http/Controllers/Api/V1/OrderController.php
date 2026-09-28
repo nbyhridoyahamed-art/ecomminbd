@@ -10,6 +10,8 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
+use App\Notifications\OrderPlacedNotification;
+use App\Notifications\OrderStatusChangedNotification;
 use App\Support\ApiResponse;
 use App\Support\InsufficientStockException;
 use App\Support\Money;
@@ -17,6 +19,7 @@ use App\Support\OrderPlacement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
@@ -101,6 +104,8 @@ class OrderController extends Controller
             return ApiResponse::error($exception->getMessage(), [], 422);
         }
 
+        Notification::send($order->customer, new OrderPlacedNotification($order));
+
         return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order created successfully.', status: 201);
     }
 
@@ -167,6 +172,8 @@ class OrderController extends Controller
             ]);
         });
 
+        Notification::send($order->customer, new OrderStatusChangedNotification($order));
+
         return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order moved to processing.');
     }
 
@@ -231,6 +238,8 @@ class OrderController extends Controller
             return ApiResponse::error($exception->getMessage(), [], 422);
         }
 
+        Notification::send($order->customer, new OrderStatusChangedNotification($order));
+
         return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order shipped successfully.');
     }
 
@@ -254,6 +263,8 @@ class OrderController extends Controller
                 'created_by' => request()->user()->id,
             ]);
         });
+
+        Notification::send($order->customer, new OrderStatusChangedNotification($order));
 
         return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order marked as delivered.');
     }
@@ -280,6 +291,8 @@ class OrderController extends Controller
                 'created_by' => $request->user()->id,
             ]);
         });
+
+        Notification::send($order->customer, new OrderStatusChangedNotification($order));
 
         return ApiResponse::success(new OrderResource($order->load(self::RELATIONS)), 'Order cancelled successfully.');
     }
