@@ -21,6 +21,7 @@ class OrderResource extends JsonResource
             'status' => $this->status,
             'payment_method' => $this->payment_method,
             'payment_status' => $this->payment_status,
+            'source' => $this->source,
             'currency_code' => $this->currency_code,
             'notes' => $this->notes,
             'customer' => $this->whenLoaded('customer', fn () => [

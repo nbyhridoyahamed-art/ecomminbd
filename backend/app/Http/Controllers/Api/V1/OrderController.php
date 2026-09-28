@@ -11,9 +11,9 @@ use App\Models\Product;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
 use App\Support\ApiResponse;
-use App\Support\BundleExpander;
 use App\Support\InsufficientStockException;
 use App\Support\Money;
+use App\Support\OrderPlacement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -77,6 +77,7 @@ class OrderController extends Controller
                     'warehouse_id' => $data['warehouse_id'],
                     'status' => 'pending',
                     'payment_method' => $data['payment_method'],
+                    'source' => 'admin',
                     'currency_code' => $currency,
                     'shipping_amount' => Money::fromDecimal($data['shipping_amount'] ?? 0, $currency)->amountMinor,
                     'discount_amount' => Money::fromDecimal($data['discount_amount'] ?? 0, $currency)->amountMinor,
@@ -85,8 +86,8 @@ class OrderController extends Controller
                     ...$shipping,
                 ]);
 
-                $this->syncItems($order, $data['items'], $currency);
-                $this->reserveItems($order);
+                OrderPlacement::syncItems($order, $data['items'], $currency);
+                OrderPlacement::reserveItems($order);
 
                 $order->statusHistory()->create([
                     'from_status' => null,
@@ -139,8 +140,8 @@ class OrderController extends Controller
                     ...$shipping,
                 ]);
 
-                $this->syncItems($order, $data['items'], $currency);
-                $this->reserveItems($order);
+                OrderPlacement::syncItems($order, $data['items'], $currency);
+                OrderPlacement::reserveItems($order);
             });
         } catch (InsufficientStockException $exception) {
             return ApiResponse::error($exception->getMessage(), [], 422);
@@ -309,60 +310,6 @@ class OrderController extends Controller
             'shipping_bd_district_id' => $data['shipping_bd_district_id'] ?? null,
             'shipping_bd_upazila_id' => $data['shipping_bd_upazila_id'] ?? null,
         ];
-    }
-
-    /**
-     * Replaces an order's items wholesale — see OrderRequest for why a
-     * partial PATCH isn't offered. Also resolves and snapshots each item's
-     * components (BundleExpander) into order_item_components: an identity
-     * row for a simple/variable product, or one row per bundle component.
-     * reserveItems()/releaseReservation()/ship() all read this snapshot
-     * rather than re-deriving it from the bundle's live composition, so
-     * editing a bundle's components later can't split one order between two
-     * different resolutions.
-     */
-    private function syncItems(Order $order, array $items, string $currency): void
-    {
-        foreach ($items as $item) {
-            $orderItem = $order->items()->create([
-                'product_id' => $item['product_id'],
-                'product_variant_id' => $item['product_variant_id'] ?? null,
-                'quantity' => $item['quantity'],
-                'unit_price_amount' => Money::fromDecimal($item['unit_price'], $currency)->amountMinor,
-            ]);
-
-            foreach (BundleExpander::expand($orderItem->product_id, $orderItem->product_variant_id, $orderItem->quantity) as $component) {
-                $orderItem->components()->create([
-                    'product_id' => $component->product_id,
-                    'product_variant_id' => $component->product_variant_id,
-                    'quantity' => $component->quantity,
-                ]);
-            }
-        }
-    }
-
-    /** Reserves stock for every item's resolved components, atomically, at the order's current warehouse. */
-    private function reserveItems(Order $order): void
-    {
-        foreach ($order->items()->with('components')->get() as $item) {
-            foreach ($item->resolvedComponents() as $component) {
-                $level = StockLevel::query()
-                    ->where('product_id', $component->product_id)
-                    ->where('product_variant_id', $component->product_variant_id)
-                    ->where('warehouse_id', $order->warehouse_id)
-                    ->lockForUpdate()
-                    ->first();
-
-                $available = ($level?->quantity ?? 0) - ($level?->quantity_reserved ?? 0);
-
-                if ($available < $component->quantity) {
-                    $product = Product::findOrFail($component->product_id);
-                    throw new InsufficientStockException("Not enough available stock of \"{$product->name}\" at this warehouse to fulfil {$component->quantity} unit(s).");
-                }
-
-                $level->update(['quantity_reserved' => $level->quantity_reserved + $component->quantity]);
-            }
-        }
     }
 
     /** Releases this order's reserved stock without touching on-hand quantity. Requires items.components to be loaded. */

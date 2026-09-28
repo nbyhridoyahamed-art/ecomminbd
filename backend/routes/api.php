@@ -29,6 +29,10 @@ use App\Http\Controllers\Api\V1\StockLevelController;
 use App\Http\Controllers\Api\V1\StockMovementController;
 use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\Storefront\BrandController as StorefrontBrandController;
+use App\Http\Controllers\Api\V1\Storefront\CategoryController as StorefrontCategoryController;
+use App\Http\Controllers\Api\V1\Storefront\CheckoutController as StorefrontCheckoutController;
+use App\Http\Controllers\Api\V1\Storefront\ProductController as StorefrontProductController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -46,6 +50,24 @@ Route::prefix('v1')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
+    });
+
+    // Public, unauthenticated storefront API — no auth:sanctum. Wave 1
+    // serves whichever single store is active (see StorefrontController);
+    // real multi-tenant domain routing is a documented Wave 2 concern.
+    Route::prefix('storefront')->group(function () {
+        Route::get('products', [StorefrontProductController::class, 'index']);
+        Route::get('products/{slug}', [StorefrontProductController::class, 'show']);
+        Route::get('categories', [StorefrontCategoryController::class, 'index']);
+        Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show']);
+        Route::get('brands', [StorefrontBrandController::class, 'index']);
+        Route::get('brands/{slug}', [StorefrontBrandController::class, 'show']);
+
+        // Throttled like the other unauthenticated write endpoints
+        // (auth/register, auth/login) — this creates a real order and
+        // reserves real stock, so it needs the same abuse guard.
+        Route::post('checkout', [StorefrontCheckoutController::class, 'store'])->middleware('throttle:15,1');
+        Route::get('orders/{uuid}', [StorefrontCheckoutController::class, 'show']);
     });
 
     Route::middleware('auth:sanctum')->group(function () {

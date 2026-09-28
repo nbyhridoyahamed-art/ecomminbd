@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 #[Fillable([
     'store_id', 'order_number', 'customer_id', 'warehouse_id', 'status',
-    'payment_method', 'payment_status', 'currency_code', 'shipping_amount', 'discount_amount',
+    'payment_method', 'payment_status', 'source', 'currency_code', 'shipping_amount', 'discount_amount',
     'customer_address_id', 'shipping_recipient_name', 'shipping_phone', 'shipping_address_line',
     'shipping_bd_division_id', 'shipping_bd_district_id', 'shipping_bd_upazila_id',
     'notes', 'created_by',
