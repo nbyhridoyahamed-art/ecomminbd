@@ -18,6 +18,7 @@ use App\Support\ApiResponse;
 use App\Support\BundleExpander;
 use App\Support\CouponException;
 use App\Support\CouponResolver;
+use App\Support\DeliveryRateResolver;
 use App\Support\InsufficientStockException;
 use App\Support\Money;
 use App\Support\OrderPlacement;
@@ -75,6 +76,17 @@ class CheckoutController extends StorefrontController
                     $discountMinor = $resolvedCoupon['discount_amount'];
                 }
 
+                // Falls back to free shipping (Wave 1's behavior) when the
+                // store hasn't configured any delivery zones yet — charging
+                // real shipping is opt-in by configuration, not a breaking
+                // change for a store that never set one up.
+                $shippingResolved = DeliveryRateResolver::resolve(
+                    $store->id,
+                    $data['shipping_bd_division_id'] ?? null,
+                    $data['shipping_bd_district_id'] ?? null,
+                    $subtotalMinor,
+                );
+
                 $order = Order::create([
                     'store_id' => $store->id,
                     'order_number' => 'ORD-'.now()->format('Ymd').'-'.Str::upper(Str::random(6)),
@@ -84,7 +96,7 @@ class CheckoutController extends StorefrontController
                     'payment_method' => 'cod',
                     'source' => 'storefront',
                     'currency_code' => $currency,
-                    'shipping_amount' => 0,
+                    'shipping_amount' => $shippingResolved['rate_amount'] ?? 0,
                     'discount_amount' => $discountMinor,
                     'customer_address_id' => null,
                     'shipping_recipient_name' => $data['shipping_recipient_name'],

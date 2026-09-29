@@ -498,7 +498,7 @@ would take on-hand `quantity` below the warehouse's `quantity_reserved`
 — otherwise a manual adjustment or transfer could leave `ship()` unable
 to decrement on-hand stock without going negative.
 
-## 1f. Delivery Schema (Phase 9 Wave 1)
+## 1f. Delivery Schema (Phase 9 — Wave 1 + Wave 2)
 
 ```
 couriers
@@ -512,9 +512,11 @@ couriers
 
 shipments
   id, uuid, store_id (FK→stores, cascade),
-  order_id (FK→orders, cascade, unique — one shipment per order in Wave 1;
-    a failed delivery that needs re-dispatching under a new shipment is a
-    Wave 2 problem, see below),
+  order_id (FK→orders, cascade — plain index, not unique since Wave 2: an
+    order can have more than one shipment over its lifetime, re-dispatched
+    after the prior one comes back `failed_delivery`/`returned_to_seller`;
+    `Order.shipments()` is a `HasMany`, `Order.latestShipment()` a
+    `HasOne::latestOfMany()` for "the one currently in play"),
   courier_id (FK→couriers, nullOnDelete), tracking_number,
   status (varchar: pending_pickup/picked_up/in_transit/delivered/
     failed_delivery/returned_to_seller — see the state machine below),
@@ -555,6 +557,35 @@ cod_settlement_shipments (pivot, plain belongsToMany — no extra columns,
   id, cod_settlement_id (FK→cod_settlements, cascade),
   shipment_id (FK→shipments, cascade, unique — a shipment can be settled
     at most once), timestamps
+
+delivery_zones (Wave 2)
+  id, store_id (FK→stores, cascade), name,
+  bd_division_id (FK→bd_divisions, nullOnDelete, nullable),
+  bd_district_id (FK→bd_districts, nullOnDelete, nullable — set only
+    alongside a division; DeliveryZoneRequest rejects a district without
+    one, not the schema),
+  status, timestamps
+  index(store_id, status)
+  — both location columns null is the store's own fallback zone, matching
+    any shipping location no more-specific zone covers. No uuid: unlike
+    couriers/shipments, a zone has no public-facing lookup, matching the
+    same call `coupons` already made. DeliveryZoneRequest also enforces,
+    at the application level (no DB constraint, same as the rest of this
+    app's cross-row business rules): at most one zone per exact
+    (division, district) pair per store, and at most one fallback zone.
+
+delivery_zone_rates (Wave 2)
+  id, delivery_zone_id (FK→delivery_zones, cascade),
+  min_order_subtotal_amount (bigint minor units, default 0 — the
+    order-subtotal threshold this tier applies from),
+  rate_amount (bigint minor units — the shipping charge for this tier; 0
+    means free), currency_code (char 3, default BDT), timestamps
+  unique(delivery_zone_id, min_order_subtotal_amount)
+  — a zone always has a tier at 0 (DeliveryZoneRequest enforces this), so
+    every order has a rate; a further tier above 0 is how "free shipping
+    over X" is expressed (rate_amount 0 on that tier). Resolution picks
+    the highest tier whose threshold the order's subtotal still meets —
+    see App\Support\DeliveryRateResolver below.
 ```
 
 **Status state machine:** `pending_pickup` (created by assigning a courier +
@@ -572,6 +603,42 @@ on-hand quantity), since reversing those is a Wave 2 returns problem (see
 below). Once an order has a shipment, `OrderController::deliver()` refuses
 to mark it delivered directly — the shipment's own `delivered` action is
 the only path, so the two can never disagree about the order's status.
+
+**Wave 2 — re-dispatch:** `ShipmentController::store()` now allows a new
+shipment for an order whose latest one is `failed_delivery` or
+`returned_to_seller` (anything else still blocks a second shipment, same
+as Wave 1). The stock side has to distinguish the two: a
+`returned_to_seller` shipment already restocked the goods (the sequence
+above), so creating the re-dispatch shipment decrements stock again — a
+fresh `sale` movement referencing the *new* shipment, the same real-world
+effect `Order.ship()` had the first time — while a `failed_delivery`
+shipment (the courier still has the parcel; it never physically came
+back) never restocked anything, so re-dispatching it changes no stock at
+all. Both branches share one transaction with the shipment-row insert, so
+a stock check that fails (`InsufficientStockException`) rolls back the
+whole re-dispatch rather than leaving an orphaned shipment row.
+
+**Wave 2 — delivery zones/rates:** a real shipping-rate calculator,
+closing the gap the Wave 1 note above left open (`orders.shipping_amount`
+was a plain manual/free entry with no automatic consumer). A zone is
+matched against a shipping division/district with most-specific-wins
+resolution — an exact district zone beats a division-wide one, which
+beats the store's own fallback zone (see the `delivery_zones` table
+above) — then a rate tier is picked: the highest `min_order_subtotal_amount`
+the order's subtotal still meets. `App\Support\DeliveryRateResolver` is
+the one place both steps happen, the same "one resolver, two producers"
+shape `App\Support\CouponResolver` already established (`DATABASE_DESIGN.md`
+section 1e). It has three callers: a `GET .../delivery-zones/quote`
+endpoint under the admin `staff` group (deliberately ungated beyond that,
+like `LocationController` — any staff member creating/editing an order
+needs a quote, not just whoever holds `delivery_zones.view`), backing the
+order form's "Calculate" button; the identical endpoint under
+`storefront`, public, backing a live quote as checkout's own
+division/district Selects change; and `CheckoutController` itself, which
+now charges the resolved fee as `orders.shipping_amount` instead of
+Wave 1's hardcoded `0` — falling back to `0` when no zone matches at all,
+so a store that never configures one keeps Wave 1's free-shipping
+behavior unchanged.
 
 ## 1g. Returns Schema (Phase 10 Wave 1)
 
@@ -1483,15 +1550,18 @@ compatible with them.
   `order_items`, `order_status_history` are built too. This bullet is
   kept only as a pointer for anyone still holding an older mental model
   of this section; there is no remaining Orders work to pick.
-- **Delivery Wave 2:** `delivery_zones`/`delivery_zone_rates` (no
-  automatic shipping-rate-calculation consumer yet — `orders.shipping_amount`
-  is still a plain manual entry, same reasoning as Catalog/Purchasing/Orders
-  Wave 2 items above), and multi-shipment orders (re-dispatching after a
-  failed delivery currently has nowhere to go — `shipments.order_id` is
-  unique). The stock-reversal-on-return item this bullet used to list is
-  no longer deferred — Phase 10 built it, see section 1g. `couriers`,
+- **Delivery (now fully shipped, nothing deferred):** `delivery_zones`/
+  `delivery_zone_rates` (a real shipping-rate calculator, most-specific-
+  zone-wins resolution, shared by the admin order form's "Calculate"
+  button, a live storefront checkout quote, and `CheckoutController`
+  itself via one `App\Support\DeliveryRateResolver`) and multi-shipment
+  orders (`shipments.order_id` is no longer unique — a shipment that
+  comes back `failed_delivery`/`returned_to_seller` can be re-dispatched
+  under a new shipment row) are built — see section 1f. `couriers`,
   `shipments`, `shipment_status_history`, `cod_settlements`,
-  `cod_settlement_shipments` are built — see section 1f.
+  `cod_settlement_shipments` are built too. This bullet is kept only as a
+  pointer for anyone still holding an older mental model of this section;
+  there is no remaining Delivery work to pick.
 - **Returns Wave 2:** `exchanges` (swap for a different product/variant
   — order line items are variant-aware now, see section 1i, so there's
   something to swap *to* within an order, but the exchange workflow
@@ -1602,4 +1672,9 @@ instead reads its order's, the same "one currency per header" reasoning.
 Phase 8 Wave 2 added `payments.amount_amount` and, on `coupons`,
 `fixed_discount_amount`/`minimum_order_amount` — all `Money`-backed too;
 `coupons.percentage_value` is deliberately a plain unsigned integer, not
-a `Money` column, since a percentage isn't a currency amount.
+a `Money` column, since a percentage isn't a currency amount. Phase 9
+Wave 2 added `delivery_zone_rates.min_order_subtotal_amount`/
+`rate_amount`, each row keeping its own `currency_code` rather than
+reading a header's — a zone's rate tiers aren't scoped to one order the
+way `order_items`/`payments` are, so there's no natural single header to
+read it from.

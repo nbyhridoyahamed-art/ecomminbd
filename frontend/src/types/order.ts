@@ -75,7 +75,7 @@ export interface Order {
   subtotal_amount: number;
   total_amount: number;
   status_history: OrderStatusHistoryEntry[];
-  shipment: { id: number; tracking_number: string; status: string; courier_name: string | null } | null;
+  shipments: { id: number; tracking_number: string; status: string; courier_name: string | null; created_at: string }[];
   returns: { id: number; return_number: string; status: string; refund_amount: number | null }[];
   payments: OrderPayment[];
   created_by: string | null;

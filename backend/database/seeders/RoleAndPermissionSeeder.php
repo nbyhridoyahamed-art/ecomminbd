@@ -45,6 +45,7 @@ class RoleAndPermissionSeeder extends Seeder
         'couriers.view', 'couriers.create', 'couriers.update', 'couriers.delete',
         'shipments.view', 'shipments.create', 'shipments.update',
         'cod_settlements.view', 'cod_settlements.create',
+        'delivery_zones.view', 'delivery_zones.create', 'delivery_zones.update', 'delivery_zones.delete',
 
         // Returns (enforced today).
         'returns.view', 'returns.create', 'returns.update',
@@ -84,6 +85,7 @@ class RoleAndPermissionSeeder extends Seeder
             'couriers.view', 'couriers.create', 'couriers.update', 'couriers.delete',
             'shipments.view', 'shipments.create', 'shipments.update',
             'cod_settlements.view', 'cod_settlements.create',
+            'delivery_zones.view', 'delivery_zones.create', 'delivery_zones.update', 'delivery_zones.delete',
             'returns.view', 'returns.create', 'returns.update',
             'reviews.view', 'reviews.moderate', 'reviews.delete',
             'media.view', 'media.create', 'media.update', 'media.delete',
@@ -145,13 +147,14 @@ class RoleAndPermissionSeeder extends Seeder
             'orders.view', 'orders.update', 'reports.view',
             'couriers.view', 'shipments.view', 'shipments.create', 'shipments.update',
             'cod_settlements.view', 'cod_settlements.create',
+            'delivery_zones.view', 'delivery_zones.create', 'delivery_zones.update', 'delivery_zones.delete',
             'returns.view',
         ],
         'Viewer' => [
             'stores.view', 'warehouses.view', 'products.view', 'categories.view', 'brands.view', 'attributes.view',
             'inventory.view', 'suppliers.view', 'purchase_orders.view', 'orders.view', 'customers.view', 'reports.view', 'analytics.view',
             'couriers.view', 'shipments.view', 'cod_settlements.view', 'returns.view', 'purchase_returns.view',
-            'reviews.view', 'media.view', 'coupons.view',
+            'reviews.view', 'media.view', 'coupons.view', 'delivery_zones.view',
         ],
     ];
 

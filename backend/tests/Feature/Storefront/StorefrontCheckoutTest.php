@@ -5,6 +5,7 @@ namespace Tests\Feature\Storefront;
 use App\Models\BundleItem;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\DeliveryZone;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -316,5 +317,36 @@ class StorefrontCheckoutTest extends TestCase
         ]))->assertStatus(422);
 
         $this->assertSame(0, Order::count());
+    }
+
+    public function test_checkout_charges_the_real_shipping_fee_from_a_configured_delivery_zone(): void
+    {
+        $store = Store::factory()->create(['status' => 'active']);
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['status' => 'active', 'price_amount' => 100000]);
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+        $zone = DeliveryZone::factory()->for($store)->create(['name' => 'Nationwide']);
+        $zone->rates()->update(['rate_amount' => 8000]); // 80.00
+
+        $this->postJson('/api/v1/storefront/checkout', $this->guestPayload([
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ]))->assertCreated()
+            ->assertJsonPath('data.subtotal_amount', 1000)
+            ->assertJsonPath('data.shipping_amount', 80)
+            ->assertJsonPath('data.total_amount', 1080);
+    }
+
+    public function test_checkout_defaults_to_free_shipping_when_no_delivery_zone_is_configured(): void
+    {
+        $store = Store::factory()->create(['status' => 'active']);
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['status' => 'active', 'price_amount' => 100000]);
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+
+        $this->postJson('/api/v1/storefront/checkout', $this->guestPayload([
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ]))->assertCreated()
+            ->assertJsonPath('data.shipping_amount', 0)
+            ->assertJsonPath('data.total_amount', 1000);
     }
 }

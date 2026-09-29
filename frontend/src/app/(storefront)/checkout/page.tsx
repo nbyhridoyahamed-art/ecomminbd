@@ -18,7 +18,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useStorefrontDistricts, useStorefrontDivisions, useStorefrontUpazilas } from "@/hooks/use-storefront-catalog";
+import {
+  useStorefrontDeliveryQuote,
+  useStorefrontDistricts,
+  useStorefrontDivisions,
+  useStorefrontUpazilas,
+} from "@/hooks/use-storefront-catalog";
 import { useStorefrontCheckout } from "@/hooks/use-storefront-checkout";
 import { useCartStore } from "@/stores/cart-store";
 
@@ -85,6 +90,13 @@ export default function CheckoutPage() {
 
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const currencyCode = items[0]?.currencyCode ?? "BDT";
+
+  const { data: shippingQuote, isFetching: isQuotingShipping } = useStorefrontDeliveryQuote(
+    divisionId ? Number(divisionId) : null,
+    districtId ? Number(districtId) : null,
+    subtotal,
+  );
+  const shippingAmount = shippingQuote?.shipping_amount ?? 0;
 
   const onSubmit = (values: CheckoutFormValues) => {
     checkout.mutate(
@@ -304,9 +316,15 @@ export default function CheckoutPage() {
                 </div>
               ))}
             </div>
-            <div className="flex justify-between border-t border-border pt-2 font-semibold text-text-primary">
+            <div className="flex justify-between border-t border-border pt-2 text-sm text-text-secondary">
+              <span>Shipping</span>
+              <span>
+                {!divisionId ? "Enter your address" : isQuotingShipping ? "Calculating…" : formatMoney(shippingAmount, currencyCode)}
+              </span>
+            </div>
+            <div className="flex justify-between font-semibold text-text-primary">
               <span>Total</span>
-              <span>{formatMoney(subtotal, currencyCode)}</span>
+              <span>{formatMoney(subtotal + shippingAmount, currencyCode)}</span>
             </div>
           </div>
           <div className="space-y-1.5">

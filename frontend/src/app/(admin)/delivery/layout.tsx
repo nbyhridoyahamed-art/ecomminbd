@@ -11,6 +11,7 @@ const TABS = [
   { label: "Shipments", href: "/delivery/shipments", permission: "shipments.view" },
   { label: "Couriers", href: "/delivery/couriers", permission: "couriers.view" },
   { label: "COD Settlements", href: "/delivery/cod-settlements", permission: "cod_settlements.view" },
+  { label: "Delivery Zones", href: "/delivery/zones", permission: "delivery_zones.view" },
 ];
 
 export default function DeliveryLayout({ children }: { children: React.ReactNode }) {

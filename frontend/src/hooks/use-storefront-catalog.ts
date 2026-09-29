@@ -117,3 +117,22 @@ export function useStorefrontUpazilas(districtId: number | null | undefined) {
     enabled: Boolean(districtId),
   });
 }
+
+/** A live shipping-fee preview as the shopper picks a division/district, before they submit checkout. */
+export function useStorefrontDeliveryQuote(
+  bdDivisionId: number | null | undefined,
+  bdDistrictId: number | null | undefined,
+  subtotal: number,
+) {
+  return useQuery({
+    queryKey: ["storefront", "delivery-zones", "quote", bdDivisionId, bdDistrictId, subtotal],
+    queryFn: () => {
+      const query = new URLSearchParams({ subtotal: String(subtotal) });
+      if (bdDivisionId) query.set("bd_division_id", String(bdDivisionId));
+      if (bdDistrictId) query.set("bd_district_id", String(bdDistrictId));
+
+      return api.get<{ shipping_amount: number | null }>(`/storefront/delivery-zones/quote?${query.toString()}`);
+    },
+    enabled: Boolean(bdDivisionId),
+  });
+}

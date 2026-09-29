@@ -14,8 +14,8 @@ in place and the app still builds/runs.
 | 5 | Catalog | ✅ Full spec done — Wave 1 + Wave 2a + Wave 2b (CSV import/export) + Wave 2c (bundles/combos) + Wave 3 (reviews + media library) — nothing left deferred | Yes — categories (hierarchy), brands, simple + variable + bundle products w/ pricing/SEO/images, attributes + a variant generator, bundle components with derived availability, CSV bulk import/export, verified-purchase customer reviews with staff moderation, a reusable cross-entity media library, full admin UI |
 | 6 | Inventory | ✅ Full spec done — Wave 1 + Wave 2 (transfer approval workflow, stocktake sessions) — nothing left deferred | Yes — stock levels per warehouse, movements ledger, adjustments, a real pending→in_transit→received/cancelled transfer workflow, grouped multi-line stocktake sessions; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Full spec done — Wave 1 + Wave 2a (purchase returns) + Wave 2b (approval workflow, supplier ledger, reorder suggestions) — multi-currency POs deliberately out of scope, see note | Yes — suppliers (with payment terms), purchase orders (draft→pending_approval→ordered→partially_received→received state machine with a real approve/reject gate), receipts that drive real stock movements, purchase returns (requested→approved→shipped_back→credited), a supplier ledger reconciling receipts/payments/return-credits, and a reorder-suggestions report |
-| 8 | Orders | ✅ Wave 1 done, now variant-aware (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
-| 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
+| 8 | Orders | ✅ Full spec done, now variant-aware — Wave 1 + Wave 2 (payments ledger, coupons, order-edit-while-pending UI) — nothing left deferred | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
+| 9 | Delivery | ✅ Full spec done — Wave 1 + Wave 2 (delivery zones/rates, multi-shipment orders) — nothing left deferred | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
 | 10 | Returns | ✅ Wave 1 done (exchanges/store-credit, cross-return refund reconciliation deferred — see note) | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
 | 11 | Admin Dashboard (full KPIs/charts) | ✅ Wave 1 done (custom date ranges, per-warehouse/per-courier breakdowns, full reporting suite deferred — see note) | Yes — sales trend (orders + revenue, last 14 days) and order-status-breakdown charts backed by real aggregate endpoints, a recent-orders widget, and every stat card now permission-gated |
 | 12 | CMS | ✅ Wave 1 done (page versions/history, navigation menus, hierarchical pages, scheduled publishing deferred — see note) | Yes — simple content pages (About/Terms/Privacy-style) with plain-text content, admin CRUD under a new "Content" nav section, and public storefront rendering at `/pages/[slug]` plus a footer links column |
@@ -521,6 +521,41 @@ after a failed delivery has nowhere to go yet). The remaining Wave 2 item
 this note used to list — automatic stock-reversal movements on a
 `returned_to_seller` shipment — is no longer deferred: Phase 10 closed it
 (see its scope note below).
+
+**Phase 9 Wave 2 scope note:** closes both items the note above left
+open. Delivery zones/rates (`delivery_zones`/`delivery_zone_rates`, see
+`DATABASE_DESIGN.md` section 1f) give a store a real shipping-rate
+calculator: a zone matches a shipping division/district with
+most-specific-wins resolution (an exact district zone beats a
+division-wide one, which beats the store's own fallback zone — both
+location fields null), and each zone holds one or more rate tiers keyed
+by a minimum order subtotal (every zone must keep a tier at 0, so an
+order always has a rate; a further tier is how "free shipping over X" is
+expressed, at rate 0). `App\Support\DeliveryRateResolver` is the one
+place that resolution happens — the same "one resolver, two producers"
+shape `CouponResolver` established — called by a `GET .../delivery-zones/
+quote` endpoint (admin, ungated beyond staff auth like `LocationController`,
+backing the order form's "Calculate" button; and storefront, public,
+backing a live quote as checkout's own division/district Selects change)
+and directly by `CheckoutController` itself, which now charges a real
+shipping fee instead of Wave 1's hardcoded free — falling back to free
+when a store hasn't configured any zone yet, so this is additive, not a
+breaking change for a store that never sets one up. Multi-shipment orders
+drop the unique index on `shipments.order_id` (`Order.shipment()` becomes
+`shipments()` + `latestShipment()`) so a shipment that goes
+`failed_delivery`/`returned_to_seller` can be re-dispatched with a new
+shipment row rather than being a dead end. The stock side stays exact:
+a `returned_to_seller` shipment already restocked the goods (Phase 9
+Wave 1), so re-dispatching it decrements stock again (a fresh `sale`
+movement referencing the new shipment) — the same real-world effect
+`Order.ship()` had originally — while a `failed_delivery` shipment never
+restocked anything, so re-dispatching it changes no stock at all. 17 new
+backend tests (479 → 496), all green, Pint-clean, plus a full Playwright
+walkthrough against a production build (zone CRUD, the order form's
+Calculate button, checkout's live quote before/after picking a division,
+the order-confirmation shipping line, and the whole
+assign→fail→re-dispatch shipment cycle). Nothing is left deferred for
+Phase 9.
 
 **Phase 10 scope note:** Wave 1 ships return requests against a
 `delivered` order with a real state machine: `requested` (per-item

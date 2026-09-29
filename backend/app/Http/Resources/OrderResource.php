@@ -87,12 +87,13 @@ class OrderResource extends JsonResource
                 'created_by' => $entry->creator?->name,
                 'created_at' => $entry->created_at,
             ])),
-            'shipment' => $this->whenLoaded('shipment', fn () => $this->shipment ? [
-                'id' => $this->shipment->id,
-                'tracking_number' => $this->shipment->tracking_number,
-                'status' => $this->shipment->status,
-                'courier_name' => $this->shipment->courier?->name,
-            ] : null),
+            'shipments' => $this->whenLoaded('shipments', fn () => $this->shipments->map(fn ($shipment) => [
+                'id' => $shipment->id,
+                'tracking_number' => $shipment->tracking_number,
+                'status' => $shipment->status,
+                'courier_name' => $shipment->courier?->name,
+                'created_at' => $shipment->created_at,
+            ])),
             'returns' => $this->whenLoaded('returns', fn () => $this->returns->map(fn ($return) => [
                 'id' => $return->id,
                 'return_number' => $return->return_number,

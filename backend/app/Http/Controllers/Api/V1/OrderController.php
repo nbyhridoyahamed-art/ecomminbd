@@ -35,7 +35,7 @@ class OrderController extends Controller
         'customer', 'warehouse', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator',
         'items.components.product', 'items.components.productVariant',
         'shippingDivision', 'shippingDistrict', 'shippingUpazila', 'statusHistory.creator',
-        'shipment.courier', 'returns', 'payments.creator', 'couponUsage',
+        'shipments.courier', 'returns', 'payments.creator', 'couponUsage',
     ];
 
     public function index(Request $request): JsonResponse
@@ -274,7 +274,7 @@ class OrderController extends Controller
             return ApiResponse::error('Only shipped orders can be marked delivered.', [], 422);
         }
 
-        if ($order->shipment()->exists()) {
+        if ($order->shipments()->exists()) {
             return ApiResponse::error('This order has a courier shipment — mark that shipment delivered instead.', [], 422);
         }
 

@@ -245,6 +245,96 @@ class ShipmentTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_re_dispatching_after_a_failed_delivery_that_never_returned_does_not_touch_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $order = $this->shippedOrder($store);
+        $product = $order->items->first()->product;
+        $courier = Courier::factory()->for($store)->create();
+
+        StockLevel::factory()->for($product)->for($order->warehouse)->create(['quantity' => 10]);
+
+        $shipment1Id = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-RD-1'])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipment1Id}/picked-up")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipment1Id}/failed")->assertOk();
+        // Deliberately never calling /returned — the courier still has the parcel.
+
+        $shipment2Id = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-RD-2'])
+            ->assertCreated()->json('data.id');
+
+        // Nothing was ever restocked, so re-dispatching needs no stock change.
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $product->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 10]);
+        $this->assertDatabaseMissing('stock_movements', ['reference_type' => Shipment::class, 'reference_id' => $shipment2Id]);
+    }
+
+    public function test_re_dispatching_after_returned_to_seller_re_decrements_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $order = $this->shippedOrder($store);
+        $product = $order->items->first()->product;
+        $courier = Courier::factory()->for($store)->create();
+
+        StockLevel::factory()->for($product)->for($order->warehouse)->create(['quantity' => 10]);
+
+        $shipment1Id = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-RS-1'])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipment1Id}/picked-up")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipment1Id}/failed")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipment1Id}/returned")->assertOk();
+
+        // returned() restocked the full 2 units: 10 + 2 = 12.
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $product->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 12]);
+
+        $shipment2Id = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-RS-2'])
+            ->assertCreated()->json('data.id');
+
+        // Re-dispatching sends the same goods back out -> decremented again: 12 - 2 = 10.
+        $this->assertDatabaseHas('stock_levels', ['product_id' => $product->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 10]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id, 'type' => 'sale', 'quantity' => 2,
+            'quantity_before' => 12, 'quantity_after' => 10,
+            'reference_type' => Shipment::class, 'reference_id' => $shipment2Id,
+        ]);
+    }
+
+    public function test_a_re_dispatch_is_rejected_and_rolled_back_when_stock_is_no_longer_sufficient(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $order = $this->shippedOrder($store);
+        $product = $order->items->first()->product;
+        $courier = Courier::factory()->for($store)->create();
+
+        StockLevel::factory()->for($product)->for($order->warehouse)->create(['quantity' => 2]);
+
+        $shipment1Id = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-INS-1'])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipment1Id}/picked-up")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipment1Id}/failed")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/shipments/{$shipment1Id}/returned")->assertOk();
+
+        // Someone else adjusted the restocked units away before re-dispatch.
+        StockLevel::query()->where('product_id', $product->id)->where('warehouse_id', $order->warehouse_id)->update(['quantity' => 1]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/shipments", ['courier_id' => $courier->id, 'tracking_number' => 'TRK-INS-2'])
+            ->assertStatus(422);
+
+        // The transaction rolled back — no second shipment row was left behind.
+        $this->assertDatabaseCount('shipments', 1);
+    }
+
     public function test_full_status_progression_for_a_non_cod_order_does_not_touch_payment_status(): void
     {
         $admin = $this->admin();

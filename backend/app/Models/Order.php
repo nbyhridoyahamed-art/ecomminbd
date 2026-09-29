@@ -75,9 +75,15 @@ class Order extends Model
         return $this->hasMany(OrderStatusHistory::class)->orderBy('created_at');
     }
 
-    public function shipment(): HasOne
+    public function shipments(): HasMany
     {
-        return $this->hasOne(Shipment::class);
+        return $this->hasMany(Shipment::class)->orderBy('id');
+    }
+
+    /** The current/most recent shipment — the one a courier-assignment or delivery action acts on. */
+    public function latestShipment(): HasOne
+    {
+        return $this->hasOne(Shipment::class)->latestOfMany();
     }
 
     public function returns(): HasMany

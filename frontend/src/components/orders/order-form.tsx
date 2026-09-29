@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 
 import { useCustomer } from "@/hooks/use-customers";
+import { useDeliveryQuote } from "@/hooks/use-delivery-zones";
 import { useDistricts, useDivisions, useUpazilas } from "@/hooks/use-locations";
 import type { OrderFormValues } from "@/hooks/use-orders";
 import { VariantPicker } from "@/components/catalog/variant-picker";
@@ -146,6 +147,28 @@ export function OrderForm({
   const { data: divisions } = useDivisions();
   const { data: districts } = useDistricts(divisionId ? Number(divisionId) : null);
   const { data: upazilas } = useUpazilas(districtId ? Number(districtId) : null);
+
+  const deliveryQuote = useDeliveryQuote();
+
+  const calculateShipping = () => {
+    const subtotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unit_price) || 0), 0);
+
+    deliveryQuote.mutate(
+      {
+        storeId,
+        bdDivisionId: divisionId ? Number(divisionId) : null,
+        bdDistrictId: districtId ? Number(districtId) : null,
+        subtotal,
+      },
+      {
+        onSuccess: (result) => {
+          if (result.shipping_amount !== null) {
+            setValue("shipping_amount", String(result.shipping_amount), { shouldDirty: true });
+          }
+        },
+      },
+    );
+  };
 
   const submit = handleSubmit((values) => {
     for (let i = 0; i < values.items.length; i++) {
@@ -484,7 +507,12 @@ export function OrderForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label htmlFor="shipping_amount">Shipping charge (optional)</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="shipping_amount">Shipping charge (optional)</Label>
+            <Button type="button" variant="ghost" size="sm" loading={deliveryQuote.isPending} onClick={calculateShipping}>
+              Calculate
+            </Button>
+          </div>
           <Input
             id="shipping_amount"
             inputMode="decimal"
@@ -492,6 +520,12 @@ export function OrderForm({
             {...register("shipping_amount")}
           />
           {errors.shipping_amount ? <p className="text-xs text-danger">{errors.shipping_amount.message}</p> : null}
+          {deliveryQuote.data?.shipping_amount === null ? (
+            <p className="text-xs text-text-secondary">No delivery zone matches this location — enter a charge manually.</p>
+          ) : null}
+          {deliveryQuote.data?.zone_name ? (
+            <p className="text-xs text-text-secondary">Calculated for &quot;{deliveryQuote.data.zone_name}&quot;.</p>
+          ) : null}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="discount_amount">Discount (optional)</Label>

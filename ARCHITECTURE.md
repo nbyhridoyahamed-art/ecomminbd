@@ -641,9 +641,18 @@ through, the identical "one resolver, two producers" shape
 `App\Support\OrderPlacement` already established for item-syncing (Phase
 16 Wave 1, above) — plus an order-edit-while-pending UI reusing the
 existing `OrderForm` (Phase 8 Wave 2 — see `DATABASE_DESIGN.md` section
-1e) — closing the item this section used to list for it. Delivery Wave 2
-(delivery zones/rates, multi-shipment orders — the return-driven stock
-reversal gap this used to list is closed, see above), Returns Wave 2
+1e) — closing the item this section used to list for it. Delivery is
+also now fully shipped — a real shipping-rate calculator
+(`delivery_zones`/`delivery_zone_rates`, most-specific-zone-wins
+resolution, one shared `App\Support\DeliveryRateResolver` behind the
+admin order form's "Calculate" button, a live storefront checkout quote,
+and `CheckoutController` itself, the same "one resolver, two producers"
+shape as `CouponResolver`) and multi-shipment orders (a shipment that
+comes back `failed_delivery`/`returned_to_seller` can be re-dispatched
+under a new shipment row, re-decrementing stock only when the prior one
+had already been restocked) (Phase 9 Wave 2 — see `DATABASE_DESIGN.md`
+section 1f) — closing the two items this section used to list for it.
+Returns Wave 2
 (exchanges, store credit, cross-return partial-refund reconciliation),
 Dashboard Wave 2 (a
 custom date-range picker and per-warehouse/per-courier breakdowns *on the

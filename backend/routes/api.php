@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\DeliveryZoneController;
 use App\Http\Controllers\Api\V1\HomepageBlockController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\MediaController;
@@ -55,6 +56,7 @@ use App\Http\Controllers\Api\V1\Storefront\BlogController as StorefrontBlogContr
 use App\Http\Controllers\Api\V1\Storefront\BrandController as StorefrontBrandController;
 use App\Http\Controllers\Api\V1\Storefront\CategoryController as StorefrontCategoryController;
 use App\Http\Controllers\Api\V1\Storefront\CheckoutController as StorefrontCheckoutController;
+use App\Http\Controllers\Api\V1\Storefront\DeliveryZoneController as StorefrontDeliveryZoneController;
 use App\Http\Controllers\Api\V1\Storefront\HomepageController as StorefrontHomepageController;
 use App\Http\Controllers\Api\V1\Storefront\NewsletterController as StorefrontNewsletterController;
 use App\Http\Controllers\Api\V1\Storefront\PageController as StorefrontPageController;
@@ -119,6 +121,8 @@ Route::prefix('v1')->group(function () {
             Route::get('districts', [LocationController::class, 'districts']);
             Route::get('upazilas', [LocationController::class, 'upazilas']);
         });
+
+        Route::get('delivery-zones/quote', [StorefrontDeliveryZoneController::class, 'quote']);
 
         // Throttled like the other unauthenticated write endpoints
         // (auth/register, auth/login) — this creates a real order and
@@ -315,6 +319,9 @@ Route::prefix('v1')->group(function () {
         Route::get('cod-settlements', [CodSettlementController::class, 'index']);
         Route::post('cod-settlements', [CodSettlementController::class, 'store']);
         Route::get('cod-settlements/{codSettlement}', [CodSettlementController::class, 'show']);
+
+        Route::get('delivery-zones/quote', [DeliveryZoneController::class, 'quote']);
+        Route::apiResource('delivery-zones', DeliveryZoneController::class);
 
         Route::post('orders/{order}/returns', [ReturnController::class, 'store']);
         Route::get('returns', [ReturnController::class, 'index']);

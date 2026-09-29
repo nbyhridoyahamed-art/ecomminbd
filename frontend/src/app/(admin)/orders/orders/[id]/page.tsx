@@ -243,7 +243,11 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
   const cancelOrder = useCancelOrder(orderId);
   const updateOrder = useUpdateOrder(orderId);
   const createShipment = useCreateShipment(orderId);
-  const { data: shipment } = useShipment(order?.shipment?.id);
+  const latestShipmentSummary = order?.shipments[order.shipments.length - 1];
+  const { data: shipment } = useShipment(latestShipmentSummary?.id);
+  const canReDispatch = latestShipmentSummary
+    ? latestShipmentSummary.status === "failed_delivery" || latestShipmentSummary.status === "returned_to_seller"
+    : true;
   const createReturn = useCreateReturn(orderId);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -326,7 +330,7 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
                     Ship
                   </Button>
                 ) : null}
-                {order.status === "shipped" && !order.shipment && canUpdate ? (
+                {order.status === "shipped" && order.shipments.length === 0 && canUpdate ? (
                   <Button size="sm" onClick={() => deliverOrder.mutate()} loading={deliverOrder.isPending}>
                     <CheckCircle2 />
                     Mark delivered
@@ -456,10 +460,10 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
         </CardContent>
       </Card>
 
-      {order.status === "shipped" && !order.shipment && can(currentUser, "shipments.create") ? (
+      {order.status === "shipped" && canReDispatch && can(currentUser, "shipments.create") ? (
         <Card>
           <CardHeader>
-            <CardTitle>Assign a courier</CardTitle>
+            <CardTitle>{order.shipments.length === 0 ? "Assign a courier" : "Re-dispatch with a new shipment"}</CardTitle>
           </CardHeader>
           <CardContent>
             <ShipmentAssignForm
@@ -468,6 +472,31 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
               serverError={createShipment.error instanceof ApiError ? createShipment.error.message : null}
               onSubmit={(values) => createShipment.mutate(values)}
             />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {order.shipments.length > 1 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Shipment history</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {order.shipments.slice(0, -1).map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
+                  <Link href={`/delivery/shipments/${entry.id}`} className="font-medium text-primary hover:underline">
+                    {entry.tracking_number}
+                  </Link>
+                  <div className="flex items-center gap-3 text-text-muted">
+                    {entry.courier_name ? <span>{entry.courier_name}</span> : null}
+                    <Badge variant={entry.status === "returned_to_seller" ? "danger" : "warning"}>
+                      {entry.status.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       ) : null}

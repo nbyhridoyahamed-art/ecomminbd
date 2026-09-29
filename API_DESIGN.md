@@ -398,6 +398,35 @@ settlement's creation. `cod_settlements.*` uses `view`/`create` only —
 no update/destroy endpoint, matching the immutable-ledger pattern of
 `stock_movements`/`order_status_history`.
 
+Delivery (Phase 9 Wave 2): `POST /orders/{id}/shipments` no longer
+rejects a second shipment outright — it's rejected only while the
+order's latest shipment is still active; once that latest shipment is
+`failed_delivery` or `returned_to_seller`, a new one is accepted as a
+re-dispatch (`GET /orders/{id}` and `GET /shipments/{id}` both now return
+a `shipments[]` array rather than a single `shipment` object). A
+re-dispatch created after `returned_to_seller` re-decrements stock (a
+fresh `sale` movement referencing the new shipment) since those goods
+were already restocked once and are going back out; one created after a
+merely `failed_delivery` shipment touches no stock, since nothing was
+ever reversed for it. `GET/POST/PUT/DELETE /delivery-zones` is a standard
+Eloquent policy resource (`delivery_zones.view/create/update/delete`) for
+a store's shipping-rate zones — each zone optionally scoped to a
+division/district (both null is the store's own fallback zone) and
+holding one or more rate tiers (`min_order_subtotal`/`rate_amount`,
+submitted as a nested array and synced wholesale on update, the same
+"delete-all-then-recreate" shape order/PO line items already use).
+`GET /delivery-zones/quote` (`?store_id=&bd_division_id=&bd_district_id=&
+subtotal=`) previews the resolved shipping fee for the admin order form's
+"Calculate" button — deliberately ungated beyond staff auth, like
+`LocationController`, since any staff member placing an order needs a
+quote, not just whoever holds `delivery_zones.view`. The identical
+`GET /storefront/delivery-zones/quote` (public, store-implicit) backs a
+live quote on the storefront checkout page as its own division/district
+Selects change, and `POST /storefront/checkout` now resolves the same
+way server-side and charges the result as `shipping_amount` — falling
+back to `0` (Wave 1's behavior) when the store has no matching zone
+configured, so this is additive rather than a breaking default.
+
 Returns (Phase 10 Wave 1): `POST /orders/{id}/returns` (requests a
 return against a `delivered` order; rejects a quantity exceeding what
 remains eligible per order item — see `DATABASE_DESIGN.md` section 1g),
