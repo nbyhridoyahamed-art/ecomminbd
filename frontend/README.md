@@ -1,6 +1,6 @@
-# NBY Commerce ERP — Frontend
+# Eleventory — Frontend
 
-Next.js (App Router, TypeScript, Tailwind v4) frontend for the NBY
+Next.js (App Router, TypeScript, Tailwind v4) frontend for Eleventory, a
 Bangladesh-focused ecommerce ERP platform. See the repository root for
 the full product specification and planning docs (`ARCHITECTURE.md`,
 `DESIGN_SYSTEM.md`, `UI_UX_ARCHITECTURE.md`, `COMPONENT_INVENTORY.md`,
@@ -34,7 +34,7 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). Log in with the
-backend's seeded demo account: `admin@nby.test` / `password`.
+backend's seeded demo account: `admin@eleventory.test` / `password`.
 
 ## Checks
 

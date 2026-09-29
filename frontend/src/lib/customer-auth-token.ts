@@ -6,8 +6,8 @@ import { useSyncExternalStore } from "react";
 // staff member and a customer can be signed in on the same browser at
 // once (admin in one tab, storefront/account in another), and sharing one
 // key would let either session silently clobber the other's token.
-const TOKEN_KEY = "nby_customer_auth_token";
-const TOKEN_CHANGE_EVENT = "nby-customer-auth-token-change";
+const TOKEN_KEY = "eleventory_customer_auth_token";
+const TOKEN_CHANGE_EVENT = "eleventory-customer-auth-token-change";
 
 export function getCustomerAuthToken(): string | null {
   if (typeof window === "undefined") return null;

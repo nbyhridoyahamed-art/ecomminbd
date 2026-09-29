@@ -16,8 +16,8 @@ const notoSansBengali = Noto_Sans_Bengali({
 });
 
 export const metadata: Metadata = {
-  title: "NBY Ecommerce ERP",
-  description: "Bangladesh-focused ecommerce operating system.",
+  title: "Eleventory",
+  description: "Eleventory — a complete eCommerce solution.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

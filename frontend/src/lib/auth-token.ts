@@ -2,8 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
-const TOKEN_KEY = "nby_auth_token";
-const TOKEN_CHANGE_EVENT = "nby-auth-token-change";
+const TOKEN_KEY = "eleventory_auth_token";
+const TOKEN_CHANGE_EVENT = "eleventory-auth-token-change";
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;

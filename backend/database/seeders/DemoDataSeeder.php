@@ -20,15 +20,15 @@ class DemoDataSeeder extends Seeder
         );
 
         $organization = Organization::updateOrCreate(
-            ['slug' => 'nby-commerce'],
-            ['name' => 'NBY Commerce', 'email' => 'owner@nby.test', 'phone' => '01700000000', 'status' => 'active'],
+            ['slug' => 'eleventory'],
+            ['name' => 'Eleventory', 'email' => 'owner@eleventory.test', 'phone' => '01700000000', 'status' => 'active'],
         );
 
         $store = Store::updateOrCreate(
-            ['slug' => 'nby-flagship-store'],
+            ['slug' => 'eleventory-flagship-store'],
             [
                 'organization_id' => $organization->id,
-                'name' => 'NBY Flagship Store',
+                'name' => 'Eleventory Flagship Store',
                 'default_currency_id' => $bdt->id,
                 'default_timezone' => 'Asia/Dhaka',
                 'default_locale' => 'en',
@@ -37,9 +37,9 @@ class DemoDataSeeder extends Seeder
         );
 
         $owner = User::updateOrCreate(
-            ['email' => 'admin@nby.test'],
+            ['email' => 'admin@eleventory.test'],
             [
-                'name' => 'NBY Super Admin',
+                'name' => 'Eleventory Super Admin',
                 'phone' => '01711111111',
                 'password' => Hash::make('password'),
                 'current_store_id' => $store->id,

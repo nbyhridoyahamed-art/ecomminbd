@@ -93,7 +93,7 @@ export const useCartStore = create<CartState>()(
     {
       // Only the items themselves survive a reload — isOpen is transient
       // UI state, and persisting it would leave the drawer stuck open.
-      name: "nby-storefront-cart",
+      name: "eleventory-storefront-cart",
       partialize: (state) => ({ items: state.items }),
     },
   ),

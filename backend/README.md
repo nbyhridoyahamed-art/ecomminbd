@@ -1,7 +1,7 @@
-# NBY Commerce ERP — Backend
+# Eleventory — Backend
 
-Laravel API backend for the NBY Bangladesh-focused ecommerce ERP platform.
-See the repository root for the full product specification and planning
+Laravel API backend for Eleventory, a Bangladesh-focused ecommerce ERP
+platform. See the repository root for the full product specification and planning
 docs (`ARCHITECTURE.md`, `DATABASE_DESIGN.md`, `API_DESIGN.md`,
 `DEVELOPMENT_ROADMAP.md`, `PROJECT_AUDIT.md`).
 
@@ -34,8 +34,8 @@ php artisan migrate --seed
 php artisan serve
 ```
 
-The seeder creates a demo Super Admin: `admin@nby.test` / `password`
-(store: "NBY Flagship Store"). Change or remove this before any real
+The seeder creates a demo Super Admin: `admin@eleventory.test` / `password`
+(store: "Eleventory Flagship Store"). Change or remove this before any real
 deployment.
 
 ## Tests

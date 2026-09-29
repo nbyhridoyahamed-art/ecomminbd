@@ -454,7 +454,7 @@ by `(store_id, phone)` instead of creating a duplicate, which is also why
 normalization staff `User.phone` already had — checkout-time and
 registration-time phone formatting have to agree for the claim lookup to
 match. A second, fully separate frontend token/API-client pair
-(`nby_customer_auth_token`/`accountApi`) keeps a customer session on a
+(`eleventory_customer_auth_token`/`accountApi`) keeps a customer session on a
 browser from clobbering an admin session on the same browser, or vice
 versa. Deliberately scoped down, each for lack of a real consumer/design
 pass yet: no wishlist, no customer-initiated return requests (still the

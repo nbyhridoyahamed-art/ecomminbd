@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { Button } from "@/components/ui/button";
+import { Logo, LogoMark } from "@/components/shared/logo";
 
 export function AdminSidebar() {
   const { sidebarCollapsed, toggleSidebar } = useUiStore();
@@ -20,10 +21,7 @@ export function AdminSidebar() {
     >
       <div className="flex h-14 items-center gap-2 border-b border-border px-4">
         <Link href="/dashboard" className="flex items-center gap-2 overflow-hidden">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-white">
-            N
-          </span>
-          {!sidebarCollapsed && <span className="truncate font-semibold text-text-primary">NBY Commerce</span>}
+          {sidebarCollapsed ? <LogoMark size={32} /> : <Logo />}
         </Link>
       </div>
 

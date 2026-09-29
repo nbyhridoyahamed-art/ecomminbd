@@ -561,7 +561,7 @@ tracking is the point of being signed in. `CustomerResource` also gained
 the admin Customers list and detail page.
 
 Frontend keeps a customer session fully separate from an admin session on
-the same browser: a second token key (`nby_customer_auth_token`, its own
+the same browser: a second token key (`eleventory_customer_auth_token`, its own
 `localStorage` event) and a second minimal API client (`accountApi`)
 rather than extending the existing `auth-token.ts`/`api.ts` in place.
 Routing splits `/account/*` into an outer, ungated `layout.tsx` (so

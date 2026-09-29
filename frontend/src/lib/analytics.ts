@@ -3,7 +3,7 @@
 import type { TrackEventPayload, TrackEventType } from "@/types/analytics";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-const SESSION_STORAGE_KEY = "nby_analytics_session";
+const SESSION_STORAGE_KEY = "eleventory_analytics_session";
 
 /**
  * A per-browser, anonymous session id — a storefront visitor is tracked

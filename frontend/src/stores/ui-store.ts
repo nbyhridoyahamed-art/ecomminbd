@@ -14,6 +14,6 @@ export const useUiStore = create<UiState>()(
       sidebarCollapsed: false,
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
     }),
-    { name: "nby-ui-preferences" },
+    { name: "eleventory-ui-preferences" },
   ),
 );

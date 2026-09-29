@@ -21,14 +21,14 @@ class HomepageBlockSeeder extends Seeder
 {
     public function run(): void
     {
-        $store = Store::where('slug', 'nby-flagship-store')->first();
+        $store = Store::where('slug', 'eleventory-flagship-store')->first();
 
         if (! $store) {
             return;
         }
 
         $defaults = [
-            [HomepageBlockTypes::HERO, ['heading' => 'NBY Flagship Store', 'subheading' => 'Quality products, cash on delivery, anywhere in Bangladesh.', 'image_url' => null, 'cta_label' => 'Shop All Products', 'cta_url' => '/products', 'secondary_cta_label' => null, 'secondary_cta_url' => null]],
+            [HomepageBlockTypes::HERO, ['heading' => 'Eleventory Flagship Store', 'subheading' => 'Quality products, cash on delivery, anywhere in Bangladesh.', 'image_url' => null, 'cta_label' => 'Shop All Products', 'cta_url' => '/products', 'secondary_cta_label' => null, 'secondary_cta_url' => null]],
             [HomepageBlockTypes::CATEGORY_GRID, ['heading' => 'Shop by Category', 'mode' => 'auto', 'limit' => 6, 'category_ids' => []]],
             [HomepageBlockTypes::FEATURED_PRODUCTS, ['heading' => 'Featured Products', 'mode' => 'auto', 'limit' => 5, 'product_ids' => []]],
         ];

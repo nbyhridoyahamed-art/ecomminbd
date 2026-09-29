@@ -18,6 +18,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { Logo } from "@/components/shared/logo";
 import { useLogout } from "@/hooks/use-auth";
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from "@/hooks/use-notifications";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
@@ -92,7 +93,9 @@ export function AdminTopbar({ user }: { user?: User }) {
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
             <SheetHeader className="border-b border-border p-4">
-              <SheetTitle>NBY Commerce</SheetTitle>
+              <SheetTitle asChild>
+                <Logo />
+              </SheetTitle>
             </SheetHeader>
             <div className="py-4">
               <SidebarNav onNavigate={() => setMobileNavOpen(false)} />
