@@ -4,8 +4,10 @@ import { useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/use-auth";
 import { useImageUpload } from "@/hooks/use-uploads";
 import { Button } from "@/components/ui/button";
+import { MediaPickerDialog } from "@/components/settings/media-picker-dialog";
 
 interface ImageUploadFieldProps {
   imageUrl: string | null;
@@ -26,7 +28,9 @@ export function ImageUploadField({
 }: ImageUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const upload = useImageUpload(folder);
+  const { data: currentUser } = useCurrentUser();
 
   const displayUrl = preview ?? imageUrl;
 
@@ -66,6 +70,9 @@ export function ImageUploadField({
           <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
             {displayUrl ? "Replace" : "Upload"}
           </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+            Browse library
+          </Button>
           {displayUrl ? (
             <Button
               type="button"
@@ -90,6 +97,16 @@ export function ImageUploadField({
           onChange={handleFileChange}
         />
       </div>
+
+      <MediaPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        storeId={currentUser?.current_store_id}
+        onSelect={(media) => {
+          setPreview(media.url);
+          onUploaded(media.path);
+        }}
+      />
     </div>
   );
 }

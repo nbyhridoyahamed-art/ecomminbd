@@ -18,6 +18,7 @@ class UploadImageRequest extends FormRequest
         return [
             'image' => ImageUploadRules::rules(),
             'folder' => ['required', Rule::in(['categories', 'brands'])],
+            'store_id' => ['required', 'integer', 'exists:stores,id'],
         ];
     }
 }

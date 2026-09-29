@@ -12,6 +12,8 @@ const TABS = [
   { label: "Categories", href: "/catalog/categories", permission: "categories.view" },
   { label: "Brands", href: "/catalog/brands", permission: "brands.view" },
   { label: "Attributes", href: "/catalog/attributes", permission: "attributes.view" },
+  { label: "Reviews", href: "/catalog/reviews", permission: "reviews.view" },
+  { label: "Media", href: "/catalog/media", permission: "media.view" },
 ];
 
 export default function CatalogLayout({ children }: { children: React.ReactNode }) {

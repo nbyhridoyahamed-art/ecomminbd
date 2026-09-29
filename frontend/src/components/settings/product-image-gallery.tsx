@@ -1,21 +1,27 @@
 "use client";
 
-import { useRef } from "react";
-import { ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { ImagePlus, Images, Loader2, Star, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/use-auth";
 import {
+  useAttachProductImage,
   useDeleteProductImage,
   useMarkPrimaryProductImage,
   useUploadProductImage,
 } from "@/hooks/use-products";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MediaPickerDialog } from "@/components/settings/media-picker-dialog";
 import type { ProductImage } from "@/types/product";
 
 export function ProductImageGallery({ productId, images }: { productId: number; images: ProductImage[] }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const { data: currentUser } = useCurrentUser();
   const upload = useUploadProductImage(productId);
+  const attach = useAttachProductImage(productId);
   const remove = useDeleteProductImage(productId);
   const markPrimary = useMarkPrimaryProductImage(productId);
 
@@ -33,9 +39,14 @@ export function ProductImageGallery({ productId, images }: { productId: number; 
           title="No images yet"
           description="Add at least one image so customers can see this product."
           action={
-            <Button size="sm" onClick={() => inputRef.current?.click()}>
-              Upload image
-            </Button>
+            <div className="flex justify-center gap-2">
+              <Button type="button" size="sm" onClick={() => inputRef.current?.click()}>
+                Upload image
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                Browse library
+              </Button>
+            </div>
           }
         />
       ) : (
@@ -83,12 +94,26 @@ export function ProductImageGallery({ productId, images }: { productId: number; 
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={upload.isPending}
+            aria-label="Upload image"
             className={cn(
               "flex aspect-square items-center justify-center rounded-md border border-dashed border-border text-text-muted transition-colors hover:border-primary hover:text-primary",
               upload.isPending && "pointer-events-none opacity-50",
             )}
           >
             {upload.isPending ? <Loader2 className="size-5 animate-spin" /> : <ImagePlus className="size-5" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            disabled={attach.isPending}
+            aria-label="Browse media library"
+            className={cn(
+              "flex aspect-square items-center justify-center rounded-md border border-dashed border-border text-text-muted transition-colors hover:border-primary hover:text-primary",
+              attach.isPending && "pointer-events-none opacity-50",
+            )}
+          >
+            {attach.isPending ? <Loader2 className="size-5 animate-spin" /> : <Images className="size-5" />}
           </button>
         </div>
       )}
@@ -99,6 +124,13 @@ export function ProductImageGallery({ productId, images }: { productId: number; 
         accept="image/png,image/jpeg,image/webp,image/avif"
         className="hidden"
         onChange={handleFileChange}
+      />
+
+      <MediaPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        storeId={currentUser?.current_store_id}
+        onSelect={(media) => attach.mutate(media.id)}
       />
     </div>
   );

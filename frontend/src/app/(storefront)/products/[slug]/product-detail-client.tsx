@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Minus, Package, Plus } from "lucide-react";
+import { Minus, Package, Plus, Star } from "lucide-react";
 
 import { trackEvent } from "@/lib/analytics";
 import { formatMoney } from "@/lib/money";
@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useStorefrontProduct } from "@/hooks/use-storefront-catalog";
 import { useCartStore } from "@/stores/cart-store";
 import type { StorefrontVariant } from "@/types/storefront";
+import { ProductReviews } from "./product-reviews";
 
 function attributeOptions(variants: StorefrontVariant[]): Map<string, string[]> {
   const options = new Map<string, string[]>();
@@ -174,6 +175,21 @@ export function ProductDetailClient({ slug }: { slug: string }) {
               </Link>
             ) : null}
             <h1 className="text-page-title font-semibold text-text-primary">{product.name}</h1>
+            {product.reviews_count > 0 ? (
+              <a href="#reviews" className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-primary">
+                <span className="flex items-center gap-0.5" aria-hidden="true">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Star
+                      key={n}
+                      className={`size-3.5 ${
+                        n <= Math.round(product.average_rating ?? 0) ? "fill-warning text-warning" : "text-border"
+                      }`}
+                    />
+                  ))}
+                </span>
+                {product.average_rating?.toFixed(1)} ({product.reviews_count})
+              </a>
+            ) : null}
             {product.category ? (
               <Link
                 href={`/category/${product.category.slug}`}
@@ -272,6 +288,8 @@ export function ProductDetailClient({ slug }: { slug: string }) {
           ) : null}
         </div>
       </div>
+
+      <ProductReviews product={product} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Account\AddressController as AccountAddressContr
 use App\Http\Controllers\Api\V1\Account\AuthController as AccountAuthController;
 use App\Http\Controllers\Api\V1\Account\OrderController as AccountOrderController;
 use App\Http\Controllers\Api\V1\Account\ProfileController as AccountProfileController;
+use App\Http\Controllers\Api\V1\Account\ReviewController as AccountReviewController;
 use App\Http\Controllers\Api\V1\AnalyticsController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\BlogCategoryController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\HomepageBlockController;
 use App\Http\Controllers\Api\V1\LocationController;
+use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\NewsletterSubscriberController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OrderController;
@@ -35,6 +37,7 @@ use App\Http\Controllers\Api\V1\PurchaseReturnController;
 use App\Http\Controllers\Api\V1\RedirectController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReturnController;
+use App\Http\Controllers\Api\V1\ReviewController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SavedSectionController;
 use App\Http\Controllers\Api\V1\SeoTemplateController;
@@ -82,6 +85,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('storefront')->group(function () {
         Route::get('store', [StorefrontStoreController::class, 'show']);
         Route::get('products', [StorefrontProductController::class, 'index']);
+        Route::get('products/{slug}/reviews', [StorefrontProductController::class, 'reviews']);
         Route::get('products/{slug}', [StorefrontProductController::class, 'show']);
         Route::get('categories', [StorefrontCategoryController::class, 'index']);
         Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show']);
@@ -146,6 +150,9 @@ Route::prefix('v1')->group(function () {
             Route::delete('addresses/{address}', [AccountAddressController::class, 'destroy']);
 
             Route::put('profile', [AccountProfileController::class, 'update']);
+
+            Route::get('reviews', [AccountReviewController::class, 'index']);
+            Route::post('reviews', [AccountReviewController::class, 'store']);
         });
     });
 
@@ -175,6 +182,8 @@ Route::prefix('v1')->group(function () {
         });
 
         Route::post('uploads', [UploadController::class, 'store']);
+
+        Route::apiResource('media', MediaController::class)->only(['index', 'store', 'update', 'destroy']);
 
         Route::apiResource('categories', CategoryController::class);
         Route::apiResource('brands', BrandController::class);
@@ -210,6 +219,12 @@ Route::prefix('v1')->group(function () {
         Route::get('newsletter-subscribers', [NewsletterSubscriberController::class, 'index']);
         Route::delete('newsletter-subscribers/{newsletterSubscriber}', [NewsletterSubscriberController::class, 'destroy']);
 
+        Route::get('reviews', [ReviewController::class, 'index']);
+        Route::get('reviews/{review}', [ReviewController::class, 'show']);
+        Route::post('reviews/{review}/approve', [ReviewController::class, 'approve']);
+        Route::post('reviews/{review}/reject', [ReviewController::class, 'reject']);
+        Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
+
         // Registered before the products apiResource — otherwise its
         // GET products/{product} route would swallow "export" as a
         // product route-key first.
@@ -218,6 +233,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('products', ProductController::class);
 
         Route::post('products/{product}/images', [ProductImageController::class, 'store']);
+        Route::post('products/{product}/images/attach', [ProductImageController::class, 'attach']);
         Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
         Route::post('products/{product}/images/{image}/primary', [ProductImageController::class, 'markPrimary']);
 

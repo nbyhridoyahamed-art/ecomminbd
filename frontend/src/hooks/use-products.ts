@@ -142,6 +142,21 @@ export function useUploadProductImage(productId: number) {
   });
 }
 
+export function useAttachProductImage(productId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (mediaId: number) =>
+      api.post<ProductImage>(`/products/${productId}/images/attach`, { media_id: mediaId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products", "detail", productId] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not add image.");
+    },
+  });
+}
+
 export function useDeleteProductImage(productId: number) {
   const queryClient = useQueryClient();
 

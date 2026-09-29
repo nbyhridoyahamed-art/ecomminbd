@@ -92,11 +92,11 @@ List endpoints accept:
 
 ## 6. Resources Planned for Later Phases
 
-`payments`, `blog`, `media`, `seo`, `settings` —
-each gets its own controller/request/resource set when its phase lands;
-none are stubbed early to avoid dead routes (spec rule 178: no fake
-functionality). `orders`, `customers`, `couriers`, `shipments`,
-`cod-settlements`, `returns`, and `pages` are implemented — see section 9.
+`payments`, `settings` — each gets its own controller/request/resource
+set when its phase lands; none are stubbed early to avoid dead routes
+(spec rule 178: no fake functionality). `orders`, `customers`,
+`couriers`, `shipments`, `cod-settlements`, `returns`, `pages`, `blog`,
+`seo`, `reviews`, and `media` are all implemented — see section 9.
 
 ## 7. Webhooks (future phases)
 
@@ -709,5 +709,58 @@ exception message, file, and stack trace) whenever `APP_DEBUG` is off; and
 a new global `SecurityHeaders` middleware sets `X-Content-Type-Options`,
 `X-Frame-Options`, `Referrer-Policy`, and `Content-Security-Policy` on
 every response.
+
+Catalog — reviews and a reusable media library (Phase 5 Wave 3, the
+last deferred Catalog item, now closed): three review surfaces share one
+`ReviewResource`, visibility controlled entirely by which endpoint's
+query scope produced the rows, not by the resource itself. Admin:
+`GET/DELETE reviews` (`reviews.view`/`.delete`, optional `store_id`/
+`status`/`product_id`/`rating` filters) plus `POST .../{id}/approve` and
+`.../{id}/reject` (`reviews.moderate` — a separate permission from
+`.delete`, matching how `products.view`/`.create` are split everywhere
+else in this app). Account (`auth:sanctum` + `customer` guard):
+`GET account/reviews` (the signed-in customer's own reviews, any
+status) and `POST account/reviews` (`{product_id, rating, title?, body}`
+— `title`/`body` validated, `rating` 1-5). The eligibility check lives
+entirely in the controller, never the client: it 422s with "You have
+already reviewed this product" if a `(product_id, customer_id)` row
+already exists, and 422s with "You can only review a product from a
+delivered order" unless a `delivered` order containing that product is
+found via `whereHas('items', ...)` against the authenticated customer's
+own orders — no `order_id` is ever accepted from the request body.
+`GET account/orders/{uuid}` now also computes a `reviewable: boolean`
+per line item (bulk-checked once against the customer's existing
+reviews before building the resource, the same N+1-avoidance pattern
+`Storefront\ProductController::attachInStock()` established), so the
+frontend can offer "Rate this product" only where it would actually
+succeed. Storefront (public): `GET storefront/products/{slug}/reviews`
+— paginated, approved-only. `GET storefront/products` and `GET
+storefront/products/{slug}` both gained `reviews_count` (int) and
+`average_rating` (float, one decimal, `null` with zero reviews),
+computed via `withCount`/`withAvg` over an approved-only scope, so
+listing products never pays an extra query per row for it.
+
+Media library: `GET/POST/PUT/DELETE media` (`media.view/create/update/
+delete`; `GET` requires `store_id` and accepts `search` against
+filename, 422 without a `store_id` — this app's universal
+"store_id always comes from the client, never
+`$request->user()->current_store_id`" rule, same as `products`/
+`categories`/`dashboard`). `POST media` is `multipart/form-data`
+(`image`, `store_id`, `alt_text?`); `PUT media/{id}` accepts only
+`alt_text`; `DELETE media/{id}` removes both the DB row and the real
+file — the one place that's allowed, since every other consumer of a
+shared file only ever unlinks its own reference (see
+`DATABASE_DESIGN.md` section 1v). The pre-existing generic
+`POST /uploads` (category/brand images) now also requires `store_id`
+(previously implicit) and additionally registers a `media` row via the
+same `App\Support\MediaLibrary::store()` helper `MediaController` uses,
+so a category/brand image upload is retroactively browsable from the
+library too. `POST /products/{id}/images` (existing product-gallery
+upload) does the same. `POST /products/{id}/images/attach`
+(`{media_id, alt_text?}`) is new: it creates a `product_images` row
+pointing at an *existing* `media` row's path — no file is re-uploaded —
+scoped with a `store_id` match (a `media_id` from a different store
+404s, not a 422, so a cross-store attempt doesn't leak whether that ID
+exists at all).
 
 Section 7 (webhooks) remains documented intent for future phases.

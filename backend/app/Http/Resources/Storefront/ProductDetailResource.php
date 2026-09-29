@@ -45,6 +45,8 @@ class ProductDetailResource extends JsonResource
                 'total_available' => BundleExpander::availability($this->id)['total_available'],
             ]),
             'in_stock' => (bool) $this->in_stock,
+            'reviews_count' => (int) $this->reviews_count,
+            'average_rating' => $this->average_rating !== null ? round((float) $this->average_rating, 1) : null,
             'seo' => $this->whenLoaded('seoMetadata', fn () => $this->seoMetadata ? [
                 'title' => $this->seoMetadata->title,
                 'description' => $this->seoMetadata->description,

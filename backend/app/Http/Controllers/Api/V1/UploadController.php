@@ -5,10 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Upload\UploadImageRequest;
 use App\Support\ApiResponse;
+use App\Support\MediaLibrary;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class UploadController extends Controller
 {
@@ -20,13 +19,11 @@ class UploadController extends Controller
             throw new AuthorizationException;
         }
 
-        $file = $request->file('image');
-        $filename = Str::uuid().'.'.$file->getClientOriginalExtension();
-        $path = $file->storeAs($folder, $filename, 'public');
+        $media = MediaLibrary::store($request->file('image'), $request->validated('store_id'), $request->user()->id, $folder);
 
         return ApiResponse::success([
-            'path' => $path,
-            'url' => Storage::disk('public')->url($path),
+            'path' => $media->path,
+            'url' => $media->url(),
         ], 'Image uploaded successfully.', status: 201);
     }
 }

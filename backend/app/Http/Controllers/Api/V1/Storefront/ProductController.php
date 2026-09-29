@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1\Storefront;
 
+use App\Http\Resources\ReviewResource;
 use App\Http\Resources\Storefront\ProductDetailResource;
 use App\Http\Resources\Storefront\ProductResource;
 use App\Models\Product;
+use App\Models\Review;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +22,8 @@ class ProductController extends StorefrontController
             ->where('store_id', $store->id)
             ->where('status', 'active')
             ->with('images')
+            ->withCount('approvedReviews as reviews_count')
+            ->withAvg('approvedReviews as average_rating', 'rating')
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = '%'.$request->string('search').'%';
                 $query->where(function ($q) use ($term) {
@@ -72,6 +76,8 @@ class ProductController extends StorefrontController
                 'variants.attributeValues.attribute', 'variants.stockLevels',
                 'bundleItems.componentProduct',
             ])
+            ->withCount('approvedReviews as reviews_count')
+            ->withAvg('approvedReviews as average_rating', 'rating')
             ->firstOrFail();
 
         $this->attachInStock(collect([$product]));
@@ -81,5 +87,36 @@ class ProductController extends StorefrontController
         }
 
         return ApiResponse::success(new ProductDetailResource($product), 'Product fetched successfully.');
+    }
+
+    public function reviews(Request $request, string $slug): JsonResponse
+    {
+        $store = $this->currentStore();
+
+        $product = Product::query()
+            ->where('store_id', $store->id)
+            ->where('status', 'active')
+            ->where('slug', $slug)
+            ->firstOrFail();
+
+        $perPage = min((int) $request->integer('per_page', 10), 50);
+
+        $reviews = Review::query()
+            ->where('product_id', $product->id)
+            ->where('status', 'approved')
+            ->with('customer')
+            ->latest()
+            ->paginate($perPage);
+
+        return ApiResponse::success(
+            ReviewResource::collection($reviews),
+            'Reviews fetched successfully.',
+            [
+                'current_page' => $reviews->currentPage(),
+                'per_page' => $reviews->perPage(),
+                'total' => $reviews->total(),
+                'last_page' => $reviews->lastPage(),
+            ],
+        );
     }
 }

@@ -54,6 +54,11 @@ class RoleAndPermissionSeeder extends Seeder
         'reports.view',
         'analytics.view',
         'builder.view', 'builder.edit', 'builder.publish',
+
+        // Catalog Wave 3 — reviews (customer-submitted, staff-moderated) and
+        // the reusable media library (enforced today).
+        'reviews.view', 'reviews.moderate', 'reviews.delete',
+        'media.view', 'media.create', 'media.update', 'media.delete',
     ];
 
     /** @var array<string, array<int, string>|string> */
@@ -78,6 +83,8 @@ class RoleAndPermissionSeeder extends Seeder
             'shipments.view', 'shipments.create', 'shipments.update',
             'cod_settlements.view', 'cod_settlements.create',
             'returns.view', 'returns.create', 'returns.update',
+            'reviews.view', 'reviews.moderate', 'reviews.delete',
+            'media.view', 'media.create', 'media.update', 'media.delete',
         ],
         'Inventory Manager' => [
             'warehouses.view', 'warehouses.create', 'warehouses.update',
@@ -115,12 +122,15 @@ class RoleAndPermissionSeeder extends Seeder
             'products.view', 'categories.view', 'categories.update', 'brands.view', 'brands.update',
             'attributes.view', 'attributes.update',
             'blog.manage', 'reports.view', 'analytics.view', 'builder.view', 'builder.edit',
+            'reviews.view', 'reviews.moderate', 'reviews.delete',
+            'media.view', 'media.create', 'media.update', 'media.delete',
         ],
         'SEO Manager' => [
             'seo.manage', 'pages.manage', 'blog.manage', 'reports.view', 'analytics.view',
         ],
         'Content Manager' => [
             'pages.manage', 'blog.manage', 'builder.view', 'builder.edit', 'builder.publish',
+            'media.view', 'media.create', 'media.update', 'media.delete',
         ],
         'Customer Support' => [
             'orders.view', 'customers.view', 'customers.create', 'customers.update',
@@ -136,6 +146,7 @@ class RoleAndPermissionSeeder extends Seeder
             'stores.view', 'warehouses.view', 'products.view', 'categories.view', 'brands.view', 'attributes.view',
             'inventory.view', 'suppliers.view', 'purchase_orders.view', 'orders.view', 'customers.view', 'reports.view', 'analytics.view',
             'couriers.view', 'shipments.view', 'cod_settlements.view', 'returns.view', 'purchase_returns.view',
+            'reviews.view', 'media.view',
         ],
     ];
 

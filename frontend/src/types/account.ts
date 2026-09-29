@@ -36,12 +36,15 @@ export interface AddressPayload {
 }
 
 export interface AccountOrderItem {
+  product_id: number;
   product_name: string;
   product_slug: string;
   product_variant: { sku: string; attribute_values: StorefrontAttributeValue[] } | null;
   quantity: number;
   unit_price: number;
   line_total: number;
+  /** True once the order is delivered and this product has no review yet from this customer. */
+  reviewable: boolean;
 }
 
 export interface AccountOrderStatusHistoryEntry {

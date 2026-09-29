@@ -25,6 +25,8 @@ export interface StorefrontProduct {
   primary_image_url: string | null;
   featured: boolean;
   in_stock: boolean;
+  reviews_count: number;
+  average_rating: number | null;
 }
 
 export interface StorefrontAttributeValue {
@@ -68,6 +70,8 @@ export interface StorefrontProductDetail {
   components: StorefrontBundleComponent[] | null;
   bundle_availability: { total_available: number } | null;
   in_stock: boolean;
+  reviews_count: number;
+  average_rating: number | null;
   seo: Seo | null;
 }
 

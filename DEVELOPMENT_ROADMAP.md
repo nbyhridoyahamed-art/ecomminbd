@@ -11,7 +11,7 @@ in place and the app still builds/runs.
 | 2 | Design System | ✅ Done | Yes — tokens, theme, first primitives |
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
-| 5 | Catalog | ✅ Wave 1 + Wave 2a + Wave 2b (CSV import/export) + Wave 2c (bundles/combos) done — Wave 2 fully closed (reviews/media library still deferred — see note) | Yes — categories (hierarchy), brands, simple + variable + bundle products w/ pricing/SEO/images, attributes + a variant generator, bundle components with derived availability, CSV bulk import/export, full admin UI |
+| 5 | Catalog | ✅ Full spec done — Wave 1 + Wave 2a + Wave 2b (CSV import/export) + Wave 2c (bundles/combos) + Wave 3 (reviews + media library) — nothing left deferred | Yes — categories (hierarchy), brands, simple + variable + bundle products w/ pricing/SEO/images, attributes + a variant generator, bundle components with derived availability, CSV bulk import/export, verified-purchase customer reviews with staff moderation, a reusable cross-entity media library, full admin UI |
 | 6 | Inventory | ✅ Wave 1 done, now variant-aware (transfer approval workflow deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Wave 1 done, now variant-aware, plus Wave 2a (purchase returns) (supplier ledger/PO approval workflow/reorder suggestions still deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements, purchase returns (requested→approved→shipped_back→credited) |
 | 8 | Orders | ✅ Wave 1 done, now variant-aware (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
@@ -109,10 +109,12 @@ change rule 176 warns against. That pass has since been done — see the
 **variant-aware Orders/Inventory/Purchasing retrofit** scope note below.
 Bundles/combos (needs
 Orders-integrated component stock decrement, not just a new `type`
-value), customer reviews, and a reusable media library remain deferred
-for the reasons Wave 1's note above already gives — none has a real
-consumer yet. CSV bulk import/export is no longer deferred — see the
-**Phase 5 Wave 2b** scope note directly below.
+value), customer reviews, and a reusable media library remained deferred
+at this point for the reasons Wave 1's note above already gives — none
+had a real consumer yet. CSV bulk import/export was no longer deferred —
+see the **Phase 5 Wave 2b** scope note directly below; bundles/combos
+shipped next as **Wave 2c**; reviews and the media library shipped last,
+as **Wave 3** — see that scope note further below for both.
 
 **Phase 5 Wave 2b scope note:** picked CSV bulk import/export as the one
 piece of the remaining Wave 2 list with a real, immediate, self-contained
@@ -197,6 +199,55 @@ misleading "0 on hand" row); CSV import/export stays scoped to simple
 products only, unchanged; and there's no physical "kitting/assembly"
 stock action, since a bundle's stock is purely virtual/computed, never
 a real inventory movement of its own.
+
+**Phase 5 Wave 3 scope note:** ships the two items every earlier Wave 2
+note had deliberately deferred — customer reviews and a reusable media
+library — closing out Catalog for good; both were blocked purely on
+prerequisites that have since shipped (Phase 8 Orders for a real
+purchase to verify against, Phase 17 customer identity for a real
+reviewer), not on any remaining design question. A review is gated on a
+**verified purchase**, resolved entirely server-side: submitting one
+requires the authenticated customer to have an `Order` with
+`status = 'delivered'` whose `items` include the product being
+reviewed (`Account\ReviewController::store()`), never a client-supplied
+`order_id` — accepting one would let a customer forge a review against
+an order that was never theirs. A `unique(['product_id', 'customer_id'])`
+constraint caps it at one review per product per customer regardless of
+how many qualifying orders exist. Every review starts `status='pending'`
+and stays invisible on the storefront until a staff member with
+`reviews.moderate` approves it (`reviews.delete` is a separate
+permission, matching the `products.view`/`products.create` split this
+app uses everywhere); the storefront's `average_rating`/`reviews_count`
+(exposed on `ProductResource` via a `Product::approvedReviews()` scope
+and `withCount`/`withAvg`, so no N+1) only ever reflect approved rows.
+The media library is one shared `App\Support\MediaLibrary::store()`
+helper called from all three upload entry points that existed
+(`MediaController`'s own upload, the legacy category/brand
+`UploadController`, and the product-gallery `ProductImageController`),
+so a single uploaded file becomes browsable and re-pickable from any of
+them via a `MediaPickerDialog` component, instead of every entity
+silently keeping its own disconnected copy. That reusability is exactly
+why `Media` deliberately has **no** `SoftDeletes`, unlike `Review`: once
+a file can be referenced by more than one entity, only the library's own
+explicit delete (`MediaController::destroy()`) may remove it from disk,
+so a consumer that merely unlinks its own reference (e.g.
+`ProductImageController::destroy()`) must delete only its own DB row and
+never touch the shared file — a soft-deleted row promising
+recoverability while its file is already gone would be misleading, not
+a real safety net, whereas `Review` keeps `SoftDeletes` because "undo an
+accidental delete" is a genuine, meaningful case there. Every
+store-scoped media/review endpoint takes `store_id` explicitly from the
+client (query param on GET, body field on POST), matching this app's
+pervasive convention everywhere else (`ProductController`,
+`CategoryController`, `DashboardController`) rather than trusting
+`$request->user()->current_store_id` server-side. Deliberately scoped
+down: no review photos/videos (text + 1-5 star rating only); no
+helpful/unhelpful voting or a seller reply thread on a review; no bulk
+media operations (multi-select delete, folder/tagging); and the media
+library has no usage-tracking view showing which entities reference a
+given file — deleting one that's still referenced elsewhere simply
+breaks those references' preview, the same trade-off most CMS media
+libraries make.
 
 **Phase 6 scope note:** Wave 1 ships on-hand stock tracking per
 warehouse (`stock_levels`), a full audit ledger of every change
@@ -1255,14 +1306,13 @@ a traffic/products/searches/funnel/customers admin dashboard); see each
 phase's own scope note for what they deliberately still cut. Phase 13
 (and Phase 14 right behind it) shipped out of the order rule 176 would
 otherwise have picked — both explicitly requested in full ahead of
-everything else — so the already-flagged older dependency they jumped is
-still open: Phase 17 finally unblocked Catalog Wave 2's one remaining
-item, customer reviews (a review needs a real customer identity plus a
-verified order to attach to, and Phase 17 gives both — `/account/orders`
-already shows a signed-in customer their own delivered orders), and that
-has been the clearest rule-176 pickup since before Phase 13 was
-requested; it still is. Phase 20 was likewise requested by number ahead
-of that queue.
+everything else — and the older dependency they jumped has since been
+paid down: Phase 17 unblocked Catalog Wave 2's two remaining items,
+customer reviews and the media library (a review needs a real customer
+identity plus a verified order to attach to, and Phase 17 gives both —
+`/account/orders` already shows a signed-in customer their own delivered
+orders), and Phase 5 Wave 3 shipped both, closing Catalog out fully.
+Phase 20 was likewise requested by number ahead of that queue.
 
 Reasonable alternative to Phase 22, whichever the user prefers: Phase 19
 Wave 2 itself (a real BD SMS provider, the
@@ -1281,8 +1331,7 @@ Delivery, Returns, Dashboard, or Purchasing's supplier ledger/PO approval
 workflow/reorder suggestions). Phase 18 Reporting stays fully shipped
 through Wave 2; only materialized/scheduled aggregate tables remain
 there, still infra to build once real data volume demands it, not a
-pick-able feature today. A reusable media library still has no real
-consumer (today's direct-upload-per-record images work fine). Phase 20's
+pick-able feature today. Phase 20's
 own deferred items (a `customer_id` column on `analytics_events`,
 real-time visitor counts, third-party pixel integrations, IP geolocation)
 are each blocked on real infra this environment doesn't have, same as

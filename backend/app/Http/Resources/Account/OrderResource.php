@@ -38,8 +38,10 @@ class OrderResource extends JsonResource
                 'upazila' => $this->whenLoaded('shippingUpazila', fn () => $this->shippingUpazila?->name_en),
             ],
             'items' => $this->items->map(fn ($item) => [
+                'product_id' => $item->product_id,
                 'product_name' => $item->product->name,
                 'product_slug' => $item->product->slug,
+                'reviewable' => (bool) ($item->reviewable ?? false),
                 'product_variant' => $item->product_variant_id ? [
                     'sku' => $item->productVariant->sku,
                     'attribute_values' => $item->productVariant->attributeValues->map(fn ($value) => [

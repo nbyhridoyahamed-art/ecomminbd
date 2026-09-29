@@ -1222,6 +1222,71 @@ same "compute it fresh" reasoning as `DashboardController` and
 `orders`/`customers` instead — see the Reporting/Analytics bullet in
 section 2 below, now split into its two real halves.
 
+## 1v. Reviews & Media Library Schema (Phase 5 Wave 3)
+
+```
+reviews
+  id, uuid, store_id (FK→stores, cascade),
+  product_id (FK→products, cascade), customer_id (FK→customers, cascade),
+  order_id (FK→orders, cascade — the delivered order the review was
+    verified against; recorded for audit, never trusted on re-read —
+    eligibility is re-derived fresh from customer_id/product_id every
+    time, see below),
+  rating (unsignedTinyInteger, 1-5), title (nullable, string),
+  body (text), status (string, default 'pending': pending/approved/
+    rejected), timestamps(), softDeletes()
+  unique(product_id, customer_id) — one review per customer per product,
+    however many qualifying orders exist
+  index(store_id, product_id, status) — the storefront's "approved
+    reviews for this product" read; index(customer_id) — "my reviews"
+
+media
+  id, uuid, store_id (FK→stores, cascade),
+  disk (string, default 'public'), path, filename, mime_type,
+  size (unsignedBigInteger), alt_text (nullable),
+  uploaded_by (nullable FK→users, null on delete — keep the file if the
+    uploading staff account is later removed),
+  timestamps() — deliberately NO softDeletes(), unlike every other table
+    on this page: destroy() removes the real file from disk too (the
+    whole point of deleting a library entry), so a soft-deleted row
+    promising recoverability while its file is already gone would be
+    misleading, not a real safety net
+  index(store_id, created_at) — the library's own paginated/searchable
+    listing
+```
+
+A review requires a **verified purchase**, checked entirely server-side
+at submission time (`Account\ReviewController::store()`): the
+authenticated customer must have an `Order` with `status = 'delivered'`
+whose `items` include the `product_id` being reviewed — resolved via
+`whereHas('items', ...)` against that customer's own orders, never from
+a client-supplied `order_id` (accepting one would let a customer forge a
+review against an order that isn't theirs). Every new review starts
+`status = 'pending'` and only counts toward a product's public
+`average_rating`/`reviews_count` once a staff member with
+`reviews.moderate` approves it — computed via a `Product::
+approvedReviews()` relation (`hasMany(Review::class)->where('status',
+'approved')`) and Eloquent's `withCount`/`withAvg` at the query-builder
+level, so listing products never pays an N+1 for it.
+
+`media` is the one physical file behind what can otherwise look like
+several separate uploads: `App\Support\MediaLibrary::store()` is the
+single place a file lands on disk and gets a `media` row, called from
+three entry points — the library's own upload (`MediaController`), the
+legacy per-folder category/brand upload (`UploadController`, unchanged
+route, now also registering a `media` row), and the product image
+gallery (`ProductImageController`). Because the same file can now be
+picked for more than one entity, only the library's own explicit delete
+(`MediaController::destroy()`) removes it from disk — every other
+consumer unlinking its own reference (e.g.
+`ProductImageController::destroy()`) deletes only its own row
+(`product_images`/a category's `image_path`, etc.), never the shared
+file, or unlinking one entity would silently break every other
+reference still pointing at it. `ProductImageController::attach()` (see
+`API_DESIGN.md`) lets the product gallery pick an existing `media` row
+without a new upload, scoped to `media.store_id === product.store_id` —
+cross-store attachment 404s rather than leaking another store's file.
+
 ## 2. Target Schema for Future Phases (design intent, not yet migrated)
 
 These are documented now so later phases don't have to re-derive the
@@ -1229,22 +1294,17 @@ shape, and so the foundation tables above (store_id placement, soft
 deletes, currency as a table not a hardcoded symbol) are already
 compatible with them.
 
-- **Catalog Wave 2 (now fully shipped):** `reviews` (Phase 8's
-  `customers`/`orders`, Phase 16's real storefront, and now Phase 17's
-  real customer identity/login all exist to back a "verified purchase"
-  review, but the `reviews` table itself still isn't built — no longer
-  blocked on anything, just not yet picked), and a reusable/browsable
-  `media` library with folders and cross-entity
-  reuse (today, product/category/brand images upload directly against
-  their own record — see section 1b) remain the only deferred items, for
-  the reasons just given. Everything else this bullet used to list is
-  built: `products`, `categories`, `brands`, `product_images` — see
-  section 1b; `product_attributes`, `product_attribute_values`,
-  `product_variants`, `product_variant_attribute_values` — see section
-  1i; CSV bulk import/export — see section 1j; `bundle_items`,
+- **Catalog (now fully shipped, nothing deferred):** `products`,
+  `categories`, `brands`, `product_images` — see section 1b;
+  `product_attributes`, `product_attribute_values`, `product_variants`,
+  `product_variant_attribute_values` — see section 1i; CSV bulk
+  import/export — see section 1j; `bundle_items`,
   `order_item_components` (a bundle's stock decrement hits its component
   products, not a `bundles`/`bundle_items` pair as this bullet used to
-  assume) — see section 1l.
+  assume) — see section 1l; `reviews` and a reusable/browsable `media`
+  library — see section 1v. This bullet is kept only as a pointer for
+  anyone still holding an older mental model of this section; there is
+  no remaining Catalog work to pick.
 - **Inventory Wave 2:** a pending/in-transit/received transfer approval
   workflow, and a `stock_adjustments` header table for grouping a
   stocktake's many per-product adjustments under one reference (today

@@ -7,8 +7,10 @@ import { ArrowLeft } from "lucide-react";
 
 import { formatMoney } from "@/lib/money";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WriteReviewDialog } from "@/components/reviews/write-review-dialog";
 import { useAccountOrder } from "@/hooks/use-account";
 import { ApiError } from "@/types/api";
 
@@ -72,15 +74,28 @@ export default function AccountOrderDetailPage({ params }: PageProps<"/account/o
         <CardContent className="space-y-4">
           <div className="space-y-2 divide-y divide-border">
             {order.items.map((item, index) => (
-              <div key={index} className="flex justify-between py-2 text-sm">
-                <span className="text-text-secondary">
-                  {item.product_name}
-                  {item.product_variant
-                    ? ` (${item.product_variant.attribute_values.map((av) => av.value).join(" / ")})`
-                    : ""}{" "}
-                  &times; {item.quantity}
-                </span>
-                <span className="text-text-primary">{formatMoney(item.line_total, order.currency_code)}</span>
+              <div key={index} className="space-y-1.5 py-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">
+                    {item.product_name}
+                    {item.product_variant
+                      ? ` (${item.product_variant.attribute_values.map((av) => av.value).join(" / ")})`
+                      : ""}{" "}
+                    &times; {item.quantity}
+                  </span>
+                  <span className="text-text-primary">{formatMoney(item.line_total, order.currency_code)}</span>
+                </div>
+                {item.reviewable ? (
+                  <WriteReviewDialog
+                    productId={item.product_id}
+                    productName={item.product_name}
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        Rate this product
+                      </Button>
+                    }
+                  />
+                ) : null}
               </div>
             ))}
           </div>
