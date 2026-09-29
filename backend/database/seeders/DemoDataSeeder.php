@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\BdDistrict;
 use App\Models\Currency;
 use App\Models\Organization;
 use App\Models\Store;
@@ -54,14 +55,50 @@ class DemoDataSeeder extends Seeder
             $owner->id => ['is_owner' => true, 'status' => 'active'],
         ]);
 
+        $dhaka = BdDistrict::where('code', 'DHAKA')->first();
+        $chattogram = BdDistrict::where('code', 'CHATTOGRAM')->first();
+        $sylhet = BdDistrict::where('code', 'SYLHET')->first();
+
         Warehouse::updateOrCreate(
             ['store_id' => $store->id, 'code' => 'MAIN-DHK'],
-            ['name' => 'Dhaka Main Warehouse', 'type' => 'main', 'status' => 'active'],
+            [
+                'name' => 'Dhaka Main Warehouse',
+                'type' => 'main',
+                'manager_name' => 'Abdullah Al Mamun',
+                'phone' => '01711000001',
+                'address_line' => 'Plot 14, Tejgaon Industrial Area',
+                'bd_division_id' => $dhaka?->bd_division_id,
+                'bd_district_id' => $dhaka?->id,
+                'status' => 'active',
+            ],
         );
 
         Warehouse::updateOrCreate(
             ['store_id' => $store->id, 'code' => 'BR-CTG'],
-            ['name' => 'Chattogram Branch', 'type' => 'branch', 'status' => 'active'],
+            [
+                'name' => 'Chattogram Branch',
+                'type' => 'branch',
+                'manager_name' => 'Nasir Uddin',
+                'phone' => '01711000002',
+                'address_line' => 'GEC Circle, Chattogram',
+                'bd_division_id' => $chattogram?->bd_division_id,
+                'bd_district_id' => $chattogram?->id,
+                'status' => 'active',
+            ],
+        );
+
+        Warehouse::updateOrCreate(
+            ['store_id' => $store->id, 'code' => 'BR-SYL'],
+            [
+                'name' => 'Sylhet Branch',
+                'type' => 'branch',
+                'manager_name' => 'Farhana Yasmin',
+                'phone' => '01711000003',
+                'address_line' => 'Zindabazar, Sylhet Sadar',
+                'bd_division_id' => $sylhet?->bd_division_id,
+                'bd_district_id' => $sylhet?->id,
+                'status' => 'active',
+            ],
         );
     }
 }

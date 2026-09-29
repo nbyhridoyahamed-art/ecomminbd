@@ -15,6 +15,12 @@ class DatabaseSeeder extends Seeder
             RoleAndPermissionSeeder::class,
             BdLocationSeeder::class,
             DemoDataSeeder::class,
+            DemoCatalogSeeder::class,
+            DemoPurchasingSeeder::class,
+            DemoCustomerSeeder::class,
+            DemoDeliverySeeder::class,
+            DemoContentSeeder::class,
+            DemoOrderSeeder::class,
             HomepageBlockSeeder::class,
         ]);
     }

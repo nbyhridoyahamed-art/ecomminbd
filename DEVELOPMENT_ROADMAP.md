@@ -1586,3 +1586,65 @@ Phase 19's remaining pieces — not pick-able today either.
 14. Accessibility review.
 15. Update this roadmap + relevant inventory docs.
 16. Summarize what's actually done — never claim more.
+
+## Demo Data (spec section 90)
+
+Real, Bangladesh-oriented demo data across every module — distinct from
+the incremental "seed/demo data" step 9 above (a little fixture data per
+phase as it's built). `DemoDataSeeder` itself only ever bootstrapped the
+tenant (currency/org/store/admin/warehouses); it now creates a 3rd
+warehouse (Sylhet Branch) with full address details, and six new seeders
+called from `DatabaseSeeder` build everything else, in dependency order:
+
+- `DemoCatalogSeeder` — 10 categories, 5 fictional trademark-free brands,
+  50 products with realistic BDT pricing, ~8 featured.
+- `DemoPurchasingSeeder` — 10 suppliers; 20 purchase orders spanning the
+  full draft → pending_approval → ordered → received/cancelled workflow.
+  The 16 "received" ones are the store's *only* source of opening stock —
+  receiving is replayed exactly the way `PurchaseReceiptController` does
+  it (same `StockMovement` type, same before/after bookkeeping), so
+  Purchasing and Inventory agree from row one: Dhaka Main gets full
+  50-product coverage, Chattogram/Sylhet get realistic partial regional
+  assortments (15 and 10 products).
+- `DemoCustomerSeeder` — 100 customers (Bangladeshi name pools,
+  `01[3-9]XXXXXXXX` phones, ~20% registered/80% guest per the Phase 17
+  model), each with a real address tied to actual seeded
+  `BdDivision`/`BdDistrict` rows, weighted toward Dhaka/Chattogram.
+- `DemoDeliverySeeder` — the 6 real nationwide BD courier operators
+  (Pathao, Sundarban, RedX, Steadfast, eCourier, Paperfly) and 4 delivery
+  zones (Dhaka/Chattogram/Sylhet/Rest of Bangladesh) with realistic flat
+  rate tiers.
+- `DemoContentSeeder` — 4 blog categories, 8 tags, 8 posts (7 published, 1
+  draft); the 7 standard storefront pages; 9 coupons (7 usable, 1
+  date-expired, 1 manually disabled).
+- `DemoOrderSeeder` — 200 orders replaying the exact
+  `OrderController`/`ShipmentController` lifecycle (reserve → convert to
+  sale on ship → deliver, or release on cancel) rather than hand-writing
+  final-state rows, so Orders/Inventory/Reports/Dashboard all agree:
+  weighted status (20 pending/20 processing/30 shipped/110 delivered/20
+  cancelled) and payment method (COD-dominant — 130 cod/30 bkash/20
+  nagad/10 rocket/6 card/4 bank_transfer — matching real BD e-commerce).
+  Non-COD orders get a matching `Payment` row the same way
+  `OrderPaymentController` would produce one; delivered COD shipments
+  older than a week are batched into 12 `CodSettlement`s per courier (most
+  fully reconciled, a few deliberately left with a pending balance). ~15%
+  of orders redeem a real coupon through `CouponResolver` itself, so
+  `used_count`/`CouponUsage` stay authentic rather than hand-faked.
+
+Getting `created_at`/`updated_at` to actually vary (recent for pending
+orders, spread over the last ~6 months for delivered ones) needed its own
+fix: those two columns are deliberately absent from every model's
+`#[Fillable]` list app-wide, so passing them straight into a `::create()`
+array is silently dropped and the row just gets "now". The new
+`Database\Seeders\Concerns\BackdatesTimestamps` trait (`forceFill` then
+`save`, exploiting `Model::save()`'s own "don't touch an
+already-dirty timestamp" guard) is what makes a backdated value actually
+stick.
+
+Re-seed with `php artisan migrate:fresh --seed`. Verified: exact row
+counts match spec section 90's list, zero stock-integrity violations (no
+negative quantity/quantity_reserved, no over-reservation), the full
+504-test backend suite plus Pint stay green, and a live server round-trip
+through `/api/v1/{orders,products,customers,purchase-orders,cod-settlements}`
+with the seeded admin's real token confirms every Resource serializes
+cleanly end to end.
