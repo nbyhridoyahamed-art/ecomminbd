@@ -9,7 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
-#[Fillable(['store_id', 'order_id', 'return_number', 'status', 'reason', 'refund_amount', 'refunded_at', 'note', 'created_by'])]
+#[Fillable([
+    'store_id', 'order_id', 'return_number', 'status', 'reason', 'refund_amount', 'refund_method',
+    'refunded_at', 'note', 'replacement_order_id', 'created_by',
+])]
 class OrderReturn extends Model
 {
     use HasFactory;
@@ -56,5 +59,11 @@ class OrderReturn extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** The zero-value Order receive() created to ship this return's exchange item(s), if any. */
+    public function replacementOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'replacement_order_id');
     }
 }

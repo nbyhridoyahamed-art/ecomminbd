@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\CourierController;
 use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\CustomerStoreCreditController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DeliveryZoneController;
 use App\Http\Controllers\Api\V1\HomepageBlockController;
@@ -295,6 +296,7 @@ Route::prefix('v1')->group(function () {
         Route::post('customers/{customer}/addresses', [CustomerAddressController::class, 'store']);
         Route::put('customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'update']);
         Route::delete('customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'destroy']);
+        Route::get('customers/{customer}/store-credits', [CustomerStoreCreditController::class, 'index']);
 
         Route::apiResource('orders', OrderController::class)->except(['destroy']);
         Route::post('orders/{order}/process', [OrderController::class, 'process']);

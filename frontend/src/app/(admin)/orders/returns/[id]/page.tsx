@@ -106,6 +106,7 @@ export default function ReturnShowPage({ params }: PageProps<"/orders/returns/[i
                   <th className="px-4 py-2 font-medium text-text-secondary">Unit price</th>
                   <th className="px-4 py-2 font-medium text-text-secondary">Line total</th>
                   <th className="px-4 py-2 font-medium text-text-secondary">Restock</th>
+                  <th className="px-4 py-2 font-medium text-text-secondary">Exchange for</th>
                 </tr>
               </thead>
               <tbody>
@@ -119,6 +120,18 @@ export default function ReturnShowPage({ params }: PageProps<"/orders/returns/[i
                     <td className="px-4 py-2 text-text-primary">{formatMoney(item.unit_price, "BDT")}</td>
                     <td className="px-4 py-2 text-text-primary">{formatMoney(item.line_total, "BDT")}</td>
                     <td className="px-4 py-2 text-text-primary">{item.restock ? "Yes" : "No"}</td>
+                    <td className="px-4 py-2 text-text-primary">
+                      {item.exchange_product_id ? (
+                        <>
+                          {item.exchange_product_name}
+                          {item.exchange_product_variant_sku ? (
+                            <span className="ml-1 text-xs text-text-muted">({item.exchange_product_variant_sku})</span>
+                          ) : null}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

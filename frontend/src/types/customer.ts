@@ -24,6 +24,8 @@ export interface Customer {
   status: "active" | "inactive";
   has_account: boolean;
   orders_count?: number;
+  /** Only present when the controller eager-sums it (index/show) — see Customer::storeCreditBalance(). */
+  store_credit_balance?: number | null;
   addresses?: CustomerAddress[];
   created_at: string;
   updated_at: string;

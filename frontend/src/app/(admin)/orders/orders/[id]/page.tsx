@@ -63,6 +63,7 @@ const PAYMENT_STATUS_LABELS: Record<Order["payment_status"], string> = {
   unpaid: "Unpaid",
   partially_paid: "Partially paid",
   paid: "Paid",
+  partially_refunded: "Partially refunded",
   refunded: "Refunded",
 };
 
@@ -70,6 +71,7 @@ const PAYMENT_STATUS_VARIANTS: Record<Order["payment_status"], BadgeVariant> = {
   unpaid: "neutral",
   partially_paid: "warning",
   paid: "success",
+  partially_refunded: "warning",
   refunded: "info",
 };
 
@@ -90,6 +92,7 @@ function orderToFormDefaults(order: Order) {
     shipping_amount: order.shipping_amount ? String(order.shipping_amount) : "",
     discount_amount: order.coupon_code || !order.discount_amount ? "" : String(order.discount_amount),
     coupon_code: order.coupon_code ?? "",
+    store_credit_amount: order.store_credit_amount ? String(order.store_credit_amount) : "",
     notes: order.notes ?? "",
     items: order.items.map((item) => ({
       product_id: String(item.product_id),
@@ -256,7 +259,9 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
   const storeId = currentUser?.current_store_id;
   const { data: customersData } = useAllCustomers(isEditing ? storeId : null);
   const { data: warehousesData } = useAllWarehouses(isEditing ? storeId : null);
-  const { data: productsData } = useAllProducts(isEditing ? storeId : null);
+  // Also needed for the return-request form's "exchange for" picker, which
+  // is offered whenever a return can be requested — not only while editing.
+  const { data: productsData } = useAllProducts(isEditing || order?.status === "delivered" ? storeId : null);
 
   if (currentUser && !can(currentUser, "orders.view")) {
     return <PermissionDenied />;
@@ -290,6 +295,18 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
           Back to orders
         </Link>
       </Button>
+
+      {order.source_return ? (
+        <Alert>
+          <AlertDescription>
+            This order is a replacement created from{" "}
+            <Link href={`/orders/returns/${order.source_return.id}`} className="font-medium text-primary hover:underline">
+              return {order.source_return.return_number}
+            </Link>
+            .
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
@@ -450,6 +467,11 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
                       {formatMoney(order.discount_amount, order.currency_code)}
                     </p>
                   ) : null}
+                  {order.store_credit_amount > 0 ? (
+                    <p className="text-text-secondary">
+                      Store credit: -{formatMoney(order.store_credit_amount, order.currency_code)}
+                    </p>
+                  ) : null}
                   <p className="font-medium text-text-primary">
                     Total: {formatMoney(order.total_amount, order.currency_code)}
                   </p>
@@ -541,6 +563,7 @@ export default function OrderShowPage({ params }: PageProps<"/orders/orders/[id]
           <CardContent>
             <ReturnRequestForm
               items={order.items}
+              products={productsData?.data ?? []}
               isPending={createReturn.isPending}
               serverError={createReturn.error instanceof ApiError ? createReturn.error.message : null}
               onSubmit={(values) => createReturn.mutate(values)}

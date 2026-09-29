@@ -50,7 +50,7 @@ export interface Order {
   order_number: string;
   status: OrderStatus;
   payment_method: PaymentMethod;
-  payment_status: "unpaid" | "partially_paid" | "paid" | "refunded";
+  payment_status: "unpaid" | "partially_paid" | "paid" | "partially_refunded" | "refunded";
   source: "admin" | "storefront";
   currency_code: string;
   notes: string | null;
@@ -70,7 +70,10 @@ export interface Order {
   };
   shipping_amount: number;
   discount_amount: number;
+  store_credit_amount: number;
   coupon_code: string | null;
+  /** Present when this order exists to ship a return's exchange item(s). */
+  source_return: { id: number; return_number: string } | null;
   items: OrderItem[];
   subtotal_amount: number;
   total_amount: number;

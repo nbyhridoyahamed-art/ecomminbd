@@ -5,11 +5,13 @@ import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { ApiError } from "@/types/api";
-import type { OrderReturn } from "@/types/return";
+import type { OrderReturn, RefundMethod } from "@/types/return";
 
 export interface ReturnRequestItemInput {
   order_item_id: number;
   quantity: number;
+  exchange_product_id?: number | null;
+  exchange_product_variant_id?: number | null;
 }
 
 export interface ReturnRequestFormValues {
@@ -24,6 +26,12 @@ export interface ReceiveReturnItemInput {
 
 export interface ReceiveReturnFormValues {
   items?: ReceiveReturnItemInput[];
+  note?: string | null;
+}
+
+export interface RefundReturnFormValues {
+  refund_amount?: string;
+  refund_method?: RefundMethod;
   note?: string | null;
 }
 
@@ -57,6 +65,10 @@ function invalidateAfterReturnChange(queryClient: ReturnType<typeof useQueryClie
   queryClient.invalidateQueries({ queryKey: ["orders"] });
   queryClient.invalidateQueries({ queryKey: ["stock-levels"] });
   queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+  // A refund may issue store credit, and receive() may create a
+  // replacement order — both change data a customer's own page shows.
+  queryClient.invalidateQueries({ queryKey: ["customers"] });
+  queryClient.invalidateQueries({ queryKey: ["customer-store-credits"] });
   if (returnId) {
     queryClient.invalidateQueries({ queryKey: ["returns", "detail", returnId] });
   }

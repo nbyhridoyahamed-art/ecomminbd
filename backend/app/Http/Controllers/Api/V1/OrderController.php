@@ -19,6 +19,8 @@ use App\Support\CouponResolver;
 use App\Support\InsufficientStockException;
 use App\Support\Money;
 use App\Support\OrderPlacement;
+use App\Support\StoreCreditException;
+use App\Support\StoreCreditResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,7 +37,7 @@ class OrderController extends Controller
         'customer', 'warehouse', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator',
         'items.components.product', 'items.components.productVariant',
         'shippingDivision', 'shippingDistrict', 'shippingUpazila', 'statusHistory.creator',
-        'shipments.courier', 'returns', 'payments.creator', 'couponUsage',
+        'shipments.courier', 'returns', 'payments.creator', 'couponUsage', 'sourceReturn',
     ];
 
     public function index(Request $request): JsonResponse
@@ -74,10 +76,17 @@ class OrderController extends Controller
         $currency = $data['currency_code'] ?? 'BDT';
         $shipping = $this->resolveShipping($data);
         $subtotalMinor = $this->subtotalMinor($data['items'], $currency);
+        $shippingMinor = Money::fromDecimal($data['shipping_amount'] ?? 0, $currency)->amountMinor;
 
         try {
-            $order = DB::transaction(function () use ($data, $currency, $shipping, $subtotalMinor, $request) {
+            $order = DB::transaction(function () use ($data, $currency, $shipping, $subtotalMinor, $shippingMinor, $request) {
                 $discount = $this->resolveDiscount($data, $currency, $subtotalMinor, $data['customer_id']);
+                $storeCreditMinor = StoreCreditResolver::resolve(
+                    $data['customer_id'],
+                    $data['store_credit_amount'] ?? null,
+                    $currency,
+                    max(0, $subtotalMinor + $shippingMinor - $discount['amount_minor']),
+                );
 
                 $order = Order::create([
                     'store_id' => $data['store_id'],
@@ -88,8 +97,9 @@ class OrderController extends Controller
                     'payment_method' => $data['payment_method'],
                     'source' => 'admin',
                     'currency_code' => $currency,
-                    'shipping_amount' => Money::fromDecimal($data['shipping_amount'] ?? 0, $currency)->amountMinor,
+                    'shipping_amount' => $shippingMinor,
                     'discount_amount' => $discount['amount_minor'],
+                    'store_credit_amount' => $storeCreditMinor,
                     'notes' => $data['notes'] ?? null,
                     'created_by' => $request->user()->id,
                     ...$shipping,
@@ -98,6 +108,8 @@ class OrderController extends Controller
                 if ($discount['coupon']) {
                     CouponResolver::recordUsage($discount['coupon'], $order, $discount['amount_minor']);
                 }
+
+                StoreCreditResolver::redeem($data['customer_id'], $data['store_id'], $storeCreditMinor, $order, $request->user()->id);
 
                 OrderPlacement::syncItems($order, $data['items'], $currency);
                 OrderPlacement::reserveItems($order);
@@ -110,7 +122,7 @@ class OrderController extends Controller
 
                 return $order;
             });
-        } catch (InsufficientStockException|CouponException $exception) {
+        } catch (InsufficientStockException|CouponException|StoreCreditException $exception) {
             return ApiResponse::error($exception->getMessage(), [], 422);
         }
 
@@ -138,16 +150,26 @@ class OrderController extends Controller
         $currency = $data['currency_code'] ?? $order->currency_code;
         $shipping = $this->resolveShipping($data);
         $subtotalMinor = $this->subtotalMinor($data['items'], $currency);
+        $shippingMinor = Money::fromDecimal($data['shipping_amount'] ?? 0, $currency)->amountMinor;
 
         try {
-            DB::transaction(function () use ($order, $data, $currency, $shipping, $subtotalMinor) {
-                // The request's coupon_code (present or not) is always the
-                // current source of truth for this order's coupon — release
-                // any existing usage up front, whether it's about to be
-                // replaced by a freshly-resolved one or dropped in favor of a
-                // plain manual discount_amount.
+            DB::transaction(function () use ($order, $data, $currency, $shipping, $subtotalMinor, $shippingMinor, $request) {
+                // The request's coupon_code/store_credit_amount (present or
+                // not) is always the current source of truth for this
+                // order's coupon/credit — release any existing usage up
+                // front, whether it's about to be replaced by a
+                // freshly-resolved one or dropped entirely. An append-only
+                // ledger never deletes the original redemption, so releasing
+                // store credit means recording a reversal instead.
                 CouponResolver::releaseUsage($order);
+                StoreCreditResolver::release($order, $request->user()->id);
                 $discount = $this->resolveDiscount($data, $currency, $subtotalMinor, $data['customer_id']);
+                $storeCreditMinor = StoreCreditResolver::resolve(
+                    $data['customer_id'],
+                    $data['store_credit_amount'] ?? null,
+                    $currency,
+                    max(0, $subtotalMinor + $shippingMinor - $discount['amount_minor']),
+                );
 
                 $order->load('items.components');
                 $this->releaseReservation($order);
@@ -158,8 +180,9 @@ class OrderController extends Controller
                     'warehouse_id' => $data['warehouse_id'],
                     'payment_method' => $data['payment_method'],
                     'currency_code' => $currency,
-                    'shipping_amount' => Money::fromDecimal($data['shipping_amount'] ?? 0, $currency)->amountMinor,
+                    'shipping_amount' => $shippingMinor,
                     'discount_amount' => $discount['amount_minor'],
+                    'store_credit_amount' => $storeCreditMinor,
                     'notes' => $data['notes'] ?? null,
                     ...$shipping,
                 ]);
@@ -168,10 +191,12 @@ class OrderController extends Controller
                     CouponResolver::recordUsage($discount['coupon'], $order, $discount['amount_minor']);
                 }
 
+                StoreCreditResolver::redeem($data['customer_id'], $order->store_id, $storeCreditMinor, $order, $request->user()->id);
+
                 OrderPlacement::syncItems($order, $data['items'], $currency);
                 OrderPlacement::reserveItems($order);
             });
-        } catch (InsufficientStockException|CouponException $exception) {
+        } catch (InsufficientStockException|CouponException|StoreCreditException $exception) {
             return ApiResponse::error($exception->getMessage(), [], 422);
         }
 
@@ -306,6 +331,7 @@ class OrderController extends Controller
             $order->load('items.components');
             $this->releaseReservation($order);
             CouponResolver::releaseUsage($order);
+            StoreCreditResolver::release($order, $request->user()->id);
 
             $order->update(['status' => 'cancelled']);
             $order->statusHistory()->create([

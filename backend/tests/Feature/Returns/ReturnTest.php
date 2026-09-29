@@ -327,7 +327,7 @@ class ReturnTest extends TestCase
         $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'refunded']);
     }
 
-    public function test_a_partial_return_refund_does_not_flip_the_orders_payment_status(): void
+    public function test_a_partial_return_refund_flips_the_orders_payment_status_to_partially_refunded(): void
     {
         $admin = $this->admin();
         $store = Store::factory()->create();
@@ -345,7 +345,137 @@ class ReturnTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.refund_amount', 100);
 
-        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'paid']);
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'partially_refunded']);
+    }
+
+    public function test_payment_status_becomes_refunded_only_once_every_item_is_covered_across_multiple_returns(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'itemA' => $itemA, 'itemB' => $itemB] = $this->deliveredOrder($store);
+
+        // First return: only part of item A (1 of 3) — nowhere near full coverage.
+        $firstReturnId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/returns", ['items' => [['order_item_id' => $itemA->id, 'quantity' => 1]]])
+            ->assertCreated()->json('data.id');
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$firstReturnId}/approve")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$firstReturnId}/receive")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$firstReturnId}/refund")->assertOk();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'partially_refunded']);
+
+        // Second return: the rest of item A plus all of item B — every item
+        // is now fully covered, but only by combining two separate returns.
+        $secondReturnId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/returns", [
+                'items' => [
+                    ['order_item_id' => $itemA->id, 'quantity' => 2],
+                    ['order_item_id' => $itemB->id, 'quantity' => 2],
+                ],
+            ])
+            ->assertCreated()->json('data.id');
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$secondReturnId}/approve")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$secondReturnId}/receive")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$secondReturnId}/refund")->assertOk();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'refunded']);
+    }
+
+    public function test_a_refund_via_store_credit_issues_a_ledger_entry_and_is_visible_on_the_customers_ledger(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'itemA' => $itemA] = $this->deliveredOrder($store);
+
+        $returnId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/returns", ['items' => [['order_item_id' => $itemA->id, 'quantity' => 1]]])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/receive")->assertOk();
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/returns/{$returnId}/refund", ['refund_method' => 'store_credit'])
+            ->assertOk()
+            ->assertJsonPath('data.refund_method', 'store_credit')
+            ->assertJsonPath('data.refund_amount', 100);
+
+        // A store-credit refund still reconciles payment_status the same as
+        // any other refund method — it's a different settlement, not a
+        // different notion of "has this order been refunded".
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'partially_refunded']);
+        $this->assertDatabaseHas('customer_store_credits', [
+            'customer_id' => $order->customer_id, 'amount' => 10000,
+            'reference_type' => OrderReturn::class, 'reference_id' => $returnId,
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/customers/{$order->customer_id}/store-credits")
+            ->assertOk()
+            ->assertJsonPath('meta.balance', 100)
+            ->assertJsonPath('data.0.type', 'issued')
+            ->assertJsonPath('data.0.amount', 100);
+    }
+
+    public function test_an_exchange_item_creates_a_replacement_order_and_reserves_stock_for_it(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'itemA' => $itemA] = $this->deliveredOrder($store);
+        $newProduct = Product::factory()->for($store)->create();
+        StockLevel::create(['product_id' => $newProduct->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 20, 'quantity_reserved' => 0]);
+
+        $returnId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/returns", [
+                'items' => [['order_item_id' => $itemA->id, 'quantity' => 1, 'exchange_product_id' => $newProduct->id]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.exchange_product_id', $newProduct->id)
+            ->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/approve")->assertOk();
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/receive")->assertOk();
+        $replacementOrderId = $response->json('data.replacement_order.id');
+        $this->assertNotNull($replacementOrderId);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $replacementOrderId, 'customer_id' => $order->customer_id,
+            'status' => 'pending', 'payment_status' => 'paid', 'store_credit_amount' => 0,
+        ]);
+        $this->assertDatabaseHas('order_items', [
+            'order_id' => $replacementOrderId, 'product_id' => $newProduct->id, 'quantity' => 1, 'unit_price_amount' => 0,
+        ]);
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $newProduct->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 20, 'quantity_reserved' => 1,
+        ]);
+        // The old item was also restocked (restock defaults true) — exchange
+        // and restock are independent, both can happen for the same item.
+        $this->assertDatabaseHas('stock_movements', ['product_id' => $itemA->product_id, 'type' => 'return', 'quantity' => 1]);
+    }
+
+    public function test_receive_rolls_back_entirely_when_the_exchange_product_has_insufficient_stock(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        ['order' => $order, 'itemA' => $itemA] = $this->deliveredOrder($store);
+        $newProduct = Product::factory()->for($store)->create();
+        StockLevel::create(['product_id' => $newProduct->id, 'warehouse_id' => $order->warehouse_id, 'quantity' => 0, 'quantity_reserved' => 0]);
+
+        $returnId = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/orders/{$order->id}/returns", [
+                'items' => [['order_item_id' => $itemA->id, 'quantity' => 1, 'exchange_product_id' => $newProduct->id]],
+            ])
+            ->assertCreated()->json('data.id');
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/returns/{$returnId}/receive")->assertStatus(422);
+
+        // The whole receive() is one transaction — the original item's
+        // restock (which would have succeeded on its own) must not have
+        // applied either.
+        $this->assertDatabaseHas('returns', ['id' => $returnId, 'status' => 'approved']);
+        $this->assertDatabaseMissing('stock_movements', ['product_id' => $itemA->product_id, 'type' => 'return']);
     }
 
     public function test_receive_can_override_the_restock_decision_per_item(): void

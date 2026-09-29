@@ -98,6 +98,11 @@ class CheckoutController extends StorefrontController
                     'currency_code' => $currency,
                     'shipping_amount' => $shippingResolved['rate_amount'] ?? 0,
                     'discount_amount' => $discountMinor,
+                    // Redemption is admin-only (see StoreCreditResolver) —
+                    // explicit 0 rather than relying on the column default,
+                    // since Order::create()'s in-memory model won't reflect
+                    // a DB-only default until the row is re-fetched.
+                    'store_credit_amount' => 0,
                     'customer_address_id' => null,
                     'shipping_recipient_name' => $data['shipping_recipient_name'],
                     'shipping_phone' => $data['shipping_phone'],

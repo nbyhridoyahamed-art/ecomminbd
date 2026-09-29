@@ -23,6 +23,7 @@ export interface OrderFormValues {
   shipping_amount?: string | null;
   discount_amount?: string | null;
   coupon_code?: string | null;
+  store_credit_amount?: string | null;
   notes?: string | null;
   customer_address_id?: number | null;
   shipping_recipient_name?: string;

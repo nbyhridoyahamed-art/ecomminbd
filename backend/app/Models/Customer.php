@@ -61,4 +61,15 @@ class Customer extends Authenticatable
     {
         return $this->hasMany(Review::class);
     }
+
+    public function storeCredits(): HasMany
+    {
+        return $this->hasMany(CustomerStoreCredit::class);
+    }
+
+    /** Never stored — always the running sum of the ledger, same rule as Order::totalAmount(). */
+    public function storeCreditBalance(): int
+    {
+        return (int) $this->storeCredits()->sum('amount');
+    }
 }

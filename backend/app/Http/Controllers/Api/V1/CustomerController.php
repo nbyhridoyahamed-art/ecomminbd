@@ -20,6 +20,7 @@ class CustomerController extends Controller
 
         $customers = Customer::query()
             ->withCount('orders')
+            ->withSum('storeCredits as store_credit_balance_minor', 'amount')
             ->when($request->filled('store_id'), fn ($query) => $query->where('store_id', $request->integer('store_id')))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = '%'.$request->string('search').'%';
@@ -59,7 +60,11 @@ class CustomerController extends Controller
         $this->authorize('view', $customer);
 
         return ApiResponse::success(
-            new CustomerResource($customer->loadCount('orders')->load(['addresses.division', 'addresses.district', 'addresses.upazila'])),
+            new CustomerResource(
+                $customer->loadCount('orders')
+                    ->loadSum('storeCredits as store_credit_balance_minor', 'amount')
+                    ->load(['addresses.division', 'addresses.district', 'addresses.upazila']),
+            ),
             'Customer fetched successfully.',
         );
     }

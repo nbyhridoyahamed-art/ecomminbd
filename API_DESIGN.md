@@ -427,21 +427,58 @@ way server-side and charges the result as `shipping_amount` — falling
 back to `0` (Wave 1's behavior) when the store has no matching zone
 configured, so this is additive rather than a breaking default.
 
-Returns (Phase 10 Wave 1): `POST /orders/{id}/returns` (requests a
-return against a `delivered` order; rejects a quantity exceeding what
-remains eligible per order item — see `DATABASE_DESIGN.md` section 1g),
-`GET /returns` + `GET .../{id}`, and the status-transition actions
-`POST .../{id}/approve`, `.../reject` (reachable from `requested` or
-`approved`), `.../receive` (approved → received — accepts an optional
-per-item `items[].restock` override; for each item whose effective
-restock flag is true, adds its quantity back to `stock_levels` and
-writes a `return`-type `stock_movements` row, inside a locked
-transaction), and `.../refund` (received → refunded — accepts an
-optional `refund_amount`, defaulting to the sum of the return's items'
-line totals; flips `orders.payment_status` to `refunded` only once every
-order item's ordered quantity is fully covered by the order's `refunded`
-returns combined). `returns.*` uses a standard policy (`view`/`create`/
-`update` — the four status actions all check `update`).
+Returns (Phase 10 Wave 1 + Wave 2): `POST /orders/{id}/returns` (requests
+a return against a `delivered` order; rejects a quantity exceeding what
+remains eligible per order item — see `DATABASE_DESIGN.md` section 1g;
+Wave 2 adds optional per-item `items[].exchange_product_id`/
+`exchange_product_variant_id`, validated with the same
+`VariantBelongsToProduct` rule order items use), `GET /returns` +
+`GET .../{id}`, and the status-transition actions `POST .../{id}/approve`,
+`.../reject` (reachable from `requested` or `approved`), `.../receive`
+(approved → received — accepts an optional per-item `items[].restock`
+override; for each item whose effective restock flag is true, adds its
+quantity back to `stock_levels` and writes a `return`-type
+`stock_movements` row; independently — Wave 2 — any item with an
+`exchange_product_id` queues a replacement line, and if the return has
+any, one real zero-value `Order` is created for all of them via
+`OrderPlacement`, linked back through `returns.replacement_order_id`; the
+whole call is one transaction, so insufficient stock for the exchange
+product rolls back the original items' restock too, returning 422), and
+`.../refund` (received → refunded — accepts an optional `refund_amount`,
+defaulting to the sum of the return's items' line totals, and Wave 2's
+`refund_method` — `original_payment` (default) or `store_credit`, which
+also issues a `customer_store_credits` ledger entry for the refund
+amount; either way, `orders.payment_status` reconciles to `refunded` once
+every order item's ordered quantity is fully covered by the order's
+`refunded` returns combined, or `partially_refunded` as soon as any
+coverage exists — Wave 1 only ever reconciled the full-coverage case).
+`returns.*` uses a standard policy (`view`/`create`/`update` — the four
+status actions all check `update`; no new permission for exchanges or
+store-credit issuance, since both are side effects of an action already
+gated).
+
+Store credit (Phase 10 Wave 2): `GET /customers/{id}/store-credits`
+(paginated ledger, newest first, gated on `customers.view` like the
+customer resource itself — no separate permission; `meta.balance` carries
+the customer's current balance alongside the usual pagination fields).
+Read-only — the ledger is only ever appended to as a side effect of a
+return refund (issuance) or an order create/update/cancel
+(redemption/reversal), never written to directly. Redemption is wired
+into `POST /orders` and `PUT /orders/{id}` via a new `store_credit_amount`
+decimal field, resolved server-side (clamped to the customer's balance —
+exceeding it is a 422 — and to the order's own total, silently, same as a
+coupon's fixed-discount clamp) rather than trusted from the client, same
+pattern as `coupon_code`. `POST /orders/{id}/cancel` and an order edit
+that drops or lowers its redeemed amount both append a reversal ledger
+entry rather than deleting the original (append-only). Deliberately not
+wired into `POST /storefront/checkout`: that endpoint matches a customer
+by phone number without authenticating them, so trusting it to spend a
+specific customer's balance would let anyone drain it by guessing a phone
+number. `GET /orders/{id}` (and the storefront/account order resources)
+now also return `store_credit_amount` and `total_amount` net of it, and
+`source_return` (`{id, return_number}` or `null`) when the order exists
+to ship a return's exchange item(s) — same lightweight-object pattern as
+`returns[]`'s own `replacement_order`.
 
 Admin Dashboard (Phase 11 Wave 1): `GET /dashboard/sales-trend`
 (`store_id` + optional `days`, default 14/max 90 — per-day

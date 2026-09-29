@@ -203,7 +203,7 @@ class ShipmentController extends Controller
             if ($order->payment_method === 'cod') {
                 $codAmount = isset($data['cod_amount_collected'])
                     ? Money::fromDecimal($data['cod_amount_collected'], $order->currency_code)->amountMinor
-                    : $this->orderTotalMinor($order);
+                    : $order->totalAmount();
             }
 
             $fromShipmentStatus = $shipment->status;
@@ -338,12 +338,5 @@ class ShipmentController extends Controller
                 'created_by' => request()->user()->id,
             ]);
         });
-    }
-
-    private function orderTotalMinor(Order $order): int
-    {
-        $subtotal = $order->items->sum(fn ($item) => $item->quantity * $item->unit_price_amount);
-
-        return $subtotal + $order->shipping_amount - $order->discount_amount;
     }
 }

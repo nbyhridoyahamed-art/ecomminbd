@@ -640,7 +640,7 @@ Wave 1's hardcoded `0` — falling back to `0` when no zone matches at all,
 so a store that never configures one keeps Wave 1's free-shipping
 behavior unchanged.
 
-## 1g. Returns Schema (Phase 10 Wave 1)
+## 1g. Returns Schema (Phase 10 Wave 1 + Wave 2)
 
 ```
 returns
@@ -652,8 +652,14 @@ returns
   status (varchar: requested/approved/rejected/received/refunded — see the
     state machine below), reason (nullable text),
   refund_amount (bigint minor units, nullable — set only once status
-    becomes refunded), refunded_at (nullable timestamp),
-  note (nullable text), created_by (FK→users, nullOnDelete), timestamps
+    becomes refunded),
+  refund_method (varchar, default original_payment — Wave 2; the other
+    value is store_credit, which also writes a customer_store_credits
+    ledger entry, see below), refunded_at (nullable timestamp),
+  note (nullable text),
+  replacement_order_id (FK→orders, nullOnDelete, nullable — Wave 2; set
+    once receive() processes at least one exchange item, see return_items
+    below), created_by (FK→users, nullOnDelete), timestamps
   unique(store_id, return_number), index(store_id, status), index(order_id)
   — the model is named `OrderReturn` (PHP reserves `return` as a class
     name) with an explicit `$table = 'returns'` override; the table/API/
@@ -665,7 +671,12 @@ return_items
   quantity (unsigned int), restock (bool, default true — the staff's
     restock decision, revisited/overridable at receive() time rather than
     fixed at request time, since a returned item's condition is only
-    knowable once it's physically back), timestamps
+    knowable once it's physically back),
+  exchange_product_id (FK→products, nullOnDelete, nullable — Wave 2),
+  exchange_product_variant_id (FK→product_variants, nullOnDelete, nullable
+    — Wave 2; set at request time, same as restock's request-time default,
+    but acted on independently at receive() — a returned item can be both
+    restocked and exchanged for something else), timestamps
 
 return_status_history
   id, return_id (FK→returns, cascade), from_status (nullable),
@@ -673,36 +684,88 @@ return_status_history
   index(return_id)
   — same append-only audit-ledger pattern as order_status_history/
     shipment_status_history/stock_movements.
+
+customer_store_credits (Wave 2)
+  id, store_id (FK→stores, cascade), customer_id (FK→customers, cascade),
+  amount (bigint minor units, signed — positive = credit issued, e.g. a
+    return refunded as store credit; negative = credit redeemed on an
+    order, or a reversal of a redemption an order edit/cancel undid),
+  reference_type/reference_id (nullable — the ::class + id of the
+    OrderReturn (issuance) or Order (redemption/reversal) this entry
+    originated from; internal bookkeeping only, the human-readable line
+    lives in note), note (nullable text), created_by (FK→users,
+    nullOnDelete), timestamps
+  index(store_id, customer_id), index(reference_type, reference_id)
+  — append-only, same convention as stock_movements: a customer's balance
+    is never stored, always `sum(amount)` (Customer::storeCreditBalance()).
 ```
+
+`orders` gained one Wave 2 column: `store_credit_amount` (bigint minor
+units, default 0, after `discount_amount`) — the amount redeemed from the
+customer's store-credit balance on this order, subtracted in
+`Order::totalAmount()` alongside `discount_amount`. Every `Order::create()`
+call site sets it explicitly rather than relying on the column default:
+Eloquent's in-memory model after `create()` doesn't reflect a DB-only
+default until the row is re-fetched, and every `OrderResource` variant
+renders it through `Money(int)`, which throws on `null` — a real bug this
+wave hit and fixed in `CheckoutController::store()` (every storefront
+checkout was 500ing) before it shipped.
 
 **Status state machine:** `requested` (created against a `delivered` order
 only; each item's quantity is validated against what remains eligible —
 ordered quantity minus whatever's already covered by that order item's
 other non-`rejected` returns, so a competing open return reserves its
-quantity and a `rejected` one frees it back up) → `approved`/`rejected`
-(rejection is reachable from `requested` or `approved`, never after) →
-`received` (the state that actually moves stock: for each `return_item`
-whose effective `restock` flag is true — the request-time default,
-optionally overridden per item in this same call — the item's quantity is
-added back to `stock_levels` at the order's warehouse and a `return`-type
-`stock_movements` row records it, the same reserved column value Phase 6
-left for this) → `refunded` (an amount defaulting to the sum of the
-return's items' `quantity × order_item.unit_price_amount`, staff-
-overridable — same "computed default, staff-overridable" pattern as
+quantity and a `rejected` one frees it back up; Wave 2 lets the same
+request optionally set `exchange_product_id`/`exchange_product_variant_id`
+per item, validated with the same `VariantBelongsToProduct` rule order
+items use) → `approved`/`rejected` (rejection is reachable from
+`requested` or `approved`, never after) → `received` (the state that
+actually moves stock: for each `return_item` whose effective `restock`
+flag is true, the item's quantity is added back to `stock_levels` at the
+order's warehouse and a `return`-type `stock_movements` row records it;
+independently, Wave 2 collects every item with an `exchange_product_id`
+set and, if any exist, builds one real zero-value replacement `Order` —
+same store/customer/warehouse/shipping snapshot as the original,
+`payment_status` starting already `paid` since there's no price-difference
+reconciliation — via `OrderPlacement::syncItems()`/`reserveItems()`, the
+same bundle-snapshot + stock-reservation path every other order goes
+through, linked back via `replacement_order_id`. The whole `receive()`
+call is one transaction: insufficient stock for the exchange product
+rolls back the original item's restock too) → `refunded` (an amount
+defaulting to the sum of the return's items'
+`quantity × order_item.unit_price_amount`, staff-overridable — same
+"computed default, staff-overridable" pattern as
 `ShipmentController::delivered()`'s COD amount and
-`CodSettlementController`'s `amount_received`). A refund flips
-`orders.payment_status` to `refunded` only when, summed across *all* of
-that order's `refunded` returns, every order item's return-covered
-quantity reaches its full ordered quantity — a deliberately conservative
-reconciliation that never guesses at partial-refund semantics (see
-`DEVELOPMENT_ROADMAP.md`'s Phase 10 scope note).
+`CodSettlementController`'s `amount_received`; Wave 2 adds `refund_method`,
+`store_credit` issuing a `customer_store_credits` entry for the same
+amount instead of assuming cash left the system). A refund reconciles
+`orders.payment_status` every time (Wave 2): `refunded` once, summed
+across *all* of that order's `refunded` returns, every order item's
+return-covered quantity reaches its full ordered quantity; otherwise
+`partially_refunded` as soon as any coverage exists at all — replacing
+Wave 1's all-or-nothing check, which left a partially-refunded order
+looking untouched.
 
-Also closed in this phase, not a new table: `ShipmentController::returned()`
+Also closed in Wave 1, not a new table: `ShipmentController::returned()`
 (section 1f) now performs the identical restock-plus-`return`-movement
 sequence when a `failed_delivery` shipment is marked `returned_to_seller`,
 since `Order.ship()` had already decremented on-hand quantity before any
 shipment existed and nothing was reversing it — this was the Delivery
 Wave 2 gap Phase 9 flagged.
+
+**Redemption is admin-order-creation only.** `StoreCreditResolver`
+(mirrors `CouponResolver`'s resolve-then-write shape, locking the
+customer row first so two concurrent orders can't double-spend the same
+balance) is wired into `OrderController::store()`/`update()`/`cancel()`
+via a new `orders.store_credit_amount` field on `OrderRequest`, clamped
+server-side to both the customer's balance (exceeding it throws) and the
+order's own total (exceeding that silently clamps, same as a coupon's
+fixed-discount clamp). The storefront's guest checkout is deliberately
+never wired to it: `StorefrontCheckoutController` matches a customer by
+phone number without authenticating them, so trusting a checkout request
+to spend a specific customer's balance would let anyone drain it by
+guessing a phone number — a real fraud vector found while designing this
+wave, not a scope simplification.
 
 ## 1h. Admin Dashboard (Phase 11 Wave 1)
 
@@ -1562,17 +1625,13 @@ compatible with them.
   `cod_settlement_shipments` are built too. This bullet is kept only as a
   pointer for anyone still holding an older mental model of this section;
   there is no remaining Delivery work to pick.
-- **Returns Wave 2:** `exchanges` (swap for a different product/variant
-  — order line items are variant-aware now, see section 1i, so there's
-  something to swap *to* within an order, but the exchange workflow
-  itself — a return that creates a replacement order/line item and moves
-  stock accordingly — is a separate, unbuilt feature, deferred until a
-  real usage pattern exists to design it against), store credit as a
-  refund method (no wallet/ledger concept exists), and reconciling
-  `orders.payment_status` across *partial* refunds spread over multiple
-  separate return records (today only a full-coverage refund reconciles
-  it — see section 1g). `returns`, `return_items`, `return_status_history`
-  are built — see section 1g.
+- **Returns (Wave 1 + Wave 2 both shipped — section 1g):** `returns`,
+  `return_items`, `return_status_history` (Wave 1), plus Wave 2's
+  `customer_store_credits` ledger and the `refund_method`/
+  `replacement_order_id`/`exchange_product_id`/`exchange_product_variant_id`
+  columns are all built. This bullet is kept only as a pointer for anyone
+  still holding an older mental model of this section; there is no
+  remaining Returns work to pick.
 - **CMS/Builder (Phase 12 + full Phase 13 shipped — sections 1q/1r):**
   `pages` (simple content pages) and the full Homepage Builder
   (`homepage_blocks`, `homepage_block_revisions`, `saved_sections`,

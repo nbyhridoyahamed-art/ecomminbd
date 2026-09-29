@@ -51,10 +51,15 @@ class OrderResource extends JsonResource
             ]),
             'shipping_amount' => (new Money($this->shipping_amount, $this->currency_code))->toDecimal(),
             'discount_amount' => (new Money($this->discount_amount, $this->currency_code))->toDecimal(),
+            // Always 0 for an order placed here (redemption is admin-only,
+            // see StoreCreditResolver) but an admin can still edit a
+            // storefront order while it's pending, so this stays accurate
+            // rather than assuming it never applies.
+            'store_credit_amount' => (new Money($this->store_credit_amount, $this->currency_code))->toDecimal(),
             'coupon_code' => $this->whenLoaded('couponUsage', fn () => $this->couponUsage?->code),
             'subtotal_amount' => (new Money($subtotalMinor, $this->currency_code))->toDecimal(),
             'total_amount' => (new Money(
-                $subtotalMinor + $this->shipping_amount - $this->discount_amount,
+                $subtotalMinor + $this->shipping_amount - $this->discount_amount - $this->store_credit_amount,
                 $this->currency_code,
             ))->toDecimal(),
             'created_at' => $this->created_at,

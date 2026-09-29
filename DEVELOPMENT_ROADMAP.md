@@ -16,7 +16,7 @@ in place and the app still builds/runs.
 | 7 | Purchasing | ✅ Full spec done — Wave 1 + Wave 2a (purchase returns) + Wave 2b (approval workflow, supplier ledger, reorder suggestions) — multi-currency POs deliberately out of scope, see note | Yes — suppliers (with payment terms), purchase orders (draft→pending_approval→ordered→partially_received→received state machine with a real approve/reject gate), receipts that drive real stock movements, purchase returns (requested→approved→shipped_back→credited), a supplier ledger reconciling receipts/payments/return-credits, and a reorder-suggestions report |
 | 8 | Orders | ✅ Full spec done, now variant-aware — Wave 1 + Wave 2 (payments ledger, coupons, order-edit-while-pending UI) — nothing left deferred | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
 | 9 | Delivery | ✅ Full spec done — Wave 1 + Wave 2 (delivery zones/rates, multi-shipment orders) — nothing left deferred | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
-| 10 | Returns | ✅ Wave 1 done (exchanges/store-credit, cross-return refund reconciliation deferred — see note) | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
+| 10 | Returns | ✅ Full spec done — Wave 1 + Wave 2 (exchanges, store credit, cross-return refund reconciliation) — nothing left deferred | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, per-item exchanges that spin up a real replacement order, a customer store-credit ledger issuable as a refund method and redeemable on a new order, `partially_refunded`/`refunded` payment_status reconciliation across multiple returns, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
 | 11 | Admin Dashboard (full KPIs/charts) | ✅ Wave 1 done (custom date ranges, per-warehouse/per-courier breakdowns, full reporting suite deferred — see note) | Yes — sales trend (orders + revenue, last 14 days) and order-status-breakdown charts backed by real aggregate endpoints, a recent-orders widget, and every stat card now permission-gated |
 | 12 | CMS | ✅ Wave 1 done (page versions/history, navigation menus, hierarchical pages, scheduled publishing deferred — see note) | Yes — simple content pages (About/Terms/Privacy-style) with plain-text content, admin CRUD under a new "Content" nav section, and public storefront rendering at `/pages/[slug]` plus a footer links column |
 | 13 | Homepage Builder | ✅ Full spec done, not a lean wave (see note) | Yes — a real drag-and-drop visual builder: all ~30 block types, a dnd-kit live-preview canvas, full per-block style/responsive/animation overrides, local autosave + undo/redo, server-side revision history with restore, and a reusable saved-sections library |
@@ -445,8 +445,9 @@ yet — same as purchase-order editing).
 
 **Phase 8 Wave 2 scope note:** closes every item Wave 1 deferred except
 order returns/exchanges, which stayed exactly where they belong — Phase
-10 built real returns, and exchanges/store credit remain that phase's own
-Wave 2 item (see its scope note), not Phase 8's. A new `payments` table is
+10 built real returns, and exchanges/store credit were that phase's own
+Wave 2 item (see its scope note), not Phase 8's — both now shipped too. A
+new `payments` table is
 the reconciliation producer non-COD methods never had: staff record a
 payment (amount/method/reference/note) against an order via a new
 `orders.record_payment` permission — deliberately separate from
@@ -575,16 +576,61 @@ partial-refund semantics. Also closed along the way: the exact gap
 Phase 9's own scope note flagged — `ShipmentController::returned()` now
 restocks on-hand quantity and writes a real `return` movement when a
 failed delivery is marked back to the seller, since `Order.ship()` had
-already decremented it before any shipment existed. Deliberately
-deferred to a Wave 2 (see `DATABASE_DESIGN.md` section 2): exchanges
-(swap for a different product/variant — order line items are
-variant-aware now, since the variant-aware retrofit below, so there's
-something to swap *to* within an order, but the exchange workflow
-itself is a separate, unbuilt feature), store credit as a
-refund method (no wallet/ledger concept exists), and reconciling
-`payment_status` across *partial* refunds spread over multiple separate
-return records (today only a full-coverage refund reconciles it — see
-above).
+already decremented it before any shipment existed.
+
+**Wave 2** closes all three items the note above deferred. Exchanges are
+set per return item at request time (`exchange_product_id`/
+`exchange_product_variant_id`, validated with the same `VariantBelongsToProduct`
+rule order items use) and acted on at `receive()`: independent of that
+item's `restock` flag (a returned item can be both restocked and
+exchanged for something else), `ReturnController::createReplacementOrder()`
+builds a real zero-value `Order` — same store/customer/warehouse/shipping
+snapshot as the original, `payment_status` starting already `paid` since
+there's no price-difference reconciliation to do — and reuses
+`OrderPlacement::syncItems()`/`reserveItems()` (the exact bundle-snapshot +
+stock-reservation path every other order goes through) to move stock for
+the exchanged product/variant. The whole `receive()` stays one
+transaction: insufficient stock for the exchange product rolls back the
+original item's restock too, rather than leaving the return half-processed.
+`returns.replacement_order_id` links the two records both ways
+(`OrderReturn.replacementOrder()` / `Order.sourceReturn()`).
+
+Store credit is a new `customer_store_credits` append-only ledger
+(signed `amount` — positive issued, negative redeemed or reversed; a
+balance is never stored, always `sum(amount)`, same rule as every other
+derived total in this codebase) plus `returns.refund_method`
+(`original_payment` default, or `store_credit`, which issues a ledger
+entry for the refund amount instead of assuming cash left the system).
+Redemption is **admin-order-creation only** — a new `StoreCreditResolver`
+support class (mirrors `CouponResolver`'s resolve-then-write shape,
+locking the customer row first so two concurrent orders can't double-spend
+the same balance) is wired into `OrderController::store()`/`update()`/
+`cancel()` via a new `orders.store_credit_amount` column, subtracted in
+`Order::totalAmount()`. The storefront's guest checkout is deliberately
+left out: it matches a customer by phone number without authenticating
+them, so it can never safely trust a request to spend someone else's
+balance — a real security finding made during this wave's design, not a
+scope simplification.
+
+Cross-return `payment_status` reconciliation replaces the old
+all-or-nothing check: `ReturnController::reconciledPaymentStatus()` now
+returns `refunded` once every order item's full ordered quantity is
+covered by `refunded` returns combined, `partially_refunded` as soon as
+any coverage exists at all (tested with two separate return records
+covering one order between them), same "any refund" trigger for either
+refund method.
+
+18 new backend tests (496 → 504 — 10 in `ReturnTest`, 4 in `OrderTest`,
+plus 4 changed/replaced for the new payment_status behavior), a real bug
+found and fixed along the way (`ShipmentController`'s COD-collection
+default reimplemented `Order::totalAmount()` locally rather than calling
+it, so it would have told a courier to collect cash already covered by
+store credit — replaced with the real method), all green, Pint-clean,
+plus a full Playwright walkthrough against a production build (exchange
+request → approve → receive with a live replacement-order + stock check →
+refund via store credit → the customer's store-credit ledger card →
+redeeming that credit on a brand-new order, values confirmed exactly via
+`tinker`). Nothing is left deferred for Phase 10.
 
 **Phase 11 scope note:** Wave 1 ships two new store-scoped aggregate
 endpoints (`DashboardController::salesTrend()`/`orderStatusBreakdown()`,

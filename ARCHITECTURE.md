@@ -382,9 +382,9 @@ product's own Variants tab — deliberately not on the global Stock Levels
 list, which stays product-centric (one row per product, summing a
 variable product's stock across all its variants) rather than gaining
 per-variant rows. This is the real unblock Catalog Wave 2a's variants
-needed before storefront product pages or Returns' exchange feature can
-use them, neither of which is built yet (their own phases haven't
-started). Also built since: **Catalog CSV bulk import/export** (Phase 5
+needed before storefront product pages or Returns' exchange feature could
+use them — both now do, since Phase 16 and Phase 10 Wave 2 respectively.
+Also built since: **Catalog CSV bulk import/export** (Phase 5
 Wave 2b) — no new tables, `GET /products/export`/`POST /products/import`
 read and write the existing `products` columns directly through a shared
 `App\Support\ProductCsv` header list (see `DATABASE_DESIGN.md` section
@@ -652,8 +652,21 @@ comes back `failed_delivery`/`returned_to_seller` can be re-dispatched
 under a new shipment row, re-decrementing stock only when the prior one
 had already been restocked) (Phase 9 Wave 2 — see `DATABASE_DESIGN.md`
 section 1f) — closing the two items this section used to list for it.
-Returns Wave 2
-(exchanges, store credit, cross-return partial-refund reconciliation),
+Returns is also now fully shipped — per-item exchanges that spin up a
+real zero-value replacement `Order` through the same
+`OrderPlacement::syncItems()`/`reserveItems()` path every other order
+uses (linked back via `returns.replacement_order_id`), a
+`customer_store_credits` append-only ledger issuable as a return's
+`refund_method` and redeemable through a new `App\Support\StoreCreditResolver`
+— the identical "one resolver, two producers" shape `CouponResolver`/
+`DeliveryRateResolver` established, except redemption is deliberately
+admin-order-creation only: the storefront's guest checkout matches a
+customer by phone number without authenticating them, so it can never
+safely trust a request to spend someone else's balance — and
+`partially_refunded`/`refunded` payment_status reconciliation across
+multiple separate return records (Phase 10 Wave 2 — see
+`DATABASE_DESIGN.md` section 1g) — closing the three items this section
+used to list for it.
 Dashboard Wave 2 (a
 custom date-range picker and per-warehouse/per-courier breakdowns *on the
 dashboard widget itself* — Reports above now covers date-range/

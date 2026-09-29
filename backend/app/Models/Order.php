@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 #[Fillable([
     'store_id', 'order_number', 'customer_id', 'warehouse_id', 'status',
     'payment_method', 'payment_status', 'source', 'currency_code', 'shipping_amount', 'discount_amount',
-    'customer_address_id', 'shipping_recipient_name', 'shipping_phone', 'shipping_address_line',
+    'store_credit_amount', 'customer_address_id', 'shipping_recipient_name', 'shipping_phone', 'shipping_address_line',
     'shipping_bd_division_id', 'shipping_bd_district_id', 'shipping_bd_upazila_id',
     'notes', 'created_by',
 ])]
@@ -91,6 +91,12 @@ class Order extends Model
         return $this->hasMany(OrderReturn::class);
     }
 
+    /** The return whose exchange item(s) this order exists to ship, if this order was created that way. */
+    public function sourceReturn(): HasOne
+    {
+        return $this->hasOne(OrderReturn::class, 'replacement_order_id');
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class)->orderBy('created_at');
@@ -112,9 +118,9 @@ class Order extends Model
         return $this->items->sum(fn (OrderItem $item) => $item->quantity * $item->unit_price_amount);
     }
 
-    /** Subtotal plus shipping minus discount — never stored, always derived, same rule as purchase_orders.total_amount. */
+    /** Subtotal plus shipping minus discount minus redeemed store credit — never stored, always derived, same rule as purchase_orders.total_amount. */
     public function totalAmount(): int
     {
-        return $this->subtotalAmount() + $this->shipping_amount - $this->discount_amount;
+        return $this->subtotalAmount() + $this->shipping_amount - $this->discount_amount - $this->store_credit_amount;
     }
 }

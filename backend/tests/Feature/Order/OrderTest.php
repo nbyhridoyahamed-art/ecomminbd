@@ -7,6 +7,7 @@ use App\Models\BdDivision;
 use App\Models\BdUpazila;
 use App\Models\BundleItem;
 use App\Models\Customer;
+use App\Models\CustomerStoreCredit;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductAttribute;
@@ -629,5 +630,124 @@ class OrderTest extends TestCase
         $this->actingAs($viewer, 'sanctum')
             ->getJson("/api/v1/orders?store_id={$store->id}")
             ->assertForbidden();
+    }
+
+    public function test_store_credit_is_redeemed_and_reduces_the_orders_total(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create();
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 50]);
+        CustomerStoreCredit::factory()->for($store)->for($customer)->create(['amount' => 5000]);
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'store_credit_amount' => '30.00',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => '100.00'],
+            ],
+            ...$this->manualShipping(),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.store_credit_amount', 30)
+            ->assertJsonPath('data.total_amount', 70);
+
+        $orderId = $response->json('data.id');
+        $this->assertDatabaseHas('customer_store_credits', [
+            'customer_id' => $customer->id, 'amount' => -3000, 'reference_type' => Order::class, 'reference_id' => $orderId,
+        ]);
+        $this->assertSame(2000, $customer->fresh()->storeCreditBalance());
+    }
+
+    public function test_store_credit_redemption_is_clamped_to_the_orders_total(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create();
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 50]);
+        CustomerStoreCredit::factory()->for($store)->for($customer)->create(['amount' => 100000]);
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            // Balance (1000.00) far exceeds the order's own total (100.00) —
+            // redemption never goes past what's actually owed.
+            'store_credit_amount' => '1000.00',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => '100.00'],
+            ],
+            ...$this->manualShipping(),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.store_credit_amount', 100)
+            ->assertJsonPath('data.total_amount', 0);
+
+        $this->assertSame(90000, $customer->fresh()->storeCreditBalance());
+    }
+
+    public function test_requesting_more_store_credit_than_the_balance_is_rejected(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create();
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 50]);
+        CustomerStoreCredit::factory()->for($store)->for($customer)->create(['amount' => 1000]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'store_credit_amount' => '50.00',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => '100.00'],
+            ],
+            ...$this->manualShipping(),
+        ])->assertStatus(422);
+
+        $this->assertDatabaseMissing('orders', ['customer_id' => $customer->id]);
+        $this->assertSame(1000, $customer->fresh()->storeCreditBalance());
+    }
+
+    public function test_cancelling_an_order_reverses_its_store_credit_redemption(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $customer = Customer::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create();
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 50]);
+        CustomerStoreCredit::factory()->for($store)->for($customer)->create(['amount' => 5000]);
+
+        $orderId = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/orders', [
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_method' => 'cod',
+            'store_credit_amount' => '30.00',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => '100.00'],
+            ],
+            ...$this->manualShipping(),
+        ])->assertCreated()->json('data.id');
+
+        $this->assertSame(2000, $customer->fresh()->storeCreditBalance());
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/orders/{$orderId}/cancel")->assertOk();
+
+        $this->assertSame(5000, $customer->fresh()->storeCreditBalance());
     }
 }

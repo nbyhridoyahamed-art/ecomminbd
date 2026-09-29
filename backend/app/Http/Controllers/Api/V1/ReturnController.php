@@ -14,7 +14,10 @@ use App\Models\StockLevel;
 use App\Models\StockMovement;
 use App\Notifications\ReturnStatusChangedNotification;
 use App\Support\ApiResponse;
+use App\Support\InsufficientStockException;
 use App\Support\Money;
+use App\Support\OrderPlacement;
+use App\Support\StoreCreditResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +26,11 @@ use Illuminate\Support\Str;
 
 class ReturnController extends Controller
 {
-    private const RELATIONS = ['order.customer', 'items.orderItem.product', 'items.orderItem.productVariant', 'creator', 'statusHistory.creator'];
+    private const RELATIONS = [
+        'order.customer', 'items.orderItem.product', 'items.orderItem.productVariant',
+        'items.exchangeProduct', 'items.exchangeProductVariant', 'replacementOrder',
+        'creator', 'statusHistory.creator',
+    ];
 
     public function index(Request $request): JsonResponse
     {
@@ -76,6 +83,8 @@ class ReturnController extends Controller
                     'order_item_id' => $item['order_item_id'],
                     'quantity' => $item['quantity'],
                     'restock' => $item['restock'] ?? true,
+                    'exchange_product_id' => $item['exchange_product_id'] ?? null,
+                    'exchange_product_variant_id' => $item['exchange_product_variant_id'] ?? null,
                 ]);
             }
 
@@ -134,78 +143,155 @@ class ReturnController extends Controller
 
         $data = $request->validated();
 
-        DB::transaction(function () use ($data, $orderReturn, $request) {
-            $order = $orderReturn->order;
-            $overrides = collect($data['items'] ?? [])->keyBy('return_item_id');
-            $items = $orderReturn->items()->with('orderItem.components')->get();
+        try {
+            DB::transaction(function () use ($data, $orderReturn, $request) {
+                $order = $orderReturn->order;
+                $overrides = collect($data['items'] ?? [])->keyBy('return_item_id');
+                $items = $orderReturn->items()->with('orderItem.components')->get();
+                $exchangeLines = [];
 
-            foreach ($items as $returnItem) {
-                if ($overrides->has($returnItem->id)) {
-                    $returnItem->update(['restock' => $overrides[$returnItem->id]['restock']]);
-                }
+                foreach ($items as $returnItem) {
+                    if ($overrides->has($returnItem->id)) {
+                        $returnItem->update(['restock' => $overrides[$returnItem->id]['restock']]);
+                    }
 
-                if (! $returnItem->restock) {
-                    continue;
-                }
+                    if ($returnItem->exchange_product_id) {
+                        // Independent of restock — the old item can be both put
+                        // back into sellable stock AND exchanged for something
+                        // else; this just queues the replacement line, actually
+                        // built below once every item's been looked at.
+                        $exchangeLines[] = [
+                            'product_id' => $returnItem->exchange_product_id,
+                            'product_variant_id' => $returnItem->exchange_product_variant_id,
+                            'quantity' => $returnItem->quantity,
+                            // Free — a return's exchange is a stock/replacement
+                            // swap only, no price-difference reconciliation.
+                            'unit_price' => 0,
+                        ];
+                    }
 
-                $orderItem = $returnItem->orderItem;
+                    if (! $returnItem->restock) {
+                        continue;
+                    }
 
-                foreach ($orderItem->resolvedComponents() as $component) {
-                    // component->quantity is orderItem->quantity's worth of
-                    // this component (see order_item_components), so this is
-                    // always an exact multiple — restocking a partial return
-                    // of a bundle only restocks that fraction of each
-                    // component, not the whole line's snapshot.
-                    $restockQuantity = $returnItem->quantity * intdiv($component->quantity, $orderItem->quantity);
+                    $orderItem = $returnItem->orderItem;
 
-                    $level = StockLevel::query()
-                        ->where('product_id', $component->product_id)
-                        ->where('product_variant_id', $component->product_variant_id)
-                        ->where('warehouse_id', $order->warehouse_id)
-                        ->lockForUpdate()
-                        ->first();
+                    foreach ($orderItem->resolvedComponents() as $component) {
+                        // component->quantity is orderItem->quantity's worth of
+                        // this component (see order_item_components), so this is
+                        // always an exact multiple — restocking a partial return
+                        // of a bundle only restocks that fraction of each
+                        // component, not the whole line's snapshot.
+                        $restockQuantity = $returnItem->quantity * intdiv($component->quantity, $orderItem->quantity);
 
-                    $before = $level?->quantity ?? 0;
-                    $after = $before + $restockQuantity;
+                        $level = StockLevel::query()
+                            ->where('product_id', $component->product_id)
+                            ->where('product_variant_id', $component->product_variant_id)
+                            ->where('warehouse_id', $order->warehouse_id)
+                            ->lockForUpdate()
+                            ->first();
 
-                    $level
-                        ? $level->update(['quantity' => $after])
-                        : StockLevel::create([
+                        $before = $level?->quantity ?? 0;
+                        $after = $before + $restockQuantity;
+
+                        $level
+                            ? $level->update(['quantity' => $after])
+                            : StockLevel::create([
+                                'product_id' => $component->product_id,
+                                'product_variant_id' => $component->product_variant_id,
+                                'warehouse_id' => $order->warehouse_id,
+                                'quantity' => $after,
+                            ]);
+
+                        StockMovement::create([
+                            'store_id' => $orderReturn->store_id,
                             'product_id' => $component->product_id,
                             'product_variant_id' => $component->product_variant_id,
                             'warehouse_id' => $order->warehouse_id,
-                            'quantity' => $after,
+                            'type' => 'return',
+                            'quantity' => $restockQuantity,
+                            'quantity_before' => $before,
+                            'quantity_after' => $after,
+                            'reference_type' => OrderReturn::class,
+                            'reference_id' => $orderReturn->id,
+                            'created_by' => $request->user()->id,
                         ]);
-
-                    StockMovement::create([
-                        'store_id' => $orderReturn->store_id,
-                        'product_id' => $component->product_id,
-                        'product_variant_id' => $component->product_variant_id,
-                        'warehouse_id' => $order->warehouse_id,
-                        'type' => 'return',
-                        'quantity' => $restockQuantity,
-                        'quantity_before' => $before,
-                        'quantity_after' => $after,
-                        'reference_type' => OrderReturn::class,
-                        'reference_id' => $orderReturn->id,
-                        'created_by' => $request->user()->id,
-                    ]);
+                    }
                 }
-            }
 
-            $fromStatus = $orderReturn->status;
-            $orderReturn->update(['status' => 'received']);
-            $orderReturn->statusHistory()->create([
-                'from_status' => $fromStatus,
-                'to_status' => 'received',
-                'note' => $data['note'] ?? null,
-                'created_by' => $request->user()->id,
-            ]);
-        });
+                $fromStatus = $orderReturn->status;
+                $updates = ['status' => 'received'];
+
+                if ($exchangeLines !== []) {
+                    $replacementOrder = $this->createReplacementOrder($order, $exchangeLines, $request->user()->id);
+                    $updates['replacement_order_id'] = $replacementOrder->id;
+                }
+
+                $orderReturn->update($updates);
+                $orderReturn->statusHistory()->create([
+                    'from_status' => $fromStatus,
+                    'to_status' => 'received',
+                    'note' => $data['note'] ?? null,
+                    'created_by' => $request->user()->id,
+                ]);
+            });
+        } catch (InsufficientStockException $exception) {
+            return ApiResponse::error($exception->getMessage(), [], 422);
+        }
 
         Notification::send($orderReturn->order->customer, new ReturnStatusChangedNotification($orderReturn));
 
         return ApiResponse::success(new ReturnResource($orderReturn->load(self::RELATIONS)), 'Return marked received.');
+    }
+
+    /**
+     * The zero-value Order that ships a return's exchange item(s) — reuses
+     * OrderPlacement (the same bundle-snapshot + stock-reservation path
+     * every other order goes through) so "moves stock accordingly" can't
+     * drift from how a regular sale does it. Deliberately excludes any
+     * price-difference reconciliation (see DATABASE_DESIGN.md): every line
+     * is unit_price 0 and payment_status starts already 'paid'.
+     */
+    private function createReplacementOrder(Order $order, array $items, int $userId): Order
+    {
+        $replacement = Order::create([
+            'store_id' => $order->store_id,
+            'order_number' => 'ORD-'.now()->format('Ymd').'-'.Str::upper(Str::random(6)),
+            'customer_id' => $order->customer_id,
+            'warehouse_id' => $order->warehouse_id,
+            'status' => 'pending',
+            'payment_method' => $order->payment_method,
+            'payment_status' => 'paid',
+            'source' => $order->source,
+            'currency_code' => $order->currency_code,
+            // Explicit 0s rather than relying on column defaults — the
+            // in-memory model Order::create() returns won't reflect a
+            // DB-only default until the row is re-fetched, and every
+            // OrderResource variant renders these through Money(int).
+            'shipping_amount' => 0,
+            'discount_amount' => 0,
+            'store_credit_amount' => 0,
+            'customer_address_id' => $order->customer_address_id,
+            'shipping_recipient_name' => $order->shipping_recipient_name,
+            'shipping_phone' => $order->shipping_phone,
+            'shipping_address_line' => $order->shipping_address_line,
+            'shipping_bd_division_id' => $order->shipping_bd_division_id,
+            'shipping_bd_district_id' => $order->shipping_bd_district_id,
+            'shipping_bd_upazila_id' => $order->shipping_bd_upazila_id,
+            'notes' => "Replacement for a return on order {$order->order_number}.",
+            'created_by' => $userId,
+        ]);
+
+        OrderPlacement::syncItems($replacement, $items, $order->currency_code);
+        OrderPlacement::reserveItems($replacement);
+
+        $replacement->statusHistory()->create([
+            'from_status' => null,
+            'to_status' => 'pending',
+            'created_by' => $userId,
+        ]);
+
+        return $replacement;
     }
 
     public function refund(RefundReturnRequest $request, OrderReturn $orderReturn): JsonResponse
@@ -223,11 +309,13 @@ class ReturnController extends Controller
             $refundAmount = isset($data['refund_amount'])
                 ? Money::fromDecimal($data['refund_amount'], $order->currency_code)->amountMinor
                 : $this->suggestedRefundAmount($orderReturn);
+            $refundMethod = $data['refund_method'] ?? 'original_payment';
 
             $fromStatus = $orderReturn->status;
             $orderReturn->update([
                 'status' => 'refunded',
                 'refund_amount' => $refundAmount,
+                'refund_method' => $refundMethod,
                 'refunded_at' => now(),
             ]);
 
@@ -238,11 +326,17 @@ class ReturnController extends Controller
                 'created_by' => $request->user()->id,
             ]);
 
-            // Only a full-order refund flips payment_status — reconciling
-            // partial refunds across several return records is a Wave 2
-            // problem (see DATABASE_DESIGN.md).
-            if ($this->isFullyRefunded($order)) {
-                $order->update(['payment_status' => 'refunded']);
+            if ($refundMethod === 'store_credit') {
+                StoreCreditResolver::issue($order->customer_id, $order->store_id, $refundAmount, $orderReturn, $request->user()->id);
+            }
+
+            // 'refunded' once every order item is fully covered by refunded
+            // returns, 'partially_refunded' as soon as any coverage exists —
+            // reconciling across several return records, Wave 1 only ever
+            // handled the all-or-nothing case (see DATABASE_DESIGN.md).
+            $reconciled = $this->reconciledPaymentStatus($order);
+            if ($reconciled !== null) {
+                $order->update(['payment_status' => $reconciled]);
             }
         });
 
@@ -274,8 +368,13 @@ class ReturnController extends Controller
             ->sum(fn ($item) => $item->quantity * $item->orderItem->unit_price_amount);
     }
 
-    /** True once every one of the order's items has been fully covered by refunded returns. */
-    private function isFullyRefunded(Order $order): bool
+    /**
+     * 'refunded' once every one of the order's items has been fully covered
+     * by refunded returns, 'partially_refunded' as soon as any coverage
+     * exists at all, or null if somehow neither (never reached in practice —
+     * this only runs right after recording a refund).
+     */
+    private function reconciledPaymentStatus(Order $order): ?string
     {
         $orderItems = $order->items;
 
@@ -286,12 +385,16 @@ class ReturnController extends Controller
             ->groupBy('order_item_id')
             ->pluck('total', 'order_item_id');
 
+        if ($refundedByOrderItem->isEmpty()) {
+            return null;
+        }
+
         foreach ($orderItems as $orderItem) {
             if (($refundedByOrderItem[$orderItem->id] ?? 0) < $orderItem->quantity) {
-                return false;
+                return 'partially_refunded';
             }
         }
 
-        return true;
+        return 'refunded';
     }
 }

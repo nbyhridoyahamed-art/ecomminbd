@@ -4,6 +4,7 @@ namespace App\Http\Requests\Returns;
 
 use App\Models\OrderItem;
 use App\Models\ReturnItem;
+use App\Rules\VariantBelongsToProduct;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -17,7 +18,9 @@ class ReturnRequest extends FormRequest
 
     public function rules(): array
     {
-        $orderId = $this->route('order')?->id;
+        $order = $this->route('order');
+        $orderId = $order?->id;
+        $storeId = $order?->store_id;
 
         return [
             'reason' => ['nullable', 'string'],
@@ -25,6 +28,12 @@ class ReturnRequest extends FormRequest
             'items.*.order_item_id' => ['required', Rule::exists('order_items', 'id')->where('order_id', $orderId)],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.restock' => ['nullable', 'boolean'],
+            // What the customer wants instead, decided up front — acted on
+            // (stock moved via a replacement order) at receive() time, same
+            // as restock. Independent of restock: the old item can be both
+            // restocked and exchanged for something else.
+            'items.*.exchange_product_id' => ['nullable', Rule::exists('products', 'id')->where('store_id', $storeId)],
+            'items.*.exchange_product_variant_id' => ['nullable', 'integer', new VariantBelongsToProduct],
         ];
     }
 

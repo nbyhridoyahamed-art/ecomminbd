@@ -22,6 +22,9 @@ export interface PaginationMeta {
   // Only populated by GET /notifications — optional so every other list
   // endpoint's meta stays exactly as it was.
   unread_count?: number;
+  // Only populated by GET /customers/{customer}/store-credits — the
+  // customer's current balance, same "extra field alongside pagination" pattern.
+  balance?: number;
 }
 
 export class ApiError extends Error {

@@ -19,6 +19,7 @@ class ReturnResource extends JsonResource
             'status' => $this->status,
             'reason' => $this->reason,
             'refund_amount' => $this->refund_amount === null ? null : (new Money($this->refund_amount, $currencyCode))->toDecimal(),
+            'refund_method' => $this->refund_method,
             'refunded_at' => $this->refunded_at,
             'note' => $this->note,
             'order' => $this->whenLoaded('order', fn () => [
@@ -28,6 +29,10 @@ class ReturnResource extends JsonResource
                 'payment_status' => $this->order->payment_status,
                 'customer_name' => $this->order->customer?->name,
             ]),
+            'replacement_order' => $this->whenLoaded('replacementOrder', fn () => $this->replacementOrder ? [
+                'id' => $this->replacementOrder->id,
+                'order_number' => $this->replacementOrder->order_number,
+            ] : null),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'order_item_id' => $item->order_item_id,
@@ -38,6 +43,9 @@ class ReturnResource extends JsonResource
                 'unit_price' => (new Money($item->orderItem->unit_price_amount, $currencyCode))->toDecimal(),
                 'line_total' => (new Money($item->quantity * $item->orderItem->unit_price_amount, $currencyCode))->toDecimal(),
                 'restock' => $item->restock,
+                'exchange_product_id' => $item->exchange_product_id,
+                'exchange_product_name' => $item->exchangeProduct?->name,
+                'exchange_product_variant_sku' => $item->exchangeProductVariant?->sku,
             ])),
             'status_history' => $this->whenLoaded('statusHistory', fn () => $this->statusHistory->map(fn ($entry) => [
                 'from_status' => $entry->from_status,

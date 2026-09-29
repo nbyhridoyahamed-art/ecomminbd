@@ -9,6 +9,7 @@ import { useCustomer } from "@/hooks/use-customers";
 import { useDeliveryQuote } from "@/hooks/use-delivery-zones";
 import { useDistricts, useDivisions, useUpazilas } from "@/hooks/use-locations";
 import type { OrderFormValues } from "@/hooks/use-orders";
+import { formatMoney } from "@/lib/money";
 import { VariantPicker } from "@/components/catalog/variant-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ const orderSchema = z
     shipping_amount: moneyField,
     discount_amount: moneyField,
     coupon_code: z.string(),
+    store_credit_amount: moneyField,
     notes: z.string(),
     items: z
       .array(
@@ -125,6 +127,7 @@ export function OrderForm({
       shipping_amount: "",
       discount_amount: "",
       coupon_code: "",
+      store_credit_amount: "",
       notes: "",
       items: [{ product_id: "", product_variant_id: "", quantity: "", unit_price: "" }],
       ...defaultValues,
@@ -190,6 +193,7 @@ export function OrderForm({
       shipping_amount: values.shipping_amount || null,
       discount_amount: values.discount_amount || null,
       coupon_code: values.coupon_code || null,
+      store_credit_amount: values.store_credit_amount || null,
       notes: values.notes || null,
       customer_address_id: usingSavedAddress ? Number(values.customer_address_id) : null,
       ...(usingSavedAddress
@@ -542,6 +546,22 @@ export function OrderForm({
       <div className="space-y-1.5">
         <Label htmlFor="coupon_code">Coupon code (optional, overrides the discount above)</Label>
         <Input id="coupon_code" {...register("coupon_code")} />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="store_credit_amount">Store credit to redeem (optional)</Label>
+        <Input
+          id="store_credit_amount"
+          inputMode="decimal"
+          error={Boolean(errors.store_credit_amount)}
+          {...register("store_credit_amount")}
+        />
+        {errors.store_credit_amount ? <p className="text-xs text-danger">{errors.store_credit_amount.message}</p> : null}
+        {selectedCustomer && selectedCustomer.store_credit_balance != null ? (
+          <p className="text-xs text-text-secondary">
+            {selectedCustomer.name} has {formatMoney(selectedCustomer.store_credit_balance, "BDT")} available.
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-1.5">

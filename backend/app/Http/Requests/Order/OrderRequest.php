@@ -30,6 +30,10 @@ class OrderRequest extends FormRequest
             // When present, overrides discount_amount with a server-resolved
             // coupon discount — see OrderController::resolveDiscount().
             'coupon_code' => ['nullable', 'string', 'max:50'],
+            // The amount staff wants to redeem from this customer's store
+            // credit balance — server-clamped to what's actually available
+            // and to the order's total, see StoreCreditResolver::resolve().
+            'store_credit_amount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
 
             // Either an existing saved address, or a manually entered one.
