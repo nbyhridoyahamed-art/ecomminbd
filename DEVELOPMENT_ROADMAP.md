@@ -27,7 +27,7 @@ in place and the app still builds/runs.
 | 18 | Reporting | ✅ Wave 1 + Wave 2 (per-courier breakdown, period-over-period comparison, PDF export) done (materialized/scheduled aggregate tables deferred — see note) | Yes — sales report (totals/by-period/by-payment-method/by-courier, day/week/month granularity, date-range + warehouse filters, vs.-previous-period trend on each KPI card), product performance (variant sales rolled up to parent product), and a cross-warehouse low-stock report, each with CSV and PDF export; activates the `reports.view` permission the RBAC seeder has carried since Phase 3 |
 | 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ✅ Wave 1 done (real payment/courier/WhatsApp providers, real SMS provider, queued delivery deferred — see note) | Yes — the Adapter Pattern's first real instance: a `SmsGateway` contract + log-mock implementation, order/return lifecycle notifications (mail + SMS to the customer, a database notification to staff), and the admin topbar's notification bell finally wired to real data |
 | 20 | Analytics | ✅ Full spec done, not a lean wave (see note) | Yes — first-party storefront behavioral tracking (page/product/category views, searches, cart/checkout funnel, purchases) feeding a new admin Analytics dashboard (traffic trend, top viewed products, search terms incl. zero-result flagging, a 4-stage conversion funnel, new-vs-returning customers), each report with CSV export and the Overview also with PDF |
-| 21 | Security Hardening | ⏳ Ongoing baseline only | Partial — Sanctum, policies, rate limiting, validation from day one |
+| 21 | Security Hardening | ✅ Wave 1 done (2FA, account lockout, breach-checked passwords deferred — see note) | Yes — a real global `throttle:api` (60/min per user-or-IP, on top of the existing tighter per-route throttles), an explicit reviewed `config/cors.php` (previously an undocumented framework fallback), Sanctum tokens now expire (30 days, were permanent), a catch-all exception renderer that stops an unexpected 500 leaking a stack trace when `APP_DEBUG` is off, and standard security response headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`) on every response |
 | 22 | Performance | ⏳ Not started | No |
 | 23 | Accessibility | 🟡 Baseline in design system | Partial |
 | 24 | Responsive QA | 🟡 Baseline (login/dashboard tested at all breakpoints) | Partial |
@@ -994,7 +994,70 @@ providers are still deferred), and IP-based geolocation (no geo-IP
 service). 16 new backend tests (383 → 399), all green, Pint-clean, plus
 frontend typecheck/lint/build clean.
 
+**Phase 21 scope note:** picked the five items with a concrete, already-
+identified shape over a vague "harden everything" pass — spec rule 178's
+reasoning applies here too: a fix needs a real, verified gap behind it, not
+an imagined one. `API_DESIGN.md` section 8 had flagged the headline item
+since Phase 3: no global `throttle:api` was ever wired up, only per-route
+throttles on login/register/checkout. Fixed by defining the named `api`
+`RateLimiter` (`AppServiceProvider::boot()`, 60/min per authenticated user
+or IP) and attaching it via Laravel's own `$middleware->throttleApi()` —
+disabled under the test suite (`app()->runningUnitTests()`) since 400+
+tests share one in-process array cache and IP and would otherwise throttle
+each other; a dedicated test re-registers the limiter with a tiny value to
+prove it's real. Verified live against a running server, not just the
+test's bypassed path: 59 real requests to a storefront route returned 200,
+the 60th on returned 429. Four more gaps came from actually reading the
+current config rather than assuming: no `config/cors.php` ever existed, so
+the wildcard-origin CORS behavior confirmed during Phase 20 was an
+undocumented Laravel framework fallback, not a decision anyone had
+reviewed — now an explicit, version-controlled file with the exact same
+values (verified byte-for-byte via a live curl before and after), since a
+wildcard origin is still correct for an API where every client
+authenticates with a bearer token, never a cookie. Sanctum tokens never
+expired (`expiration: null`); now 30 days, needing no frontend change since
+both `auth-token.ts` and `customer-auth-token.ts` already clear their token
+and bounce to `/login` on any 401. An unexpected exception (nothing to do
+with the four already-handled types) fell through to Laravel's default
+renderer, which includes the exception message, file path, and stack trace
+in the JSON body whenever `APP_DEBUG` is on — a real production risk if
+that flag is ever left on by accident; a fifth `render()` callback now
+catches anything unhandled and, only when `config('app.debug')` is false,
+returns the same generic envelope every other error already uses (debug-on
+behavior, including in every existing test, is untouched). Standard
+response headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options:
+DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-
+Security-Policy: default-src 'none'` — safe globally since nothing this
+API returns is HTML a browser should render) now apply to every response
+via a new `SecurityHeaders` middleware. `composer audit` and `npm audit`
+both ran clean (verified, not skipped) — no dependency vulnerability to
+fix on either side. Deliberately cut: 2FA and persistent account lockout
+beyond the existing `throttle:6,1` on login are substantial features with
+no existing consumer/request behind them, not a config fix, so building
+them now ahead of any real need would be exactly the kind of ahead-of-its-
+consumer work rule 178 forbids; breach-checked passwords
+(`Password::uncompromised()`) were considered and dropped for this pass —
+it calls a third-party API (k-anonymity range query to the Pwned Passwords
+service) from inside the registration/reset flow, and making a core auth
+path depend on an external service's availability is a real behavioral
+change, not a config toggle, that deserves its own deliberate look rather
+than riding in on a hardening pass. 4 new backend tests (400 → 404), all
+green, Pint-clean.
+
 ## Next Session Should Start With
+
+Phase 21 (Security Hardening) Wave 1 is now done — see its scope note
+above for what shipped (global rate limiting, explicit CORS config,
+Sanctum token expiration, an exception safety net, security headers) and
+what's still deliberately cut (2FA, persistent account lockout, breach-
+checked passwords). **Phase 22 (Performance)** is the next not-yet-started
+numbered phase in the master table (rule 176's own order) and hasn't had
+the same close-reading pass Phase 21 got before starting — that's the
+right first step, not guessing at a scope: read `ARCHITECTURE.md`/
+`DATABASE_DESIGN.md` for any already-flagged N+1/indexing/caching
+concerns the way `API_DESIGN.md` section 8 flagged Phase 21's rate-limit
+gap, and actually measure (e.g. `DB::listen()` or the debugbar/Telescope
+route list under real data volume) rather than optimizing by guess.
 
 Phase 17 (Customer Dashboard) Wave 1, Phase 19 (Integrations) Wave 1,
 Phase 12 (CMS) Wave 1, the full Phase 13 (Homepage Builder), Phase 14
@@ -1023,13 +1086,8 @@ has been the clearest rule-176 pickup since before Phase 13 was
 requested; it still is. Phase 20 was likewise requested by number ahead
 of that queue.
 
-Reasonable alternative, whichever the user prefers: **Phase 21 (Security
-Hardening)** — the next not-yet-started numbered phase in the master
-table (rule 176's own order), and no longer just a baseline: a real
-global rate limit per route class (`API_DESIGN.md` section 9 has flagged
-this exact gap since Phase 3) is the one item with a concrete, already-
-identified shape rather than a vague "harden everything" scope. Also
-reasonable: Phase 19 Wave 2 itself (a real BD SMS provider, the
+Reasonable alternative to Phase 22, whichever the user prefers: Phase 19
+Wave 2 itself (a real BD SMS provider, the
 courier/payment gateway adapters section 6 of `ARCHITECTURE.md`
 documents as target-only, a WhatsApp channel, queued delivery — each
 still blocked on real provider credentials or a running queue worker,

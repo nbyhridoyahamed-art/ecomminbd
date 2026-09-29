@@ -108,25 +108,31 @@ subscriber. Not implemented until an event-producing phase exists.
 
 ## 8. Rate Limiting
 
-No global `throttle:api` is actually wired up (verified empirically:
-70 rapid unauthenticated requests to a storefront GET all returned 200
-— this line previously claimed one existed and was wrong; Laravel 11+'s
-`bootstrap/app.php` middleware stack needs it added explicitly, and
-nothing here does). What's real is per-route: `auth/register`,
-`auth/login`, `auth/forgot-password`, and `auth/reset-password` each get
-`throttle:6,1` to blunt credential-stuffing/brute force per spec section
-107 — `account/auth/register` and `account/auth/login` (Phase 17 Wave 1)
-get the same `throttle:6,1` for the same reason — and `POST
-storefront/checkout` (Phase 16 Wave 1) gets `throttle:15,1`
-— slightly more permissive since a real shopper legitimately retrying a
-declined checkout isn't an attack the way six failed logins is, but
-still bounded, since unlike every other route on the public storefront
-prefix this one writes a real order and reserves real stock. Every other
-route — including the rest of the public storefront prefix — has no
-throttle beyond whatever the deployment's reverse proxy/WAF applies.
-Adding a real global limit is tracked, not forgotten: Phase 21 (Security
-Hardening) is where a deliberate choice of limits per route class
-belongs, not a value invented in passing here.
+A real global `throttle:api` is wired up as of Phase 21 (Security
+Hardening): `bootstrap/app.php` calls `$middleware->throttleApi()`, and
+`AppServiceProvider::boot()` defines the named `api` limiter it resolves
+to — 60 requests/minute, keyed by authenticated user id or, for a guest,
+IP address. Verified live, not just via the test suite's own (deliberately
+bypassed — see below) path: 59 rapid requests to a storefront route
+returned 200, the 60th returned 429. On top of that backstop, the tighter
+per-route throttles from earlier phases are unchanged and still take
+precedence for the routes they cover: `auth/register`, `auth/login`,
+`auth/forgot-password`, and `auth/reset-password` each get `throttle:6,1`
+to blunt credential-stuffing/brute force per spec section 107 —
+`account/auth/register` and `account/auth/login` (Phase 17 Wave 1) get the
+same `throttle:6,1` for the same reason — and `POST storefront/checkout`
+(Phase 16 Wave 1) gets `throttle:15,1`, slightly more permissive since a
+real shopper legitimately retrying a declined checkout isn't an attack the
+way six failed logins is, but still bounded, since unlike every other
+route on the public storefront prefix this one writes a real order and
+reserves real stock. The named limiter returns `Limit::none()` under
+`app()->runningUnitTests()`: the test suite fires 400+ tests through one
+process against the array cache driver, all as the same "IP" via the
+in-process test client, so without this bypass they'd all share one 60/min
+bucket and start failing each other with 429s well before the run
+finished. `tests/Feature/Foundation/SecurityHardeningTest.php` re-registers
+the limiter with a tiny value inside one test to prove the real thing is
+wired up correctly, rather than just asserting on the bypass.
 
 ## 9. What's Implemented So Far
 
@@ -689,5 +695,19 @@ summary object, not a report), and `GET analytics/customers` (new vs
 returning customers by period, computed straight from `orders`/
 `customers` rather than an event, plus a repeat-purchase-rate headline
 stat + `.../export` CSV).
+
+Phase 21 (Security Hardening) added no new endpoints — it's entirely
+cross-cutting middleware/config, covered in full in section 8 above (the
+global `throttle:api`) plus: an explicit, version-controlled
+`config/cors.php` (previously an undocumented Laravel framework fallback
+— same wildcard-origin/no-credentials values, now a reviewed decision
+instead of an accident); Sanctum tokens now expire after 30 days instead
+of living forever; a fifth `render()` callback in `bootstrap/app.php`
+catches any exception the four existing ones don't, returning the same
+generic error envelope instead of Laravel's default (which includes the
+exception message, file, and stack trace) whenever `APP_DEBUG` is off; and
+a new global `SecurityHeaders` middleware sets `X-Content-Type-Options`,
+`X-Frame-Options`, `Referrer-Policy`, and `Content-Security-Policy` on
+every response.
 
 Section 7 (webhooks) remains documented intent for future phases.

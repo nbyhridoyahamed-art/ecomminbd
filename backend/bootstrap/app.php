@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureCustomerUser;
 use App\Http\Middleware\EnsureStaffUser;
+use App\Http\Middleware\SecurityHeaders;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -26,6 +27,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'staff' => EnsureStaffUser::class,
             'customer' => EnsureCustomerUser::class,
         ]);
+
+        // Phase 21: a real global backstop (the named 'api' limiter is
+        // defined in AppServiceProvider::boot()) — previously every route
+        // outside the handful with an explicit throttle:N,1 had none at
+        // all beyond whatever the deployment's reverse proxy/WAF applied.
+        $middleware->throttleApi();
+
+        $middleware->append(SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $isApi = fn (Request $request) => $request->is('api/*') || $request->expectsJson();
@@ -62,5 +71,24 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return ApiResponse::error('The requested resource was not found.', [], 404);
+        });
+
+        // Phase 21: a safety net, not a replacement for the four renderers
+        // above — this only runs when none of them matched (Laravel checks
+        // renderers in registration order and stops at the first non-null
+        // result), i.e. for a genuinely unexpected exception. With
+        // APP_DEBUG on (local/testing here), returning null falls through
+        // to Laravel's own default rendering unchanged, so nothing about
+        // local development or the test suite changes. With it off
+        // (production), Laravel's default would otherwise put the
+        // exception message, file path, and stack trace straight into the
+        // JSON response — this replaces that with the same generic
+        // envelope every other error already uses.
+        $exceptions->render(function (Throwable $e, Request $request) use ($isApi) {
+            if (! $isApi($request) || config('app.debug')) {
+                return null;
+            }
+
+            return ApiResponse::error('Something went wrong. Please try again later.', [], 500);
         });
     })->create();

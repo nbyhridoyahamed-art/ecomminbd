@@ -48,9 +48,15 @@ return [
     | considered expired. This will override any values set in the token's
     | "expires_at" attribute, but first-party sessions are not affected.
     |
+    | Phase 21: was `null` (tokens live forever until manually revoked) —
+    | both the admin (`auth-token.ts`) and customer (`customer-auth-token.ts`)
+    | frontend clients already clear their stored token and bounce to
+    | /login on any 401, so a finite lifetime here needed no new frontend
+    | work, just this config change.
+    |
     */
 
-    'expiration' => null,
+    'expiration' => 43200,
 
     /*
     |--------------------------------------------------------------------------
