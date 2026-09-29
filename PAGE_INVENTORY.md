@@ -26,10 +26,14 @@ their backing functionality — no dead pages).
 | `/inventory` | ✅ | 6 (redirects to Stock Levels) |
 | `/inventory/stock-levels` | ✅ | 6 (per-warehouse on-hand quantity, low-stock filter, search, adjust dialog) |
 | `/inventory/movements` | ✅ | 6 (read-only ledger, filter by warehouse/type) |
-| `/inventory/transfers` | ✅ | 6 |
-| `/inventory/transfers/new`, `/inventory/transfers/[id]` | ✅ | 6 (multi-item warehouse-to-warehouse transfer) |
+| `/inventory/transfers` | ✅ | 6 (status Badge column + filter) |
+| `/inventory/transfers/new`, `/inventory/transfers/[id]` | ✅ | 6 (multi-item warehouse-to-warehouse transfer; 6 Wave 2 turned the show page into a real workflow view — `StockTransferStatusCard` with status-gated ship/receive/cancel actions, status history timeline, and a stock-movements table once shipped) |
 | `/inventory/warehouses` | ✅ | 6 (list, create, edit — backend model existed since Phase 4, admin UI was the Phase 6 gap this closes) |
 | `/inventory/warehouses/new`, `/inventory/warehouses/[id]` | ✅ | 6 |
+| `/inventory/stocktakes` | ✅ | 6 Wave 2 (list of stocktake sessions — reference, warehouse, line count, recorded-by/when) |
+| `/inventory/stocktakes/new` | ✅ | 6 Wave 2 (multi-line form: warehouse, optional reference, per-line product/variant/direction/quantity/reason; accepts a `?warehouse_id=` prefill from the Stock Levels page's "Start stocktake" link) |
+| `/inventory/stocktakes/[id]` | ✅ | 6 Wave 2 (header + lines table: product/variant, direction Badge, quantity, before→after, reason) |
+| `/inventory/stock-levels` ("Start stocktake" entry point) | ✅ | 6 Wave 2 (links to `/inventory/stocktakes/new` prefilled with the currently-selected warehouse, gated on `inventory.adjust`) |
 | `/inventory/stock-levels` (Reserved/Available columns) | ✅ | 6/8 (stock reservations tied to orders — Phase 8 built the consumer; each row now sums a variable product's stock across all its variants rather than a single row per variant, see `DATABASE_DESIGN.md` section 1c) |
 | `/purchasing` | ✅ | 7 (redirects to Purchase Orders) |
 | `/purchasing/purchase-orders` | ✅ | 7 (status/supplier filters, total shown per order) |
@@ -171,7 +175,9 @@ tab nav) around everything that actually needs a signed-in customer.
 | `GET /api/v1/stock-levels`, `GET .../low-stock-count` | ✅ |
 | `GET /api/v1/stock-movements` | ✅ |
 | `POST /api/v1/stock-adjustments` | ✅ |
-| `GET/POST /api/v1/stock-transfers`, `GET .../{id}` | ✅ |
+| `GET/POST /api/v1/stock-transfers`, `GET .../{id}` (creates `pending`, no immediate stock movement) | ✅ |
+| `POST /api/v1/stock-transfers/{id}/ship`, `.../receive`, `.../cancel` (drives `stock_movements`/`stock_levels`) | ✅ |
+| `GET/POST /api/v1/stock-adjustment-sessions`, `GET .../{id}` | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/suppliers` | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/purchase-orders` | ✅ |
 | `POST /api/v1/purchase-orders/{id}/place`, `.../cancel` | ✅ |

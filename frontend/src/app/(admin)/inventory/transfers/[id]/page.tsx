@@ -9,10 +9,29 @@ import { useCurrentUser } from "@/hooks/use-auth";
 import { useStockTransfer } from "@/hooks/use-inventory";
 import { variantLabel } from "@/lib/variant";
 import { PermissionDenied } from "@/components/permission-denied";
+import { StockTransferStatusCard } from "@/components/inventory/stock-transfer-status-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { StockTransferStatus } from "@/types/inventory";
+
+type BadgeVariant = BadgeProps["variant"];
+
+const STATUS_LABELS: Record<StockTransferStatus, string> = {
+  pending: "Pending",
+  in_transit: "In transit",
+  received: "Received",
+  cancelled: "Cancelled",
+};
+
+const STATUS_VARIANTS: Record<StockTransferStatus, BadgeVariant> = {
+  pending: "neutral",
+  in_transit: "info",
+  received: "success",
+  cancelled: "danger",
+};
 
 export default function StockTransferShowPage({ params }: PageProps<"/inventory/transfers/[id]">) {
   const { id } = use(params);
@@ -26,7 +45,7 @@ export default function StockTransferShowPage({ params }: PageProps<"/inventory/
   }
 
   if (isLoading) {
-    return <Skeleton className="h-64 w-full max-w-2xl" />;
+    return <Skeleton className="h-96 w-full max-w-3xl" />;
   }
 
   if (isError || !transfer) {
@@ -37,8 +56,10 @@ export default function StockTransferShowPage({ params }: PageProps<"/inventory/
     );
   }
 
+  const canUpdate = can(currentUser, "inventory.transfer");
+
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       <Button variant="ghost" size="sm" asChild>
         <Link href="/inventory/transfers">
           <ArrowLeft />
@@ -46,67 +67,100 @@ export default function StockTransferShowPage({ params }: PageProps<"/inventory/
         </Link>
       </Button>
 
+      <StockTransferStatusCard transfer={transfer} canUpdate={canUpdate} />
+
       <Card>
         <CardHeader>
-          <CardTitle>{transfer.transfer_number}</CardTitle>
+          <CardTitle>Items</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-text-muted">From</p>
-              <p className="font-medium text-text-primary">{transfer.from_warehouse.name}</p>
-            </div>
-            <div>
-              <p className="text-text-muted">To</p>
-              <p className="font-medium text-text-primary">{transfer.to_warehouse.name}</p>
-            </div>
-            <div>
-              <p className="text-text-muted">Created by</p>
-              <p className="font-medium text-text-primary">{transfer.created_by ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-text-muted">Date</p>
-              <p className="font-medium text-text-primary">{new Date(transfer.created_at).toLocaleString()}</p>
-            </div>
+        <CardContent>
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full text-left text-table">
+              <thead className="border-b border-border">
+                <tr>
+                  <th className="px-4 py-2 font-medium text-text-secondary">Product</th>
+                  <th className="px-4 py-2 font-medium text-text-secondary">SKU</th>
+                  <th className="px-4 py-2 font-medium text-text-secondary">Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transfer.items.map((item, i) => (
+                  <tr key={`${item.product_id}-${item.product_variant?.id ?? i}`} className="border-b border-border last:border-0">
+                    <td className="px-4 py-2 text-text-primary">
+                      {item.product_name}
+                      {variantLabel(item.product_variant) ? (
+                        <span className="ml-1 text-xs text-text-muted">{variantLabel(item.product_variant)}</span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-2 text-text-primary">{item.product_variant?.sku ?? item.sku}</td>
+                    <td className="px-4 py-2 text-text-primary">{item.quantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </CardContent>
+      </Card>
 
-          {transfer.note ? (
-            <div className="text-sm">
-              <p className="text-text-muted">Note</p>
-              <p className="text-text-primary">{transfer.note}</p>
-            </div>
-          ) : null}
+      <Card>
+        <CardHeader>
+          <CardTitle>Status history</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ol className="space-y-3">
+            {transfer.status_history.map((entry, index) => (
+              <li key={index} className="flex items-center justify-between text-sm">
+                <div>
+                  <Badge variant={STATUS_VARIANTS[entry.to_status]}>{STATUS_LABELS[entry.to_status]}</Badge>
+                  {entry.note ? <span className="ml-2 text-text-secondary">{entry.note}</span> : null}
+                </div>
+                <div className="text-right text-text-muted">
+                  <p>{new Date(entry.created_at).toLocaleString()}</p>
+                  {entry.created_by ? <p>{entry.created_by}</p> : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </CardContent>
+      </Card>
 
-          <div>
-            <p className="mb-2 text-sm text-text-muted">Items</p>
+      {transfer.movements.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Stock movements</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-left text-table">
                 <thead className="border-b border-border">
                   <tr>
-                    <th className="px-4 py-2 font-medium text-text-secondary">Product</th>
-                    <th className="px-4 py-2 font-medium text-text-secondary">SKU</th>
+                    <th className="px-4 py-2 font-medium text-text-secondary">Warehouse</th>
+                    <th className="px-4 py-2 font-medium text-text-secondary">Type</th>
                     <th className="px-4 py-2 font-medium text-text-secondary">Quantity</th>
+                    <th className="px-4 py-2 font-medium text-text-secondary">Before → After</th>
+                    <th className="px-4 py-2 font-medium text-text-secondary">When</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {transfer.items.map((item, i) => (
-                    <tr key={`${item.product_id}-${item.product_variant?.id ?? i}`} className="border-b border-border last:border-0">
+                  {transfer.movements.map((movement) => (
+                    <tr key={movement.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2 text-text-primary">{movement.warehouse.name}</td>
                       <td className="px-4 py-2 text-text-primary">
-                        {item.product_name}
-                        {variantLabel(item.product_variant) ? (
-                          <span className="ml-1 text-xs text-text-muted">{variantLabel(item.product_variant)}</span>
-                        ) : null}
+                        {movement.type === "transfer_out" ? "Transfer out" : "Transfer in"}
                       </td>
-                      <td className="px-4 py-2 text-text-primary">{item.product_variant?.sku ?? item.sku}</td>
-                      <td className="px-4 py-2 text-text-primary">{item.quantity}</td>
+                      <td className="px-4 py-2 text-text-primary">{movement.quantity}</td>
+                      <td className="px-4 py-2 text-text-primary">
+                        {movement.quantity_before} → {movement.quantity_after}
+                      </td>
+                      <td className="px-4 py-2 text-text-muted">{new Date(movement.created_at).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

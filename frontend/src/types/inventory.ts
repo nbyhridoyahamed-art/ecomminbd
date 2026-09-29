@@ -46,14 +46,39 @@ export interface StockTransferItem {
   quantity: number;
 }
 
+export type StockTransferStatus = "pending" | "in_transit" | "received" | "cancelled";
+
+export interface StockTransferStatusHistoryEntry {
+  id: number;
+  from_status: StockTransferStatus | null;
+  to_status: StockTransferStatus;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface StockTransfer {
   id: number;
   uuid: string;
   transfer_number: string;
   from_warehouse: { id: number; name: string };
   to_warehouse: { id: number; name: string };
+  status: StockTransferStatus;
   note: string | null;
+  status_history: StockTransferStatusHistoryEntry[];
+  movements: StockMovement[];
   items: StockTransferItem[];
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface StockAdjustmentSession {
+  id: number;
+  uuid: string;
+  reference: string;
+  warehouse: { id: number; name: string };
+  note: string | null;
+  movements: StockMovement[];
   created_by: string | null;
   created_at: string;
 }

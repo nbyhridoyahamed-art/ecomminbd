@@ -214,11 +214,27 @@ quantity per product, `low_stock` filter) + `GET .../low-stock-count`
 append-only ledger, filterable by product/warehouse/type),
 `POST /stock-adjustments` (manual increase/decrease with a reason), and
 `GET/POST /stock-transfers` + `GET .../{id}` (multi-item warehouse-to-
-warehouse transfer, executed atomically). All gated by the existing
-`inventory.view` / `inventory.adjust` / `inventory.transfer` permissions
-via direct `$user->can()` checks (like `UploadController`, since these
-endpoints span multiple models rather than mapping to one Eloquent
-policy).
+warehouse transfer). All gated by the existing `inventory.view` /
+`inventory.adjust` / `inventory.transfer` permissions via direct
+`$user->can()` checks (like `UploadController`, since these endpoints
+span multiple models rather than mapping to one Eloquent policy).
+
+Inventory (Phase 6 Wave 2): `POST /stock-transfers` no longer executes a
+transfer immediately — it only creates a `pending` row with zero stock
+impact. Three new actions drive it forward, each gated by the same
+`inventory.transfer` permission as `POST /stock-transfers` itself:
+`POST .../{id}/ship` (`pending` → `in_transit`, decrements the source
+warehouse, writes a `transfer_out` movement), `POST .../{id}/receive`
+(`in_transit` → `received`, increments the destination warehouse, writes
+a `transfer_in` movement), and `POST .../{id}/cancel` (`pending` →
+`cancelled` only). `GET .../{id}` now also returns `status`,
+`status_history`, and `movements`. Separately, `GET/POST
+/stock-adjustment-sessions` + `GET .../{id}` group a stocktake's
+per-product corrections (each an increase/decrease/quantity/reason line
+against one warehouse) under one reference and apply them atomically,
+gated by `inventory.view` (index/show) / `inventory.adjust` (create) —
+a distinct, coexisting resource from `POST /stock-adjustments` above, not
+a replacement for it.
 
 Purchasing (Phase 7 Wave 1): full CRUD for `suppliers`
 (`suppliers.view/create/update/delete`, standard Eloquent policy).

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Boxes, SlidersHorizontal, Warehouse as WarehouseIcon } from "lucide-react";
+import { Boxes, ClipboardList, SlidersHorizontal, Warehouse as WarehouseIcon } from "lucide-react";
 
 import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
@@ -150,6 +150,14 @@ export default function StockLevelsPage() {
             Low stock only
           </label>
         </div>
+        {can(currentUser, "inventory.adjust") && warehouseId ? (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/inventory/stocktakes/new?warehouse_id=${warehouseId}`}>
+              <ClipboardList />
+              Start stocktake
+            </Link>
+          </Button>
+        ) : null}
       </div>
 
       <DataTable

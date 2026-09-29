@@ -144,7 +144,7 @@ uses).
   of this record" queries and by `(store_id, created_at)` for the audit
   log list view.
 
-## 1c. Inventory Schema (Phase 6 Wave 1; `quantity_reserved` added Phase 8 Wave 1)
+## 1c. Inventory Schema (Phase 6 Wave 1; `quantity_reserved` added Phase 8 Wave 1; transfer workflow + stocktake sessions added Phase 6 Wave 2)
 
 ```
 stock_levels
@@ -171,9 +171,11 @@ stock_movements
   type (varchar: adjustment_increase/adjustment_decrease/transfer_in/transfer_out/purchase_receipt/sale/return),
   quantity (unsigned int — the delta magnitude, always positive; direction is in `type`),
   quantity_before, quantity_after (int — snapshot either side of this movement),
-  reason (nullable), reference_type/reference_id (nullable — points at the
-    stock_transfer that produced a transfer_in/transfer_out pair; unused by
-    adjustments), created_by (FK→users, nullOnDelete), timestamps
+  reason (nullable), reference_type/reference_id (nullable — a polymorphic
+    `reference()` pointing at the stock_transfer that produced a
+    transfer_in/transfer_out pair, or (Wave 2) the stock_adjustment_session a
+    stocktake line belongs to; null for a one-off quick adjustment),
+  created_by (FK→users, nullOnDelete), timestamps
   index(product_id, warehouse_id), index(reference_type, reference_id),
   index(store_id, created_at)
 
@@ -182,6 +184,8 @@ stock_transfers
     date + random suffix, not a per-store sequence counter, to avoid needing a
     counter table for a Wave 1 feature),
   from_warehouse_id, to_warehouse_id (FK→warehouses, cascade),
+  status (varchar, default 'pending': pending/in_transit/received/cancelled
+    — Wave 2, see below),
   note (nullable), created_by (FK→users, nullOnDelete), timestamps
   unique(store_id, transfer_number)
 
@@ -189,17 +193,63 @@ stock_transfer_items
   id, stock_transfer_id (FK→stock_transfers, cascade), product_id (FK→products, cascade),
   product_variant_id (FK→product_variants, nullOnDelete, nullable),
   quantity (unsigned int), timestamps
+
+stock_transfer_status_history (Wave 2 — mirrors shipment_status_history exactly)
+  id, stock_transfer_id (FK→stock_transfers, cascade),
+  from_status (nullable), to_status,
+  note (nullable), created_by (FK→users, nullOnDelete), timestamps
+  index(stock_transfer_id)
+
+stock_adjustment_sessions (Wave 2 — groups a stocktake's many per-product
+    corrections under one reference; deliberately not named `stock_adjustments`,
+    since that table/route already belongs to Wave 1's single-shot quick-
+    adjustment endpoint below — the two are separate, coexisting workflows)
+  id, uuid, store_id (FK→stores, cascade), warehouse_id (FK→warehouses, cascade),
+  reference (varchar), note (nullable), created_by (FK→users, nullOnDelete),
+  timestamps
+  unique(store_id, reference)
 ```
 
-Every stock mutation (adjustment or transfer) runs inside a DB transaction
-with `lockForUpdate()` on the `stock_levels` row and never lets quantity go
-negative — a decrease/transfer-out that would requires more stock than is on
+Every stock mutation (adjustment, transfer, or stocktake line) runs inside a
+DB transaction with `lockForUpdate()` on the `stock_levels` row and never lets
+quantity go negative — a decrease that would require more stock than is on
 hand throws `App\Support\InsufficientStockException`, which rolls the whole
-transaction back (see `StockAdjustmentController`/`StockTransferController`).
-A transfer is executed immediately and atomically (source decremented,
-destination incremented, one `transfer_out` + one `transfer_in` movement
-written) — there is no draft/pending/in-transit workflow in Wave 1, since
-nothing yet needs multi-step transfer approval (see section 2).
+transaction back. This lock/compute-delta/guard/write-movement sequence lives
+once in `App\Support\StockAdjuster::apply()` (Wave 2 extracted it out of
+`StockAdjustmentController` and `StockTransferController`, which had each
+grown their own copy), taking resolved `Product`/`Warehouse` models (so error
+messages can name them) and an optional `movementType` override so a transfer
+can log `transfer_out`/`transfer_in` instead of the generic
+`adjustment_increase`/`adjustment_decrease` the two adjustment-style callers
+default to.
+
+A transfer is no longer executed immediately (Wave 2): `POST /stock-transfers`
+only creates a `pending` row — no stock movement yet, the same "draft holds
+nothing until a real event" shape `purchase_orders` established (section 1d)
+— and three explicit actions drive it forward: `POST .../{id}/ship`
+(`pending` → `in_transit`, decrements the source warehouse, writes a
+`transfer_out` movement), `POST .../{id}/receive` (`in_transit` → `received`,
+increments the destination warehouse, writes a `transfer_in` movement), and
+`POST .../{id}/cancel` (`pending` → `cancelled` only — an already-shipped
+transfer must be received, not reversed). Each transition appends a
+`stock_transfer_status_history` row via the same private `transition()`
+helper pattern `ShipmentController` established. Deliberately not reserved:
+a `pending` transfer's source stock (unlike an order, a staff-created
+transfer between the same store's own warehouses isn't racing other
+customers for it), and multi-call partial receiving (unlike a
+`purchase_receipt` against an external supplier, a transfer is received
+whole, in one action).
+
+A stocktake session (`stock_adjustment_sessions`) groups several per-product
+`StockAdjuster::apply()` calls under one reference instead of each being its
+own untraceable `stock_movements` row — `POST /stock-adjustment-sessions`
+takes a warehouse and a list of {product, variant?, direction, quantity,
+reason?} lines, applies each atomically, and tags every resulting
+`stock_movements` row back to the session. Both this and `stock_transfers`
+tag their movements through the ledger's pre-existing
+`reference_type`/`reference_id` columns below — already shaped like a
+Laravel polymorphic relation (`reference()`/`morphMany`), so neither new
+resource needed its own FK column on `stock_movements`.
 
 Stock is tracked per **product-or-variant**: every stock-touching table
 above carries a nullable `product_variant_id` alongside `product_id` —
@@ -1305,10 +1355,15 @@ compatible with them.
   library — see section 1v. This bullet is kept only as a pointer for
   anyone still holding an older mental model of this section; there is
   no remaining Catalog work to pick.
-- **Inventory Wave 2:** a pending/in-transit/received transfer approval
-  workflow, and a `stock_adjustments` header table for grouping a
-  stocktake's many per-product adjustments under one reference (today
-  each adjustment is its own `stock_movements` row — see section 1c).
+- **Inventory (now fully shipped, nothing deferred):** a real
+  pending/in_transit/received/cancelled transfer approval workflow
+  (`stock_transfer_status_history`), and `stock_adjustment_sessions` for
+  grouping a stocktake's many per-product corrections under one reference
+  (deliberately not the `stock_adjustments` name this bullet used to
+  speculate, since that table/route already belongs to the pre-existing
+  single-shot quick-adjustment endpoint) — see section 1c. This bullet is
+  kept only as a pointer for anyone still holding an older mental model of
+  this section; there is no remaining Inventory work to pick.
   `stock_levels` (incl. `quantity_reserved`), `stock_movements`,
   `stock_transfers`, `stock_transfer_items` are built — see section 1c.
   Movements driven by purchase receipts, order reservation/shipment, and

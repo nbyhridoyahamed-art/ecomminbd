@@ -625,7 +625,10 @@ Component gap this section used to describe is now closed for the
 storefront's leaf pages specifically — see the updated section 9 note.
 Catalog is now fully shipped, reviews and a reusable media library
 included (Phase 5 Wave 3 — see `DATABASE_DESIGN.md` section 1v), closing
-the one item this section used to list here. Purchasing Wave 2's remaining
+the one item this section used to list here. Inventory Wave 2 is also now
+fully shipped — a real transfer approval workflow and grouped stocktake
+sessions (Phase 6 Wave 2 — see `DATABASE_DESIGN.md` section 1c) — closing
+the two items this section used to list for it. Purchasing Wave 2's remaining
 items (supplier ledger, PO approval workflow, reorder suggestions —
 no longer blocked on reporting infra, just not yet picked), Orders Wave 2 (a
 non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery

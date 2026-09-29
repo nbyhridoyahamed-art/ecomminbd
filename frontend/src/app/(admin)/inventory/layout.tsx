@@ -11,6 +11,7 @@ const TABS = [
   { label: "Stock Levels", href: "/inventory/stock-levels", permission: "inventory.view" },
   { label: "Movements", href: "/inventory/movements", permission: "inventory.view" },
   { label: "Transfers", href: "/inventory/transfers", permission: "inventory.transfer" },
+  { label: "Stocktakes", href: "/inventory/stocktakes", permission: "inventory.view" },
   { label: "Warehouses", href: "/inventory/warehouses", permission: "warehouses.view" },
 ];
 

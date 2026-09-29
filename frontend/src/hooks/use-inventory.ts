@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { ApiError } from "@/types/api";
-import type { StockLevel, StockMovement, StockTransfer } from "@/types/inventory";
+import type { StockAdjustmentSession, StockLevel, StockMovement, StockTransfer } from "@/types/inventory";
 
 export interface StockLevelFilters {
   page: number;
@@ -51,13 +51,19 @@ export function useStockMovements(storeId: number | null | undefined, filters: S
   });
 }
 
-export function useStockTransfers(storeId: number | null | undefined, page: number, warehouseId?: number | null) {
+export function useStockTransfers(
+  storeId: number | null | undefined,
+  page: number,
+  warehouseId?: number | null,
+  status?: string | null,
+) {
   return useQuery({
-    queryKey: ["stock-transfers", storeId, page, warehouseId],
+    queryKey: ["stock-transfers", storeId, page, warehouseId, status],
     queryFn: () =>
       api.getWithMeta<StockTransfer[]>(
         `/stock-transfers?store_id=${storeId}&page=${page}&per_page=20` +
-          (warehouseId ? `&warehouse_id=${warehouseId}` : ""),
+          (warehouseId ? `&warehouse_id=${warehouseId}` : "") +
+          (status ? `&status=${status}` : ""),
       ),
     enabled: Boolean(storeId),
   });
@@ -114,13 +120,121 @@ export function useCreateStockTransfer() {
   return useMutation({
     mutationFn: (payload: StockTransferPayload) => api.post<StockTransfer>("/stock-transfers", payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["stock-levels"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
       queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
-      toast.success("Stock transfer completed.");
+      toast.success("Stock transfer created — ship it once it's ready to go.");
     },
     onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : "Could not complete stock transfer.");
+      toast.error(error instanceof ApiError ? error.message : "Could not create stock transfer.");
+    },
+  });
+}
+
+function invalidateAfterStockTransferTransition(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+  queryClient.invalidateQueries({ queryKey: ["stock-levels"] });
+  queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+  queryClient.invalidateQueries({ queryKey: ["products"] });
+}
+
+export function useShipStockTransfer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => api.post<StockTransfer>(`/stock-transfers/${id}/ship`),
+    onSuccess: () => {
+      invalidateAfterStockTransferTransition(queryClient);
+      toast.success("Stock transfer marked in transit.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not ship stock transfer.");
+    },
+  });
+}
+
+export function useReceiveStockTransfer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => api.post<StockTransfer>(`/stock-transfers/${id}/receive`),
+    onSuccess: () => {
+      invalidateAfterStockTransferTransition(queryClient);
+      toast.success("Stock transfer received.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not receive stock transfer.");
+    },
+  });
+}
+
+export function useCancelStockTransfer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, note }: { id: number; note?: string }) =>
+      api.post<StockTransfer>(`/stock-transfers/${id}/cancel`, { note }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+      toast.success("Stock transfer cancelled.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not cancel stock transfer.");
+    },
+  });
+}
+
+export function useStockAdjustmentSessions(
+  storeId: number | null | undefined,
+  page: number,
+  warehouseId?: number | null,
+) {
+  return useQuery({
+    queryKey: ["stock-adjustment-sessions", storeId, page, warehouseId],
+    queryFn: () =>
+      api.getWithMeta<StockAdjustmentSession[]>(
+        `/stock-adjustment-sessions?store_id=${storeId}&page=${page}&per_page=20` +
+          (warehouseId ? `&warehouse_id=${warehouseId}` : ""),
+      ),
+    enabled: Boolean(storeId),
+  });
+}
+
+export function useStockAdjustmentSession(id: number | null | undefined) {
+  return useQuery({
+    queryKey: ["stock-adjustment-sessions", "detail", id],
+    queryFn: () => api.get<StockAdjustmentSession>(`/stock-adjustment-sessions/${id}`),
+    enabled: Boolean(id),
+  });
+}
+
+export interface StockAdjustmentSessionPayload {
+  store_id: number;
+  warehouse_id: number;
+  reference?: string | null;
+  note?: string | null;
+  items: {
+    product_id: number;
+    product_variant_id?: number | null;
+    direction: "increase" | "decrease";
+    quantity: number;
+    reason?: string | null;
+  }[];
+}
+
+export function useCreateStockAdjustmentSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: StockAdjustmentSessionPayload) =>
+      api.post<StockAdjustmentSession>("/stock-adjustment-sessions", payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock-adjustment-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-levels"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Stocktake session recorded.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not record stocktake session.");
     },
   });
 }

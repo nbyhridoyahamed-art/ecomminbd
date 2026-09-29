@@ -6,13 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StockTransferRequest;
 use App\Http\Resources\StockTransferResource;
 use App\Models\Product;
-use App\Models\StockLevel;
-use App\Models\StockMovement;
 use App\Models\StockTransfer;
 use App\Models\StockTransferItem;
 use App\Models\Warehouse;
 use App\Support\ApiResponse;
 use App\Support\InsufficientStockException;
+use App\Support\StockAdjuster;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +20,10 @@ use Illuminate\Support\Str;
 
 class StockTransferController extends Controller
 {
-    private const RELATIONS = ['fromWarehouse', 'toWarehouse', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator'];
+    private const RELATIONS = [
+        'fromWarehouse', 'toWarehouse', 'items.product', 'items.productVariant.attributeValues.attribute',
+        'creator', 'statusHistory.creator', 'movements.warehouse',
+    ];
 
     public function index(Request $request): JsonResponse
     {
@@ -42,6 +44,7 @@ class StockTransferController extends Controller
                     $q->where('from_warehouse_id', $warehouseId)->orWhere('to_warehouse_id', $warehouseId);
                 });
             })
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->latest()
             ->paginate($perPage);
 
@@ -89,125 +92,159 @@ class StockTransferController extends Controller
             return ApiResponse::error('One or more products do not belong to the selected store.', [], 422);
         }
 
-        try {
-            $transfer = DB::transaction(function () use ($data, $fromWarehouse, $toWarehouse, $request) {
-                $transfer = StockTransfer::create([
-                    'store_id' => $data['store_id'],
-                    'transfer_number' => 'TRF-'.now()->format('Ymd').'-'.Str::upper(Str::random(6)),
-                    'from_warehouse_id' => $fromWarehouse->id,
-                    'to_warehouse_id' => $toWarehouse->id,
-                    'note' => $data['note'] ?? null,
-                    'created_by' => $request->user()->id,
+        // Deliberately no stock impact yet — a transfer is just a paper
+        // record until ship() actually moves anything, the same
+        // draft-holds-nothing precedent purchase_orders already set (only
+        // recording a receipt touches stock there). Unlike an Order, a
+        // pending transfer also doesn't reserve source stock: it's two of
+        // the same store's own warehouses, created by staff, not a
+        // storefront cart racing other customers, so that extra
+        // bookkeeping isn't worth it — ship() re-checks availability for
+        // real at the moment it matters.
+        $transfer = DB::transaction(function () use ($data, $fromWarehouse, $toWarehouse, $request) {
+            $transfer = StockTransfer::create([
+                'store_id' => $data['store_id'],
+                'transfer_number' => 'TRF-'.now()->format('Ymd').'-'.Str::upper(Str::random(6)),
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'status' => 'pending',
+                'note' => $data['note'] ?? null,
+                'created_by' => $request->user()->id,
+            ]);
+
+            foreach ($data['items'] as $item) {
+                StockTransferItem::create([
+                    'stock_transfer_id' => $transfer->id,
+                    'product_id' => $item['product_id'],
+                    'product_variant_id' => $item['product_variant_id'] ?? null,
+                    'quantity' => $item['quantity'],
                 ]);
+            }
 
-                foreach ($data['items'] as $item) {
-                    $this->moveStock($transfer, $item['product_id'], $item['product_variant_id'] ?? null, $item['quantity'], $fromWarehouse, $toWarehouse, $request->user()->id);
+            $transfer->statusHistory()->create([
+                'from_status' => null,
+                'to_status' => 'pending',
+                'created_by' => $request->user()->id,
+            ]);
 
-                    StockTransferItem::create([
-                        'stock_transfer_id' => $transfer->id,
-                        'product_id' => $item['product_id'],
-                        'product_variant_id' => $item['product_variant_id'] ?? null,
-                        'quantity' => $item['quantity'],
-                    ]);
+            return $transfer;
+        });
+
+        return ApiResponse::success(
+            new StockTransferResource($transfer->load(self::RELATIONS)),
+            'Stock transfer created successfully.',
+            status: 201,
+        );
+    }
+
+    public function ship(Request $request, StockTransfer $stockTransfer): JsonResponse
+    {
+        if (! $request->user()->can('inventory.transfer')) {
+            throw new AuthorizationException;
+        }
+
+        if ($stockTransfer->status !== 'pending') {
+            return ApiResponse::error('Only a pending transfer can be shipped.', [], 422);
+        }
+
+        $fromWarehouse = $stockTransfer->fromWarehouse;
+
+        try {
+            DB::transaction(function () use ($stockTransfer, $fromWarehouse, $request) {
+                foreach ($stockTransfer->items()->with('product')->get() as $item) {
+                    StockAdjuster::apply(
+                        product: $item->product,
+                        productVariantId: $item->product_variant_id,
+                        warehouse: $fromWarehouse,
+                        direction: 'decrease',
+                        quantity: $item->quantity,
+                        reason: null,
+                        userId: $request->user()->id,
+                        referenceType: StockTransfer::class,
+                        referenceId: $stockTransfer->id,
+                        movementType: 'transfer_out',
+                    );
                 }
 
-                return $transfer;
+                $this->transition($stockTransfer, 'in_transit', $request->user()->id);
             });
         } catch (InsufficientStockException $exception) {
             return ApiResponse::error($exception->getMessage(), [], 422);
         }
 
         return ApiResponse::success(
-            new StockTransferResource($transfer->load(self::RELATIONS)),
-            'Stock transfer completed successfully.',
-            status: 201,
+            new StockTransferResource($stockTransfer->load(self::RELATIONS)),
+            'Stock transfer marked in transit.',
         );
     }
 
-    private function moveStock(
-        StockTransfer $transfer,
-        int $productId,
-        ?int $productVariantId,
-        int $quantity,
-        Warehouse $from,
-        Warehouse $to,
-        int $userId,
-    ): void {
-        $sourceLevel = StockLevel::query()
-            ->where('product_id', $productId)
-            ->where('product_variant_id', $productVariantId)
-            ->where('warehouse_id', $from->id)
-            ->lockForUpdate()
-            ->first();
-
-        $sourceBefore = $sourceLevel?->quantity ?? 0;
-        $sourceAfter = $sourceBefore - $quantity;
-
-        if ($sourceAfter < 0) {
-            $product = Product::findOrFail($productId);
-            throw new InsufficientStockException("Not enough stock of \"{$product->name}\" at {$from->name} to transfer {$quantity} unit(s).");
+    public function receive(Request $request, StockTransfer $stockTransfer): JsonResponse
+    {
+        if (! $request->user()->can('inventory.transfer')) {
+            throw new AuthorizationException;
         }
 
-        // Stock already reserved for pending/processing orders can't be transferred out,
-        // or ship() would later try to decrement on-hand quantity below zero.
-        if ($sourceAfter < ($sourceLevel?->quantity_reserved ?? 0)) {
-            $product = Product::findOrFail($productId);
-            throw new InsufficientStockException("Cannot transfer \"{$product->name}\" out of {$from->name}: that stock is reserved for pending orders.");
+        if ($stockTransfer->status !== 'in_transit') {
+            return ApiResponse::error('Only an in-transit transfer can be received.', [], 422);
         }
 
-        $sourceLevel
-            ? $sourceLevel->update(['quantity' => $sourceAfter])
-            : StockLevel::create([
-                'product_id' => $productId,
-                'product_variant_id' => $productVariantId,
-                'warehouse_id' => $from->id,
-                'quantity' => $sourceAfter,
-            ]);
+        $toWarehouse = $stockTransfer->toWarehouse;
 
-        StockMovement::create([
-            'store_id' => $transfer->store_id,
-            'product_id' => $productId,
-            'product_variant_id' => $productVariantId,
-            'warehouse_id' => $from->id,
-            'type' => 'transfer_out',
-            'quantity' => $quantity,
-            'quantity_before' => $sourceBefore,
-            'quantity_after' => $sourceAfter,
-            'reference_type' => StockTransfer::class,
-            'reference_id' => $transfer->id,
-            'created_by' => $userId,
-        ]);
+        // No InsufficientStockException catch needed here — an increase can
+        // never take on-hand quantity below zero or below what's reserved,
+        // so StockAdjuster::apply() can't throw on this path.
+        DB::transaction(function () use ($stockTransfer, $toWarehouse, $request) {
+            foreach ($stockTransfer->items()->with('product')->get() as $item) {
+                StockAdjuster::apply(
+                    product: $item->product,
+                    productVariantId: $item->product_variant_id,
+                    warehouse: $toWarehouse,
+                    direction: 'increase',
+                    quantity: $item->quantity,
+                    reason: null,
+                    userId: $request->user()->id,
+                    referenceType: StockTransfer::class,
+                    referenceId: $stockTransfer->id,
+                    movementType: 'transfer_in',
+                );
+            }
 
-        $destLevel = StockLevel::query()
-            ->where('product_id', $productId)
-            ->where('product_variant_id', $productVariantId)
-            ->where('warehouse_id', $to->id)
-            ->lockForUpdate()
-            ->first();
+            $this->transition($stockTransfer, 'received', $request->user()->id);
+        });
 
-        $destBefore = $destLevel?->quantity ?? 0;
-        $destAfter = $destBefore + $quantity;
+        return ApiResponse::success(
+            new StockTransferResource($stockTransfer->load(self::RELATIONS)),
+            'Stock transfer received.',
+        );
+    }
 
-        $destLevel
-            ? $destLevel->update(['quantity' => $destAfter])
-            : StockLevel::create([
-                'product_id' => $productId,
-                'product_variant_id' => $productVariantId,
-                'warehouse_id' => $to->id,
-                'quantity' => $destAfter,
-            ]);
+    public function cancel(Request $request, StockTransfer $stockTransfer): JsonResponse
+    {
+        if (! $request->user()->can('inventory.transfer')) {
+            throw new AuthorizationException;
+        }
 
-        StockMovement::create([
-            'store_id' => $transfer->store_id,
-            'product_id' => $productId,
-            'product_variant_id' => $productVariantId,
-            'warehouse_id' => $to->id,
-            'type' => 'transfer_in',
-            'quantity' => $quantity,
-            'quantity_before' => $destBefore,
-            'quantity_after' => $destAfter,
-            'reference_type' => StockTransfer::class,
-            'reference_id' => $transfer->id,
+        if ($stockTransfer->status !== 'pending') {
+            return ApiResponse::error('Only a pending transfer can be cancelled — one already shipped must be received, not cancelled.', [], 422);
+        }
+
+        $this->transition($stockTransfer, 'cancelled', $request->user()->id, $request->input('note'));
+
+        return ApiResponse::success(
+            new StockTransferResource($stockTransfer->load(self::RELATIONS)),
+            'Stock transfer cancelled.',
+        );
+    }
+
+    private function transition(StockTransfer $transfer, string $toStatus, int $userId, ?string $note = null): void
+    {
+        $fromStatus = $transfer->status;
+        $transfer->update(['status' => $toStatus]);
+
+        $transfer->statusHistory()->create([
+            'from_status' => $fromStatus,
+            'to_status' => $toStatus,
+            'note' => $note,
             'created_by' => $userId,
         ]);
     }

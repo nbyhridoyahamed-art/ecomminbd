@@ -6,14 +6,11 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Str;
 
-#[Fillable([
-    'store_id', 'product_id', 'product_variant_id', 'warehouse_id', 'type', 'quantity', 'quantity_before',
-    'quantity_after', 'reason', 'reference_type', 'reference_id', 'created_by',
-])]
-class StockMovement extends Model
+#[Fillable(['store_id', 'warehouse_id', 'reference', 'note', 'created_by'])]
+class StockAdjustmentSession extends Model
 {
     use HasFactory;
 
@@ -21,24 +18,14 @@ class StockMovement extends Model
     {
         parent::boot();
 
-        static::creating(function (StockMovement $movement) {
-            $movement->uuid ??= (string) Str::uuid();
+        static::creating(function (StockAdjustmentSession $session) {
+            $session->uuid ??= (string) Str::uuid();
         });
     }
 
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
-    }
-
-    public function product(): BelongsTo
-    {
-        return $this->belongsTo(Product::class);
-    }
-
-    public function productVariant(): BelongsTo
-    {
-        return $this->belongsTo(ProductVariant::class);
     }
 
     public function warehouse(): BelongsTo
@@ -51,8 +38,8 @@ class StockMovement extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function reference(): MorphTo
+    public function movements(): MorphMany
     {
-        return $this->morphTo();
+        return $this->morphMany(StockMovement::class, 'reference')->orderBy('created_at');
     }
 }

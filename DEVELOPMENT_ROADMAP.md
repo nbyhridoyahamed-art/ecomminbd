@@ -12,7 +12,7 @@ in place and the app still builds/runs.
 | 3 | Authentication | ✅ Done | Yes — Sanctum, login/logout/me/reset, roles/permissions seeded |
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
 | 5 | Catalog | ✅ Full spec done — Wave 1 + Wave 2a + Wave 2b (CSV import/export) + Wave 2c (bundles/combos) + Wave 3 (reviews + media library) — nothing left deferred | Yes — categories (hierarchy), brands, simple + variable + bundle products w/ pricing/SEO/images, attributes + a variant generator, bundle components with derived availability, CSV bulk import/export, verified-purchase customer reviews with staff moderation, a reusable cross-entity media library, full admin UI |
-| 6 | Inventory | ✅ Wave 1 done, now variant-aware (transfer approval workflow deferred — see note) | Yes — stock levels per warehouse, movements ledger, adjustments, transfers; plus the Warehouses admin UI (a Phase 4 gap this closed) |
+| 6 | Inventory | ✅ Full spec done — Wave 1 + Wave 2 (transfer approval workflow, stocktake sessions) — nothing left deferred | Yes — stock levels per warehouse, movements ledger, adjustments, a real pending→in_transit→received/cancelled transfer workflow, grouped multi-line stocktake sessions; plus the Warehouses admin UI (a Phase 4 gap this closed) |
 | 7 | Purchasing | ✅ Wave 1 done, now variant-aware, plus Wave 2a (purchase returns) (supplier ledger/PO approval workflow/reorder suggestions still deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements, purchase returns (requested→approved→shipped_back→credited) |
 | 8 | Orders | ✅ Wave 1 done, now variant-aware (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
 | 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
@@ -268,6 +268,49 @@ stock — the Wave 2 items this note used to list — are no longer
 deferred: Phase 7, Phase 8, Phase 10, and the variant-aware retrofit
 built them respectively; see the retrofit's own scope note below for
 that last one.)
+
+**Phase 6 Wave 2 scope note:** ships both remaining Inventory Wave 2
+items — a real transfer approval workflow and grouped stocktake
+sessions — closing this phase out entirely; each finally had a real
+shape worth building against, resolving the "neither has a real
+consumer yet" reason Wave 1's note above gave for deferring them.
+`POST /stock-transfers` now creates a `pending` transfer with zero
+stock impact (the same "draft holds nothing until a real event" shape
+`PurchaseOrder` established), rather than moving stock immediately as
+Wave 1 did. `POST .../{id}/ship` is the first real side effect — it
+decrements the source warehouse and writes a `transfer_out` movement,
+moving the transfer to `in_transit`; `POST .../{id}/receive` increments
+the destination warehouse with a `transfer_in` movement, moving it to
+`received`; `POST .../{id}/cancel` is only reachable from `pending` —
+an already-shipped transfer must be received, not reversed, the same
+"once physically in motion, unwinding it is a later problem" cut
+Shipment's own `failed_delivery`/`returned_to_seller` split already
+made. A new `stock_transfer_status_history` table mirrors
+`shipment_status_history` exactly (from_status/to_status/note/
+created_by), and every transition runs through a shared private
+`transition()` helper, the same pattern `ShipmentController`
+established. A new `stock_adjustment_sessions` table groups a
+stocktake's many per-product corrections under one reference —
+deliberately *not* the `stock_adjustments` name `DATABASE_DESIGN.md`
+section 2 had speculatively used for this, since that name (and its
+route) was already taken by Wave 1's untouched single-shot
+quick-adjustment endpoint; the two are intentionally separate,
+coexisting workflows (a one-off correction vs. a grouped multi-line
+count), not a replacement. Both new resources tag their
+`stock_movements` rows back to their parent through the ledger's
+existing `reference_type`/`reference_id` columns — already shaped like
+a Laravel polymorphic relation, so no new FK columns were needed. A
+shared `App\Support\StockAdjuster` now holds the lock/compute-delta/
+insufficient-stock-guard/write-movement logic once duplicated between
+`StockAdjustmentController` and `StockTransferController`. Deliberately
+still cut: no reservation of a pending transfer's source stock (unlike
+an Order — a staff-created transfer between the same store's own
+warehouses has none of a storefront cart's race-with-other-customers
+problem); no partial/multi-call receiving (unlike a `PurchaseReceipt`
+against an external supplier — a transfer is received whole, in one
+action, matching `Shipment`'s own whole-shipment transitions); and no
+multi-step approval or dispute mechanism for a stocktake session's
+individual lines.
 
 **Phase 7 scope note:** Wave 1 ships suppliers (full CRUD) and purchase
 orders with a real state machine: `draft` (items freely editable, a PUT

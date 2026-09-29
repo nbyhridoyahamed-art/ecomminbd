@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\SavedSectionController;
 use App\Http\Controllers\Api\V1\SeoTemplateController;
 use App\Http\Controllers\Api\V1\ShipmentController;
 use App\Http\Controllers\Api\V1\StockAdjustmentController;
+use App\Http\Controllers\Api\V1\StockAdjustmentSessionController;
 use App\Http\Controllers\Api\V1\StockLevelController;
 use App\Http\Controllers\Api\V1\StockMovementController;
 use App\Http\Controllers\Api\V1\StockTransferController;
@@ -257,6 +258,13 @@ Route::prefix('v1')->group(function () {
         Route::get('stock-transfers', [StockTransferController::class, 'index']);
         Route::post('stock-transfers', [StockTransferController::class, 'store']);
         Route::get('stock-transfers/{stockTransfer}', [StockTransferController::class, 'show']);
+        Route::post('stock-transfers/{stockTransfer}/ship', [StockTransferController::class, 'ship']);
+        Route::post('stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'receive']);
+        Route::post('stock-transfers/{stockTransfer}/cancel', [StockTransferController::class, 'cancel']);
+
+        Route::get('stock-adjustment-sessions', [StockAdjustmentSessionController::class, 'index']);
+        Route::post('stock-adjustment-sessions', [StockAdjustmentSessionController::class, 'store']);
+        Route::get('stock-adjustment-sessions/{stockAdjustmentSession}', [StockAdjustmentSessionController::class, 'show']);
 
         Route::apiResource('suppliers', SupplierController::class);
 
