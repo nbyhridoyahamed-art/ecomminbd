@@ -99,7 +99,7 @@ export default function OrdersPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Filter by status">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -118,7 +118,7 @@ export default function OrdersPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48" aria-label="Filter by customer">
               <SelectValue placeholder="All customers" />
             </SelectTrigger>
             <SelectContent>

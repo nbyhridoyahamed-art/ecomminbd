@@ -105,7 +105,7 @@ export default function ProductPerformanceReportPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Filter by warehouse">
               <SelectValue placeholder="All warehouses" />
             </SelectTrigger>
             <SelectContent>

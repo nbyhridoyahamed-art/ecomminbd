@@ -90,7 +90,7 @@ export default function PurchaseOrdersPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Filter by status">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -109,7 +109,7 @@ export default function PurchaseOrdersPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48" aria-label="Filter by supplier">
               <SelectValue placeholder="All suppliers" />
             </SelectTrigger>
             <SelectContent>

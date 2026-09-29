@@ -103,9 +103,9 @@ export function LayoutPanel({ responsive, visibility, onResponsiveChange, onVisi
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Alignment</Label>
+          <Label htmlFor="layout-panel-alignment">Alignment</Label>
           <Select value={current.alignment ?? "__unset"} onValueChange={(v) => updateField("alignment", v === "__unset" ? null : v)}>
-            <SelectTrigger>
+            <SelectTrigger id="layout-panel-alignment">
               <SelectValue placeholder="Default" />
             </SelectTrigger>
             <SelectContent>

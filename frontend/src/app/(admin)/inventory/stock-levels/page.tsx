@@ -117,7 +117,7 @@ export default function StockLevelsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-52">
+            <SelectTrigger className="w-52" aria-label="Select warehouse">
               <SelectValue placeholder="Select warehouse">
                 {warehouses.find((w) => w.id === warehouseId)?.name}
               </SelectValue>

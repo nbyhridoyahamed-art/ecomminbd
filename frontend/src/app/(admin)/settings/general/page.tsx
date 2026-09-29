@@ -156,12 +156,12 @@ export default function GeneralSettingsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Currency</Label>
+              <Label htmlFor="settings-general-currency">Currency</Label>
               <Select
                 value={currencyId}
                 onValueChange={(value) => value && setValue("default_currency_id", value, { shouldDirty: true })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="settings-general-currency">
                   <SelectValue placeholder="Select currency">
                     {selectedCurrency ? `${selectedCurrency.code} (${selectedCurrency.symbol})` : undefined}
                   </SelectValue>
@@ -177,12 +177,12 @@ export default function GeneralSettingsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Language</Label>
+              <Label htmlFor="settings-general-language">Language</Label>
               <Select
                 value={locale}
                 onValueChange={(value) => setValue("default_locale", value as "en" | "bn", { shouldDirty: true })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="settings-general-language">
                   <SelectValue placeholder="Select language">{locale ? LOCALE_LABELS[locale] : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -203,12 +203,12 @@ export default function GeneralSettingsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Status</Label>
+              <Label htmlFor="settings-general-status">Status</Label>
               <Select
                 value={status}
                 onValueChange={(value) => setValue("status", value as "active" | "inactive", { shouldDirty: true })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="settings-general-status">
                   <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>

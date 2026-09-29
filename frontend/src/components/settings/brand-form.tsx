@@ -132,12 +132,12 @@ export function BrandForm({ storeId, defaultValues, onSubmit, isPending, serverE
       </div>
 
       <div className="max-w-48 space-y-1.5">
-        <Label>Status</Label>
+        <Label htmlFor="brand-form-status">Status</Label>
         <Select
           value={status}
           onValueChange={(value) => setValue("status", value as "active" | "inactive", { shouldDirty: true })}
         >
-          <SelectTrigger>
+          <SelectTrigger id="brand-form-status">
             <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
           </SelectTrigger>
           <SelectContent>

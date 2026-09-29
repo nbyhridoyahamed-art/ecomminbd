@@ -60,7 +60,7 @@ export default function CodSettlementsPage() {
             setPage(1);
           }}
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48" aria-label="Filter by courier">
             <SelectValue placeholder="All couriers" />
           </SelectTrigger>
           <SelectContent>

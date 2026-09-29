@@ -224,7 +224,7 @@ export function ProductDetailClient({ slug }: { slug: string }) {
                         onClick={() => setSelectedAttributes((prev) => ({ ...prev, [name]: value }))}
                         className={`rounded-md border px-3 py-1.5 text-sm ${
                           selectedAttributes[name] === value
-                            ? "border-primary bg-primary/10 text-primary"
+                            ? "border-primary bg-primary/8 text-primary"
                             : "border-border text-text-primary hover:bg-border/30"
                         }`}
                       >

@@ -122,7 +122,7 @@ export default function SalesReportPage() {
             value={warehouseId ? String(warehouseId) : "all"}
             onValueChange={(value) => setWarehouseId(value === "all" ? null : Number(value))}
           >
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Filter by warehouse">
               <SelectValue placeholder="All warehouses" />
             </SelectTrigger>
             <SelectContent>
@@ -135,7 +135,7 @@ export default function SalesReportPage() {
             </SelectContent>
           </Select>
           <Select value={granularity} onValueChange={(value) => setGranularity(value as ReportGranularity)}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-32" aria-label="Report granularity">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -89,12 +89,12 @@ export function CustomerForm({ storeId, defaultValues, onSubmit, isPending, serv
           {errors.email ? <p className="text-xs text-danger">{errors.email.message}</p> : null}
         </div>
         <div className="space-y-1.5">
-          <Label>Status</Label>
+          <Label htmlFor="customer-form-status">Status</Label>
           <Select
             value={status}
             onValueChange={(value) => setValue("status", value as "active" | "inactive", { shouldDirty: true })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="customer-form-status">
               <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
             </SelectTrigger>
             <SelectContent>

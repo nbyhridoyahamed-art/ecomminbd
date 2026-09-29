@@ -58,9 +58,9 @@ export function ProductCarouselPanel({ value, onChange, storeId }: ContentPanelP
       </div>
 
       <div className="space-y-1.5">
-        <Label>Source</Label>
+        <Label htmlFor="product-carousel-panel-source">Source</Label>
         <Select value={value.mode} onValueChange={(mode) => onChange({ ...value, mode: mode as ProductCarouselSettings["mode"] })}>
-          <SelectTrigger className="max-w-xs">
+          <SelectTrigger className="max-w-xs" id="product-carousel-panel-source">
             <SelectValue>{MODE_LABELS[value.mode]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -93,12 +93,12 @@ export function ProductCarouselPanel({ value, onChange, storeId }: ContentPanelP
 
       {value.mode === "category" ? (
         <div className="space-y-1.5">
-          <Label>Category</Label>
+          <Label htmlFor="product-carousel-panel-category">Category</Label>
           <Select
             value={value.category_id !== null ? String(value.category_id) : ""}
             onValueChange={(id) => onChange({ ...value, category_id: Number(id) })}
           >
-            <SelectTrigger className="max-w-xs">
+            <SelectTrigger className="max-w-xs" id="product-carousel-panel-category">
               <SelectValue placeholder="Select a category" />
             </SelectTrigger>
             <SelectContent>

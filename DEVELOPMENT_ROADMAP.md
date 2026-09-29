@@ -29,7 +29,7 @@ in place and the app still builds/runs.
 | 20 | Analytics | ✅ Full spec done, not a lean wave (see note) | Yes — first-party storefront behavioral tracking (page/product/category views, searches, cart/checkout funnel, purchases) feeding a new admin Analytics dashboard (traffic trend, top viewed products, search terms incl. zero-result flagging, a 4-stage conversion funnel, new-vs-returning customers), each report with CSV export and the Overview also with PDF |
 | 21 | Security Hardening | ✅ Wave 1 done (2FA, account lockout, breach-checked passwords deferred — see note) | Yes — a real global `throttle:api` (60/min per user-or-IP, on top of the existing tighter per-route throttles), an explicit reviewed `config/cors.php` (previously an undocumented framework fallback), Sanctum tokens now expire (30 days, were permanent), a catch-all exception renderer that stops an unexpected 500 leaking a stack trace when `APP_DEBUG` is off, and standard security response headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`) on every response |
 | 22 | Performance | ✅ Wave 1 done (queued jobs, materialized aggregates still deferred — see note) | Yes — measured first (N+1 queries and missing indexes both checked and confirmed clean, not assumed), then closed the one real, verified gap: the storefront category tree and resolved homepage — the two highest-traffic public reads — are now cached and invalidated on every write that could change them |
-| 23 | Accessibility | 🟡 Baseline in design system | Partial |
+| 23 | Accessibility | ✅ Wave 1 done (dark-mode accent/solid-fill token split, manual keyboard/screen-reader passes deferred — see note) | Yes — a real axe-core audit across 16 pages found and fixed 9 WCAG violation categories: 79 unlabeled Select combobox triggers across 44 files, systemic color-contrast failures in the shared status-color tokens and their badge tints, a heading-order skip, an empty table header with no screen-reader fallback, and several unlabeled landmarks/date inputs — 0 violations left, both color schemes |
 | 24 | Responsive QA | 🟡 Baseline (login/dashboard tested at all breakpoints) | Partial |
 | 25 | Final Testing | 🟡 Backend feature tests + frontend build/lint/typecheck for what exists | Partial |
 | 26 | Production | ⏳ Not started | No |
@@ -1111,23 +1111,131 @@ against the reverted (broken) code before being confirmed green against
 the fix, the same red-green discipline the fix itself deserved. 7 new
 backend tests total (404 → 411), all green, Pint-clean.
 
+**Phase 23 scope note:** measured first, same discipline as Phase 22 —
+an axe-core (Playwright) audit across 8 representative pages found 9
+distinct WCAG violation categories, all real, none guessed. Fixed:
+
+- **`button-name` (critical):** every Radix `Select` renders a
+  `role="combobox"` button whose accessible name must describe its
+  *purpose*, not its selected value — the value text `SelectValue`
+  renders visibly doesn't count toward that computation the way a plain
+  button's text would (confirmed via an isolated minimal-HTML
+  reproduction before trusting it as real, not a tool false-positive).
+  204 raw `SelectTrigger` grep hits across 44 files turned out to be 79
+  real elements needing a fix (the rest were the JSX closing tags and
+  import lines the same string also matches). Delegated to 5 parallel
+  background agents, each owning a disjoint file batch in its own
+  isolated git worktree, with an explicit two-pattern decision tree in
+  every prompt: wire `id`/`htmlFor` to an adjacent `<Label>` where one
+  exists (most form fields), else add a purpose-describing `aria-label`
+  directly (standalone filter toolbars, and per-row selects in a
+  repeating list, e.g. `` `Product for item ${index + 1}` `` — row-aware
+  since nothing else distinguishes those rows for a screen reader). All
+  5 agents worked in the same repository but touched zero overlapping
+  files; their uncommitted worktree diffs were reapplied onto the main
+  tree with `git apply --3way` (not a branch merge — the agents edited
+  working-tree state, never committed) and merged cleanly, including the
+  4 files where an agent's fix and this session's own date-filter-label
+  fix landed on different lines of the same file. A post-merge script
+  independently verified all 79 `SelectTrigger`s carry exactly one of
+  `id=`/`aria-label=` (never both, never neither) and every `id` has a
+  matching `htmlFor` in the same file — not just trusting each agent's
+  self-report.
+- **`color-contrast` (serious), the largest follow-on:** re-running the
+  full audit after the button-name fix surfaced this was far more
+  systemic than the first 8-page sample showed. `--color-success/
+  warning/danger/info` all failed 4.5:1 as plain text on white (warning
+  as low as 2.15:1) *and* inside their own `bg-{color}/10` badge tint
+  (as low as 1.99:1) — a shared `Badge` component used everywhere, so
+  fixing it once at the token level (darken each, same hue/saturation,
+  found by an HSL-lightness search rather than picked by eye, each
+  verified to clear both contexts with real margin) fixed every status
+  pill and StatCard trend indicator/chart-tooltip color at once.
+  `--color-text-muted`'s Phase-2-era-then-earlier-this-phase fix
+  (`#94A3B8` → `#677690`) passed against white but was still short
+  against the app's actual `#F8FAFC` background, which is what it
+  usually sits directly on — darkened once more to `#5F6D88`.
+  `AlertDescription` moved from `text-text-secondary` to
+  `text-text-primary` (its own tinted alert background pulled effective
+  contrast below 4.5:1; `AlertTitle` already used the safe color).
+  `bg-primary/10` text/icon tints (`Avatar` initials, `Badge`,
+  `StatCard`, plus 3 more call sites a follow-up grep for the same class
+  string found in the homepage builder's tab/sidebar highlights and the
+  storefront PDP's variant picker) moved to `/8`, leaving the primary
+  brand blue itself untouched. One reported finding
+  (white-on-`bg-primary` button, 4.36:1) was chased down and disproved:
+  Playwright's mouse cursor was left hovering the button from an earlier
+  page's login click, transiently triggering `hover:bg-primary/90` —
+  confirmed by reading the button's live `getComputedStyle` background
+  with the mouse moved away (`rgb(37, 99, 235)`, the un-hovered token
+  value, contrast 5.17:1) before concluding it wasn't a real bug; the
+  audit script now moves the mouse away between every page for exactly
+  this reason. A dark-mode spot-check (not part of the original 8-page
+  sample, but checked anyway once color tokens were being touched)
+  caught a real regression before it shipped: naively giving `--color-
+  primary`/`--color-danger` their own darker-for-light-mode values would
+  have made them *worse* as text against dark surfaces, and a follow-up
+  lightened dark-mode-only value fixed that but broke the *other* role
+  those two colors play (white text on a solid button background,
+  which was already fine and needs the opposite property) — proven
+  computationally in both directions before reverting to leave both
+  tokens unset in dark mode (inheriting light mode's value, exactly the
+  pre-existing, not-measured-by-this-phase state) rather than shipping a
+  partial fix that traded one failure for another. `--color-success/
+  warning/info` keep an explicit dark-mode override restoring their
+  original (pre-darkening) values, which already clear 4.5:1 there.
+- **`heading-order`:** `CardTitle` was an `<h3>` under a bare `<h1>`
+  page title with no `<h2>` between them (used on `/dashboard` and
+  elsewhere) — now `<h2>`. The Homepage Builder's Hero block heading was
+  a styled `<p>`, not a heading element at all — now `<h1>` (a page
+  should have exactly one).
+- **`empty-table-header`:** `DataTable` columns with no visible header
+  text (an actions column, typically) rendered a blank `<th>`; now falls
+  back to a humanized `sr-only` label built from the column id.
+- **Landmarks and labels:** the login page's outer wrapper became a
+  `<main>`. 12 tab-bar `<nav>`s (11 admin section-layout files plus the
+  product form's own internal section tabs, found only because the
+  post-SelectTrigger-fix re-audit specifically flagged `/catalog/
+  products/new` for `landmark-unique` — two indistinguishable unlabeled
+  `<nav>`s on one page) each got a specific `aria-label`. 7 analytics/
+  report pages had two adjacent, identically unlabeled `<input
+  type="date">`s; each pair now has `"From date"`/`"To date"`.
+
+Verification: full axe-core re-audit across 16 pages (the original 8
+plus 8 more chosen to cover every fix batch, correcting an earlier
+mislabeling in the audit script itself — `/products` is the *public
+storefront* listing, not the admin catalog, which is at `/catalog/
+products`) — 0 violations, both color schemes. Frontend typecheck/lint/
+build clean throughout; no backend changes this phase. Deliberately not
+done: the dark-mode primary/danger accent-vs-solid-fill token split
+noted above (a small architecture change, correctly scoped out of a
+token-value pass); a full keyboard-only manual pass (Radix gives correct
+keyboard/focus/ARIA semantics for every primitive already in use, which
+is what a11y audits actually check for programmatically, but a human
+tabbing through each flow hasn't happened); and screen-reader-specific
+testing beyond what axe-core's accessible-name/ARIA-semantics rules
+check.
+
 ## Next Session Should Start With
 
-Phase 21 (Security Hardening) and Phase 22 (Performance) Wave 1s are both
-now done — see their scope notes above for what shipped and what's still
-deliberately cut. **Phase 23 (Accessibility)** is the next not-yet-started
-numbered phase in the master table (rule 176's own order) and, like
-Phase 22 before it, hasn't had the same close-reading-plus-measurement
-pass yet — the right first step is the same one that worked twice now:
-read what's already there (`DESIGN_SYSTEM.md` for whatever the "baseline
-in design system" table entry actually refers to — likely the semantic
-HTML/focus-state choices already made in `src/components/ui/*`, not yet
-verified against a real screen reader or keyboard-only pass) before
-assuming a scope, then actually check a handful of real screens with an
-automated tool (e.g. axe-core, already a transitive frontend dependency —
-`frontend/node_modules/axe-core` — per the earlier repo-wide grep this
-session ran while investigating something else entirely) and a manual
-keyboard-only pass, rather than guessing what's missing.
+Phase 21 (Security Hardening), Phase 22 (Performance), and Phase 23
+(Accessibility) Wave 1s are all now done — see their scope notes above
+for what shipped and what's still deliberately cut. **Phase 24
+(Responsive QA)** is the next not-yet-started numbered phase in the
+master table (rule 176's own order). The table's current "🟡 Baseline
+(login/dashboard tested at all breakpoints)" entry predates this
+session's Phase 22/23 measure-first discipline, so — same lesson learned
+twice now — don't assume that baseline generalizes to the ~90 other
+pages; check a representative sample at each of the 4 breakpoints
+(`DESIGN_SYSTEM.md` section 5: mobile `<640px`, tablet `640–1024px`,
+desktop `1024–1440px`, large `1440px+`) with real browser viewport
+resizing (Playwright, already the established tool this session for
+Phase 17/19/20's e2e verification and Phase 23's whole audit), not just
+the two pages already covered. The Homepage Builder's canvas, the
+largest data tables (Products, Orders), and the biggest forms (the
+product form, the order form's line-item rows) are the highest-risk
+candidates for anything genuinely breakpoint-specific, versus pages that
+just reuse the same list/form/card primitives already verified.
 
 Phase 17 (Customer Dashboard) Wave 1, Phase 19 (Integrations) Wave 1,
 Phase 12 (CMS) Wave 1, the full Phase 13 (Homepage Builder), Phase 14

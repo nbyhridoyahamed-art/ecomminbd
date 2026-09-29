@@ -64,9 +64,9 @@ export function ShipmentAssignForm({ storeId, onSubmit, isPending, serverError }
 
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-1.5">
-          <Label>Courier</Label>
+          <Label htmlFor="shipment-assign-form-courier">Courier</Label>
           <Select value={courierId} onValueChange={(v) => setValue("courier_id", v, { shouldValidate: true })}>
-            <SelectTrigger>
+            <SelectTrigger id="shipment-assign-form-courier">
               <SelectValue placeholder="Select courier">
                 {couriers.find((c) => String(c.id) === courierId)?.name}
               </SelectValue>

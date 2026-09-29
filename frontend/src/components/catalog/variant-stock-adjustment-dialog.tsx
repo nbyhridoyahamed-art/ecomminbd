@@ -114,9 +114,9 @@ function VariantStockAdjustmentDialogBody({
 
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <Label>Warehouse</Label>
+          <Label htmlFor="variant-stock-adjustment-dialog-warehouse">Warehouse</Label>
           <Select value={warehouseId} onValueChange={setWarehouseId}>
-            <SelectTrigger>
+            <SelectTrigger id="variant-stock-adjustment-dialog-warehouse">
               <SelectValue placeholder="Select warehouse">
                 {warehouses.find((w) => String(w.id) === warehouseId)?.name}
               </SelectValue>
@@ -133,9 +133,9 @@ function VariantStockAdjustmentDialogBody({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Direction</Label>
+            <Label htmlFor="variant-stock-adjustment-dialog-direction">Direction</Label>
             <Select value={direction} onValueChange={(value) => setDirection(value as "increase" | "decrease")}>
-              <SelectTrigger>
+              <SelectTrigger id="variant-stock-adjustment-dialog-direction">
                 <SelectValue>{DIRECTION_LABELS[direction]}</SelectValue>
               </SelectTrigger>
               <SelectContent>

@@ -39,9 +39,9 @@ export function AutoManualPicker({ mode, onModeChange, selectedIds, onSelectedId
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label>Source</Label>
+        <Label htmlFor="auto-manual-picker-source">Source</Label>
         <Select value={mode} onValueChange={(value) => onModeChange(value as "auto" | "manual")}>
-          <SelectTrigger className="max-w-xs">
+          <SelectTrigger className="max-w-xs" id="auto-manual-picker-source">
             <SelectValue>{mode === "auto" ? "Automatic" : "Hand-picked"}</SelectValue>
           </SelectTrigger>
           <SelectContent>

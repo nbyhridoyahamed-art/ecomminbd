@@ -88,7 +88,7 @@ export function CodSettlementForm({ storeId, onSubmit, isPending, serverError }:
       ) : null}
 
       <div className="max-w-xs space-y-1.5">
-        <Label>Courier</Label>
+        <Label htmlFor="cod-settlement-form-courier">Courier</Label>
         <Select
           value={courierId}
           onValueChange={(v) => {
@@ -96,7 +96,7 @@ export function CodSettlementForm({ storeId, onSubmit, isPending, serverError }:
             setSelectedShipmentIds([]);
           }}
         >
-          <SelectTrigger>
+          <SelectTrigger id="cod-settlement-form-courier">
             <SelectValue placeholder="Select courier">{couriers.find((c) => String(c.id) === courierId)?.name}</SelectValue>
           </SelectTrigger>
           <SelectContent>

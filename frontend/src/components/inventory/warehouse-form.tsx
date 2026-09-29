@@ -122,12 +122,12 @@ export function WarehouseForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label>Type</Label>
+          <Label htmlFor="warehouse-form-type">Type</Label>
           <Select
             value={type}
             onValueChange={(value) => setValue("type", value as FormValues["type"], { shouldDirty: true })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="warehouse-form-type">
               <SelectValue placeholder="Select type">{type ? TYPE_LABELS[type] : undefined}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -140,12 +140,12 @@ export function WarehouseForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Status</Label>
+          <Label htmlFor="warehouse-form-status">Status</Label>
           <Select
             value={status}
             onValueChange={(value) => setValue("status", value as "active" | "inactive", { shouldDirty: true })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="warehouse-form-status">
               <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
             </SelectTrigger>
             <SelectContent>

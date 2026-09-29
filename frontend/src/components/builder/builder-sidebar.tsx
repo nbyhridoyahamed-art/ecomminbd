@@ -37,7 +37,7 @@ export function BuilderSidebar({ blocks, selectedId, onSelectBlock, onAddBlock, 
             onClick={() => setTab(t)}
             className={cn(
               "flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
-              tab === t ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-border/30",
+              tab === t ? "bg-primary/8 text-primary" : "text-text-secondary hover:bg-border/30",
             )}
           >
             {t}
@@ -95,7 +95,7 @@ function LayersList({ blocks, selectedId, onSelect }: { blocks: HomepageBlockPre
             onClick={() => onSelect(block.id)}
             className={cn(
               "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm",
-              block.id === selectedId ? "bg-primary/10 text-primary" : "hover:bg-border/30",
+              block.id === selectedId ? "bg-primary/8 text-primary" : "hover:bg-border/30",
             )}
           >
             <span className="flex items-center gap-2">

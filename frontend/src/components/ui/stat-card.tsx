@@ -37,7 +37,7 @@ function StatCard({ label, value, icon, trend, tone = "primary", className }: St
           <div
             className={cn(
               "flex size-9 shrink-0 items-center justify-center rounded-md [&_svg]:size-5",
-              tone === "danger" ? "bg-danger/10 text-danger" : "bg-primary/10 text-primary",
+              tone === "danger" ? "bg-danger/10 text-danger" : "bg-primary/8 text-primary",
             )}
           >
             {icon}

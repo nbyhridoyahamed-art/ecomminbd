@@ -19,7 +19,7 @@ export function VariantPicker({ product, value, onChange, error }: VariantPicker
   return (
     <div className="w-48 space-y-1">
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
+        <SelectTrigger aria-label="Select variant">
           <SelectValue placeholder="Select variant">
             {product.variants.find((v) => String(v.id) === value)?.sku}
           </SelectValue>

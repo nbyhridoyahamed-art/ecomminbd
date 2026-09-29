@@ -78,7 +78,7 @@ function ProductsPageContent() {
           value={category || "all"}
           onValueChange={(value) => updateParam("category", value === "all" ? null : value)}
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48" aria-label="Filter by category">
             <SelectValue placeholder="All categories" />
           </SelectTrigger>
           <SelectContent>
@@ -92,7 +92,7 @@ function ProductsPageContent() {
         </Select>
 
         <Select value={brand || "all"} onValueChange={(value) => updateParam("brand", value === "all" ? null : value)}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48" aria-label="Filter by brand">
             <SelectValue placeholder="All brands" />
           </SelectTrigger>
           <SelectContent>
@@ -106,7 +106,7 @@ function ProductsPageContent() {
         </Select>
 
         <Select value={sort || "default"} onValueChange={(value) => updateParam("sort", value === "default" ? null : value)}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48" aria-label="Sort products">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>

@@ -184,7 +184,7 @@ export function ProductForm({
       ) : null}
 
       <div className="border-b border-border">
-        <nav className="flex gap-1">
+        <nav aria-label="Product form sections" className="flex gap-1">
           {TABS.filter((t) => (t !== "Variants" || type === "variable") && (t !== "Components" || type === "bundle")).map((t) => (
             <button
               key={t}
@@ -247,12 +247,12 @@ export function ProductForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Category</Label>
+            <Label htmlFor="product-form-category">Category</Label>
             <Select
               value={categoryId}
               onValueChange={(value) => setValue("category_id", value === "none" ? "" : value, { shouldDirty: true })}
             >
-              <SelectTrigger>
+              <SelectTrigger id="product-form-category">
                 <SelectValue placeholder="None">
                   {categoryId ? categories.find((c) => String(c.id) === categoryId)?.name : "None"}
                 </SelectValue>
@@ -268,12 +268,12 @@ export function ProductForm({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Brand</Label>
+            <Label htmlFor="product-form-brand">Brand</Label>
             <Select
               value={brandId}
               onValueChange={(value) => setValue("brand_id", value === "none" ? "" : value, { shouldDirty: true })}
             >
-              <SelectTrigger>
+              <SelectTrigger id="product-form-brand">
                 <SelectValue placeholder="None">
                   {brandId ? brands.find((b) => String(b.id) === brandId)?.name : "None"}
                 </SelectValue>
@@ -291,12 +291,12 @@ export function ProductForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Product type</Label>
+          <Label htmlFor="product-form-type">Product type</Label>
           <Select
             value={type}
             onValueChange={(value) => setValue("type", value as "simple" | "variable" | "bundle", { shouldDirty: true })}
           >
-            <SelectTrigger className="max-w-xs">
+            <SelectTrigger id="product-form-type" className="max-w-xs">
               <SelectValue placeholder="Select type">{type ? TYPE_LABELS[type] : undefined}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -330,14 +330,14 @@ export function ProductForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Status</Label>
+            <Label htmlFor="product-form-status">Status</Label>
             <Select
               value={status}
               onValueChange={(value) =>
                 setValue("status", value as "draft" | "active" | "archived", { shouldDirty: true })
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id="product-form-status">
                 <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -398,7 +398,7 @@ export function ProductForm({
                 value={weightUnit}
                 onValueChange={(value) => setValue("weight_unit", value, { shouldDirty: true })}
               >
-                <SelectTrigger className="w-24">
+                <SelectTrigger className="w-24" aria-label="Weight unit">
                   <SelectValue placeholder="Unit">{weightUnit ? WEIGHT_UNIT_LABELS[weightUnit] : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>

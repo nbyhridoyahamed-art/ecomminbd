@@ -191,7 +191,7 @@ export function OrderForm({
 
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-1.5">
-          <Label>Customer</Label>
+          <Label htmlFor="order-form-customer">Customer</Label>
           <Select
             value={customerId}
             onValueChange={(v) => {
@@ -199,7 +199,7 @@ export function OrderForm({
               setValue("customer_address_id", "manual");
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger id="order-form-customer">
               <SelectValue placeholder="Select customer">
                 {customers.find((c) => String(c.id) === customerId)?.name}
               </SelectValue>
@@ -216,9 +216,9 @@ export function OrderForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Fulfilling warehouse</Label>
+          <Label htmlFor="order-form-warehouse">Fulfilling warehouse</Label>
           <Select value={warehouseId} onValueChange={(v) => setValue("warehouse_id", v, { shouldValidate: true })}>
-            <SelectTrigger>
+            <SelectTrigger id="order-form-warehouse">
               <SelectValue placeholder="Select warehouse">
                 {warehouses.find((w) => String(w.id) === warehouseId)?.name}
               </SelectValue>
@@ -235,12 +235,12 @@ export function OrderForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Payment method</Label>
+          <Label htmlFor="order-form-payment-method">Payment method</Label>
           <Select
             value={paymentMethod}
             onValueChange={(v) => setValue("payment_method", v as PaymentMethod, { shouldValidate: true })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="order-form-payment-method">
               <SelectValue placeholder="Select method">
                 {PAYMENT_METHODS.find((m) => m.value === paymentMethod)?.label}
               </SelectValue>
@@ -257,7 +257,7 @@ export function OrderForm({
       </div>
 
       <div className="space-y-3 rounded-lg border border-border p-4">
-        <Label>Shipping address</Label>
+        <Label htmlFor="order-form-shipping-address">Shipping address</Label>
 
         {addresses.length > 0 ? (
           <div className="space-y-1.5">
@@ -265,7 +265,7 @@ export function OrderForm({
               value={customerAddressId}
               onValueChange={(v) => setValue("customer_address_id", v)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="order-form-shipping-address">
                 <SelectValue placeholder="Enter address manually">
                   {addresses.find((a) => String(a.id) === customerAddressId)?.recipient_name}
                 </SelectValue>
@@ -318,7 +318,7 @@ export function OrderForm({
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label>Division</Label>
+                <Label htmlFor="order-form-division">Division</Label>
                 <Select
                   value={divisionId}
                   onValueChange={(v) => {
@@ -327,7 +327,7 @@ export function OrderForm({
                     setValue("shipping_bd_upazila_id", "");
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="order-form-division">
                     <SelectValue placeholder="Select">
                       {divisions?.find((d) => String(d.id) === divisionId)?.name_en}
                     </SelectValue>
@@ -343,7 +343,7 @@ export function OrderForm({
               </div>
 
               <div className="space-y-1.5">
-                <Label>District</Label>
+                <Label htmlFor="order-form-district">District</Label>
                 <Select
                   value={districtId}
                   onValueChange={(v) => {
@@ -351,7 +351,7 @@ export function OrderForm({
                     setValue("shipping_bd_upazila_id", "");
                   }}
                 >
-                  <SelectTrigger disabled={!divisionId}>
+                  <SelectTrigger id="order-form-district" disabled={!divisionId}>
                     <SelectValue placeholder="Select">
                       {districts?.find((d) => String(d.id) === districtId)?.name_en}
                     </SelectValue>
@@ -367,9 +367,9 @@ export function OrderForm({
               </div>
 
               <div className="space-y-1.5">
-                <Label>Upazila</Label>
+                <Label htmlFor="order-form-upazila">Upazila</Label>
                 <Select value={upazilaId} onValueChange={(v) => setValue("shipping_bd_upazila_id", v)}>
-                  <SelectTrigger disabled={!districtId}>
+                  <SelectTrigger id="order-form-upazila" disabled={!districtId}>
                     <SelectValue placeholder="Select">
                       {upazilas?.find((u) => String(u.id) === upazilaId)?.name_en}
                     </SelectValue>
@@ -406,7 +406,7 @@ export function OrderForm({
                       setValue(`items.${index}.product_variant_id`, "");
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label={`Product for item ${index + 1}`}>
                       <SelectValue placeholder="Select product">
                         {selectedProduct?.name}
                       </SelectValue>

@@ -33,7 +33,11 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"p">) {
 }
 
 function AlertDescription({ className, ...props }: React.ComponentProps<"p">) {
-  return <p className={cn("text-text-secondary", className)} {...props} />;
+  // text-text-secondary reads fine on white/background, but every Alert
+  // variant sits on its own colored bg-{variant}/5 tint, and that tint
+  // pulls the effective contrast below 4.5:1 (as low as 4.34:1 measured
+  // for the info variant) — matches AlertTitle's already-safe choice.
+  return <p className={cn("text-text-primary", className)} {...props} />;
 }
 
 export { Alert, AlertTitle, AlertDescription };

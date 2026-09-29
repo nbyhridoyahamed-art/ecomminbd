@@ -113,9 +113,9 @@ export function StockTransferForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label>From warehouse</Label>
+          <Label htmlFor="stock-transfer-form-from-warehouse">From warehouse</Label>
           <Select value={fromWarehouseId} onValueChange={(v) => setValue("from_warehouse_id", v, { shouldValidate: true })}>
-            <SelectTrigger>
+            <SelectTrigger id="stock-transfer-form-from-warehouse">
               <SelectValue placeholder="Select warehouse">
                 {warehouses.find((w) => String(w.id) === fromWarehouseId)?.name}
               </SelectValue>
@@ -132,9 +132,9 @@ export function StockTransferForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>To warehouse</Label>
+          <Label htmlFor="stock-transfer-form-to-warehouse">To warehouse</Label>
           <Select value={toWarehouseId} onValueChange={(v) => setValue("to_warehouse_id", v, { shouldValidate: true })}>
-            <SelectTrigger>
+            <SelectTrigger id="stock-transfer-form-to-warehouse">
               <SelectValue placeholder="Select warehouse">
                 {warehouses.find((w) => String(w.id) === toWarehouseId)?.name}
               </SelectValue>
@@ -169,7 +169,7 @@ export function StockTransferForm({
                       setValue(`items.${index}.product_variant_id`, "");
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label={`Product for item ${index + 1}`}>
                       <SelectValue placeholder="Select product">{selectedProduct?.name}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>

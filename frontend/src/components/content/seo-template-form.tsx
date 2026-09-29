@@ -86,7 +86,7 @@ export function SeoTemplateForm({
       ) : null}
 
       <div className="space-y-1.5">
-        <Label>Entity type</Label>
+        <Label htmlFor="seo-template-entity-type">Entity type</Label>
         {isEditing ? (
           <>
             <input type="hidden" {...register("entity_type")} />
@@ -100,7 +100,7 @@ export function SeoTemplateForm({
             value={entityType}
             onValueChange={(value) => setValue("entity_type", value as FormValues["entity_type"], { shouldDirty: true })}
           >
-            <SelectTrigger className="max-w-xs">
+            <SelectTrigger id="seo-template-entity-type" className="max-w-xs">
               <SelectValue placeholder="Select entity type">
                 {entityType ? ENTITY_TYPE_LABELS[entityType] : undefined}
               </SelectValue>

@@ -126,7 +126,7 @@ export function CustomerAddressForm({
 
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-1.5">
-          <Label>Division</Label>
+          <Label htmlFor="customer-address-form-division">Division</Label>
           <Select
             value={divisionId}
             onValueChange={(v) => {
@@ -135,7 +135,7 @@ export function CustomerAddressForm({
               setValue("bd_upazila_id", "");
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger id="customer-address-form-division">
               <SelectValue placeholder="Select">
                 {divisions?.find((d) => String(d.id) === divisionId)?.name_en}
               </SelectValue>
@@ -151,7 +151,7 @@ export function CustomerAddressForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>District</Label>
+          <Label htmlFor="customer-address-form-district">District</Label>
           <Select
             value={districtId}
             onValueChange={(v) => {
@@ -159,7 +159,7 @@ export function CustomerAddressForm({
               setValue("bd_upazila_id", "");
             }}
           >
-            <SelectTrigger disabled={!divisionId}>
+            <SelectTrigger disabled={!divisionId} id="customer-address-form-district">
               <SelectValue placeholder="Select">
                 {districts?.find((d) => String(d.id) === districtId)?.name_en}
               </SelectValue>
@@ -175,9 +175,9 @@ export function CustomerAddressForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Upazila</Label>
+          <Label htmlFor="customer-address-form-upazila">Upazila</Label>
           <Select value={upazilaId} onValueChange={(v) => setValue("bd_upazila_id", v)}>
-            <SelectTrigger disabled={!districtId}>
+            <SelectTrigger disabled={!districtId} id="customer-address-form-upazila">
               <SelectValue placeholder="Select">
                 {upazilas?.find((u) => String(u.id) === upazilaId)?.name_en}
               </SelectValue>

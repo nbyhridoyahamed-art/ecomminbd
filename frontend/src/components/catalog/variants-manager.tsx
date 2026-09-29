@@ -249,7 +249,7 @@ function VariantRow({
       </td>
       <td className="px-3 py-2">
         <Select value={status} onValueChange={(v) => setStatus(v as "active" | "inactive")}>
-          <SelectTrigger className="h-8 w-28" disabled={!canEdit}>
+          <SelectTrigger className="h-8 w-28" disabled={!canEdit} aria-label={`Status for ${label}`}>
             <SelectValue>{status === "active" ? "Active" : "Inactive"}</SelectValue>
           </SelectTrigger>
           <SelectContent>

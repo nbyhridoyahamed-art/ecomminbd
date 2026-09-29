@@ -160,12 +160,12 @@ export function BlogPostForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label>Category</Label>
+          <Label htmlFor="blog-post-category">Category</Label>
           <Select
             value={categoryId || "none"}
             onValueChange={(value) => setValue("blog_category_id", value === "none" ? "" : value, { shouldDirty: true })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="blog-post-category">
               <SelectValue placeholder="No category" />
             </SelectTrigger>
             <SelectContent>
@@ -217,12 +217,12 @@ export function BlogPostForm({
 
       <div className="grid grid-cols-2 gap-4 rounded-lg border border-border p-4">
         <div className="space-y-1.5">
-          <Label>Status</Label>
+          <Label htmlFor="blog-post-status">Status</Label>
           <Select
             value={status}
             onValueChange={(value) => setValue("status", value as BlogPostStatus, { shouldDirty: true })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="blog-post-status">
               <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
             </SelectTrigger>
             <SelectContent>

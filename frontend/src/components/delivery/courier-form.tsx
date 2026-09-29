@@ -112,12 +112,12 @@ export function CourierForm({ storeId, defaultValues, onSubmit, isPending, serve
       </div>
 
       <div className="max-w-48 space-y-1.5">
-        <Label>Status</Label>
+        <Label htmlFor="courier-form-status">Status</Label>
         <Select
           value={status}
           onValueChange={(value) => setValue("status", value as "active" | "inactive", { shouldDirty: true })}
         >
-          <SelectTrigger>
+          <SelectTrigger id="courier-form-status">
             <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
           </SelectTrigger>
           <SelectContent>

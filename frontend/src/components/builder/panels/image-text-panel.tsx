@@ -46,9 +46,9 @@ export function ImageTextPanel({ value, onChange }: ContentPanelProps<ImageTextS
         </div>
       </div>
       <div className="space-y-1.5">
-        <Label>Image position</Label>
+        <Label htmlFor="image-text-panel-image-position">Image position</Label>
         <Select value={value.image_position} onValueChange={(position) => onChange({ ...value, image_position: position as "left" | "right" })}>
-          <SelectTrigger className="max-w-xs">
+          <SelectTrigger className="max-w-xs" id="image-text-panel-image-position">
             <SelectValue>{value.image_position === "right" ? "Right" : "Left"}</SelectValue>
           </SelectTrigger>
           <SelectContent>

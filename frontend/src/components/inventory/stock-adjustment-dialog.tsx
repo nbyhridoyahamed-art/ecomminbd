@@ -89,9 +89,9 @@ function StockAdjustmentDialogBody({ product, warehouseId, onClose }: StockAdjus
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Direction</Label>
+            <Label htmlFor="stock-adjustment-dialog-direction">Direction</Label>
             <Select value={direction} onValueChange={(value) => setDirection(value as "increase" | "decrease")}>
-              <SelectTrigger>
+              <SelectTrigger id="stock-adjustment-dialog-direction">
                 <SelectValue>{DIRECTION_LABELS[direction]}</SelectValue>
               </SelectTrigger>
               <SelectContent>

@@ -75,7 +75,7 @@ export function BuilderPanel({ block, storeId, activeBreakpoint, onBreakpointCha
             onClick={() => setTab(t)}
             className={cn(
               "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              tab === t ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-border/30",
+              tab === t ? "bg-primary/8 text-primary" : "text-text-secondary hover:bg-border/30",
             )}
           >
             {t}

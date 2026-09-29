@@ -207,7 +207,7 @@ export default function CheckoutPage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label>Division</Label>
+                <Label htmlFor="checkout-shipping-division">Division</Label>
                 <Select
                   value={divisionId}
                   onValueChange={(v) => {
@@ -216,7 +216,7 @@ export default function CheckoutPage() {
                     setValue("shipping_bd_upazila_id", "");
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="checkout-shipping-division">
                     <SelectValue placeholder="Select">
                       {divisions?.find((d) => String(d.id) === divisionId)?.name_en}
                     </SelectValue>
@@ -232,7 +232,7 @@ export default function CheckoutPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>District</Label>
+                <Label htmlFor="checkout-shipping-district">District</Label>
                 <Select
                   value={districtId}
                   onValueChange={(v) => {
@@ -240,7 +240,7 @@ export default function CheckoutPage() {
                     setValue("shipping_bd_upazila_id", "");
                   }}
                 >
-                  <SelectTrigger disabled={!divisionId}>
+                  <SelectTrigger id="checkout-shipping-district" disabled={!divisionId}>
                     <SelectValue placeholder="Select">
                       {districts?.find((d) => String(d.id) === districtId)?.name_en}
                     </SelectValue>
@@ -256,9 +256,9 @@ export default function CheckoutPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Upazila</Label>
+                <Label htmlFor="checkout-shipping-upazila">Upazila</Label>
                 <Select value={upazilaId} onValueChange={(v) => setValue("shipping_bd_upazila_id", v)}>
-                  <SelectTrigger disabled={!districtId}>
+                  <SelectTrigger id="checkout-shipping-upazila" disabled={!districtId}>
                     <SelectValue placeholder="Select">
                       {upazilas?.find((u) => String(u.id) === upazilaId)?.name_en}
                     </SelectValue>

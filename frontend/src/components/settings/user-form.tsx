@@ -124,12 +124,12 @@ export function UserForm({ mode, defaultValues, onSubmit, isPending, serverError
       </div>
 
       <div className="space-y-1.5">
-        <Label>Status</Label>
+        <Label htmlFor="user-form-status">Status</Label>
         <Select
           value={status}
           onValueChange={(value) => setValue("status", value as "active" | "suspended", { shouldDirty: true })}
         >
-          <SelectTrigger className="max-w-48">
+          <SelectTrigger id="user-form-status" className="max-w-48">
             <SelectValue>{status ? STATUS_LABELS[status] : undefined}</SelectValue>
           </SelectTrigger>
           <SelectContent>

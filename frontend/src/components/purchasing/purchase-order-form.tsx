@@ -120,9 +120,9 @@ export function PurchaseOrderForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label>Supplier</Label>
+          <Label htmlFor="purchase-order-form-supplier">Supplier</Label>
           <Select value={supplierId} onValueChange={(v) => setValue("supplier_id", v, { shouldValidate: true })}>
-            <SelectTrigger>
+            <SelectTrigger id="purchase-order-form-supplier">
               <SelectValue placeholder="Select supplier">
                 {suppliers.find((s) => String(s.id) === supplierId)?.name}
               </SelectValue>
@@ -139,9 +139,9 @@ export function PurchaseOrderForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Receiving warehouse</Label>
+          <Label htmlFor="purchase-order-form-warehouse">Receiving warehouse</Label>
           <Select value={warehouseId} onValueChange={(v) => setValue("warehouse_id", v, { shouldValidate: true })}>
-            <SelectTrigger>
+            <SelectTrigger id="purchase-order-form-warehouse">
               <SelectValue placeholder="Select warehouse">
                 {warehouses.find((w) => String(w.id) === warehouseId)?.name}
               </SelectValue>
@@ -176,7 +176,7 @@ export function PurchaseOrderForm({
                       setValue(`items.${index}.product_variant_id`, "");
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label={`Product for item ${index + 1}`}>
                       <SelectValue placeholder="Select product">{selectedProduct?.name}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>

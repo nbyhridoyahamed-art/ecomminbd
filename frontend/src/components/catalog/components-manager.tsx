@@ -89,7 +89,7 @@ export function ComponentsManager({ storeId, bundleProductId, components, bundle
                 setVariantId("");
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="Select product">
                 <SelectValue placeholder="Select product">{selectedProduct?.name}</SelectValue>
               </SelectTrigger>
               <SelectContent>

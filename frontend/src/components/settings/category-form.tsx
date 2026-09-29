@@ -146,12 +146,12 @@ export function CategoryForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label>Parent category</Label>
+          <Label htmlFor="category-parent">Parent category</Label>
           <Select
             value={parentId}
             onValueChange={(value) => setValue("parent_id", value === "none" ? "" : value, { shouldDirty: true })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="category-parent">
               <SelectValue placeholder="None (top-level)">
                 {parentId ? (selectedParent?.name ?? undefined) : "None (top-level)"}
               </SelectValue>
@@ -170,12 +170,12 @@ export function CategoryForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Status</Label>
+          <Label htmlFor="category-status">Status</Label>
           <Select
             value={status}
             onValueChange={(value) => setValue("status", value as "active" | "inactive", { shouldDirty: true })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="category-status">
               <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
             </SelectTrigger>
             <SelectContent>

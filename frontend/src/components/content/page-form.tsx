@@ -125,12 +125,12 @@ export function PageForm({ storeId, defaultValues, onSubmit, isPending, serverEr
       </div>
 
       <div className="space-y-1.5">
-        <Label>Status</Label>
+        <Label htmlFor="page-form-status">Status</Label>
         <Select
           value={status}
           onValueChange={(value) => setValue("status", value as "draft" | "published", { shouldDirty: true })}
         >
-          <SelectTrigger className="max-w-xs">
+          <SelectTrigger id="page-form-status" className="max-w-xs">
             <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
           </SelectTrigger>
           <SelectContent>

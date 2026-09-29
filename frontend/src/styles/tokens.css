@@ -5,12 +5,24 @@
  */
 
 :root {
-  /* Brand / status colors — light mode */
+  /* Brand / status colors — light mode.
+     Phase 23: success/warning/danger/info are darkened from their
+     original, more saturated values (#16a34a/#f59e0b/#dc2626/#0ea5e9).
+     Those failed WCAG AA's 4.5:1 for normal text both as plain text on
+     white (as low as 2.15:1 for warning) and inside their own
+     bg-{color}/10 badge tint (as low as 1.99:1) — real, axe-measured
+     failures on status badges and trend indicators, not a hunch. Each
+     replacement keeps the same hue/saturation (HSL lightness reduced
+     only) and clears both contexts with real margin (>=5:1), found by
+     search rather than picked by eye. --color-primary is unchanged
+     here (5.17:1 on white already passes); only its own /10 tint
+     usages needed a lighter opacity, fixed at each call site instead of
+     the token, to leave the brand blue itself untouched. */
   --color-primary: #2563eb;
-  --color-success: #16a34a;
-  --color-warning: #f59e0b;
-  --color-danger: #dc2626;
-  --color-info: #0ea5e9;
+  --color-success: #107435;
+  --color-warning: #8d5a06;
+  --color-danger: #c21f1f;
+  --color-info: #096b97;
 
   --color-background: #f8fafc;
   --color-surface: #ffffff;
@@ -20,10 +32,11 @@
   --color-text-primary: #0f172a;
   --color-text-secondary: #64748b;
   /* Phase 23: was #94a3b8 (2.56:1 on white — fails WCAG AA's 4.5:1 for
-     normal text). This is as light as a "muted" tier can go and still
-     pass; #64748b (secondary) is only barely above the same floor
-     itself, so there isn't much room left between the two tiers. */
-  --color-text-muted: #677690;
+     normal text), then #677690 (4.59:1 on white, but only 4.39:1 against
+     the app's actual --color-background #f8fafc, which is what this
+     token usually sits on directly — still short). #5f6d88 clears 4.5:1
+     against both (4.98:1 on background, 5.21:1 on white). */
+  --color-text-muted: #5f6d88;
 
   /* Radius */
   --radius-sm: 6px;
@@ -36,9 +49,32 @@
   --shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.06);
 }
 
-/* True dark theme — distinct values, not an inversion (spec section 46) */
+/* True dark theme — distinct values, not an inversion (spec section 46).
+   Phase 23: simply inheriting the newly-darkened light-mode
+   success/warning/danger/info would make them *worse* in dark mode (a
+   darker foreground has less contrast against an already-dark
+   background), so all four are restored to their original
+   (pre-darkening) values here, which already clear 4.5:1 against every
+   dark surface and their own /10 tint (verified, not eyeballed).
+   --color-primary and --color-danger are deliberately left unset (both
+   inherit the same value light mode uses): each is used both as *text*
+   on a dark surface and as a *solid button background* with white text
+   (Button's primary/destructive variants), and those two roles pull in
+   opposite directions — a lighter shade that reads well as text on a
+   dark background stops being dark enough behind white button text (and
+   the reverse for something dark enough to hold a button). One flat
+   color can't satisfy both, so fixing dark mode's text-on-dark-surface
+   case (a pre-existing gap, not something this phase measured or
+   introduced) needs a second, separate "accent" token, not a same-token
+   override — left for a dedicated pass instead of a partial fix that
+   would trade one failure for the other. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --color-success: #16a34a;
+    --color-warning: #f59e0b;
+    --color-danger: #dc2626;
+    --color-info: #0ea5e9;
+
     --color-background: #0b1120;
     --color-surface: #111827;
     --color-surface-elevated: #172033;
@@ -51,6 +87,11 @@
 }
 
 :root[data-theme="dark"] {
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+  --color-info: #0ea5e9;
+
   --color-background: #0b1120;
   --color-surface: #111827;
   --color-surface-elevated: #172033;

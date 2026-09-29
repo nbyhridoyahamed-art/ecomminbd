@@ -79,7 +79,7 @@ export default function AnalyticsCustomersPage() {
             className="w-40"
           />
           <Select value={granularity} onValueChange={(value) => setGranularity(value as AnalyticsGranularity)}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-32" aria-label="Report granularity">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -108,12 +108,12 @@ export function RedirectForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Status code</Label>
+        <Label htmlFor="redirect-form-status-code">Status code</Label>
         <Select
           value={statusCode}
           onValueChange={(value) => setValue("status_code", value as FormValues["status_code"], { shouldDirty: true })}
         >
-          <SelectTrigger className="max-w-xs">
+          <SelectTrigger id="redirect-form-status-code" className="max-w-xs">
             <SelectValue placeholder="Select status code">
               {statusCode ? STATUS_CODE_LABELS[statusCode] : undefined}
             </SelectValue>

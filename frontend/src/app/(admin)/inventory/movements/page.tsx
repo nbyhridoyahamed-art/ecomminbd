@@ -92,7 +92,7 @@ export default function StockMovementsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Select value={warehouseId} onValueChange={(v) => { setWarehouseId(v); setPage(1); }}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48" aria-label="Filter by warehouse">
             <SelectValue placeholder="All warehouses" />
           </SelectTrigger>
           <SelectContent>
@@ -105,7 +105,7 @@ export default function StockMovementsPage() {
           </SelectContent>
         </Select>
         <Select value={type} onValueChange={(v) => { setType(v); setPage(1); }}>
-          <SelectTrigger className="w-56">
+          <SelectTrigger className="w-56" aria-label="Filter by movement type">
             <SelectValue placeholder="All types" />
           </SelectTrigger>
           <SelectContent>

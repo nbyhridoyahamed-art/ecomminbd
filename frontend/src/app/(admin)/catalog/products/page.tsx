@@ -158,7 +158,7 @@ export default function ProductsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Filter by category">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent>
@@ -177,7 +177,7 @@ export default function ProductsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Filter by brand">
               <SelectValue placeholder="All brands" />
             </SelectTrigger>
             <SelectContent>
@@ -196,7 +196,7 @@ export default function ProductsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-36">
+            <SelectTrigger className="w-36" aria-label="Filter by status">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>

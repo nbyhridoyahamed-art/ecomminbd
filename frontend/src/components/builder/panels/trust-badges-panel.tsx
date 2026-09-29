@@ -52,7 +52,7 @@ export function TrustBadgesPanel({ value, onChange }: ContentPanelProps<TrustBad
             <div key={index} className="flex items-start gap-2 rounded-md border border-border p-3">
               <div className="flex-1 space-y-1.5">
                 <Select value={item.icon} onValueChange={(icon) => updateRow(index, { icon })}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label={`Icon for badge ${index + 1}`}>
                     <SelectValue placeholder="Icon" />
                   </SelectTrigger>
                   <SelectContent>
