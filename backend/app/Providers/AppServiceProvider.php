@@ -3,6 +3,10 @@
 namespace App\Providers;
 
 use App\Contracts\SmsGateway;
+use App\Models\Category;
+use App\Models\HomepageBlock;
+use App\Observers\CategoryObserver;
+use App\Observers\HomepageBlockObserver;
 use App\Policies\RolePolicy;
 use App\Services\Sms\LogSmsGateway;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -54,5 +58,21 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
+
+        // Phase 22: keeps the storefront's cached category tree
+        // (Category::storefrontCacheKey()) from ever going stale after an
+        // admin edit — every write here already goes through a model
+        // instance (create()/update()/delete()), never a raw query-builder
+        // bulk update, so observer events are a reliable place to hook.
+        Category::observe(CategoryObserver::class);
+
+        // Same reasoning for the cached storefront homepage — covers
+        // HomepageBlockController's store/update/destroy/publish/unpublish/
+        // duplicate/restore actions and the scheduled-publish console
+        // command, all of which mutate through a model instance.
+        // reorder()'s bulk per-ID query-builder update is the one write
+        // path this can't see, and invalidates explicitly in the
+        // controller instead.
+        HomepageBlock::observe(HomepageBlockObserver::class);
     }
 }

@@ -17,6 +17,7 @@ use App\Support\ResolvesHomepageBlocks;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class HomepageBlockController extends Controller
@@ -131,6 +132,10 @@ class HomepageBlockController extends Controller
                 HomepageBlock::where('id', $id)->update(['sort_order' => $index]);
             }
         });
+
+        // The one write path HomepageBlockObserver can't see — a
+        // query-builder update never fires model events.
+        Cache::forget(HomepageBlock::storefrontCacheKey($request->user()->current_store_id));
 
         return ApiResponse::success(message: 'Homepage blocks reordered successfully.');
     }

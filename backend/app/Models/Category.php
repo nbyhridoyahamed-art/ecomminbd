@@ -25,6 +25,12 @@ class Category extends Model
         });
     }
 
+    /** Cache key for the storefront's cached top-level category tree — shared with CategoryObserver, which invalidates it. */
+    public static function storefrontCacheKey(int $storeId): string
+    {
+        return "storefront:categories:{$storeId}";
+    }
+
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);

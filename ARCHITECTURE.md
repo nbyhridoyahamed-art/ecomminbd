@@ -218,12 +218,37 @@ notification's `via()` — see the Phase 19 Wave 1 scope note in
 
 ## 8. Caching & Queues
 
-- Redis is the target cache/queue driver in production; settings,
-  navigation, categories, and the published homepage are cached and
-  invalidated on write (spec section 112–113).
-- Heavy work (CSV import/export, image processing, report generation,
-  sitemap builds, notification delivery) runs on queued jobs, never
-  synchronously in a request (spec section 110).
+This section previously described spec-level intent as if it were already
+built; Phase 22 (Performance) checked and corrected it against what
+actually exists.
+
+- Real, as of Phase 22: the storefront's category tree
+  (`Category::storefrontCacheKey()`) and its resolved homepage
+  (`HomepageBlock::storefrontCacheKey()`) — the two highest-traffic reads
+  on the whole public site — are cached (`CACHE_STORE`, `database` in
+  dev/prod, `array` under the test suite) and invalidated the moment an
+  admin action could change them: `CategoryObserver`/`HomepageBlockObserver`
+  catch every write that goes through a model instance (`create`/`update`/
+  `delete`, which is nearly everything), and `HomepageBlockController::
+  reorder()` — the one write path that updates by query builder instead,
+  which never fires model events — invalidates explicitly. Redis is the
+  target production cache driver; nothing here depends on it specifically,
+  any Laravel cache store works.
+- Settings and navigation are not cached — navigation menus don't exist
+  as a built feature yet (see `DEVELOPMENT_ROADMAP.md`'s Phase 12 Wave 2
+  scope note), and no controller reads Settings on a hot path the way
+  categories/homepage are read, so there's nothing there yet to cache
+  ahead of a real need.
+- Queued jobs are not implemented: `QUEUE_CONNECTION=database` is
+  configured and ready, but nothing in the app implements `ShouldQueue` or
+  calls `dispatch()`, and — same reasoning Phase 19's own scope note
+  already gives for real SMS/payment providers — a queue still needs a
+  running worker process to ever process what lands in the `jobs` table,
+  which doesn't exist in this environment. Converting real work to
+  `ShouldQueue` without one wouldn't defer it, it would silently make it
+  never run. CSV import/export, PDF report generation, sitemap builds, and
+  notification delivery all still run synchronously in the request that
+  triggers them.
 
 ## 9. Frontend Architecture
 

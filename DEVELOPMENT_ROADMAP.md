@@ -28,7 +28,7 @@ in place and the app still builds/runs.
 | 19 | Integrations (payment/courier/email/SMS/WhatsApp adapters) | ✅ Wave 1 done (real payment/courier/WhatsApp providers, real SMS provider, queued delivery deferred — see note) | Yes — the Adapter Pattern's first real instance: a `SmsGateway` contract + log-mock implementation, order/return lifecycle notifications (mail + SMS to the customer, a database notification to staff), and the admin topbar's notification bell finally wired to real data |
 | 20 | Analytics | ✅ Full spec done, not a lean wave (see note) | Yes — first-party storefront behavioral tracking (page/product/category views, searches, cart/checkout funnel, purchases) feeding a new admin Analytics dashboard (traffic trend, top viewed products, search terms incl. zero-result flagging, a 4-stage conversion funnel, new-vs-returning customers), each report with CSV export and the Overview also with PDF |
 | 21 | Security Hardening | ✅ Wave 1 done (2FA, account lockout, breach-checked passwords deferred — see note) | Yes — a real global `throttle:api` (60/min per user-or-IP, on top of the existing tighter per-route throttles), an explicit reviewed `config/cors.php` (previously an undocumented framework fallback), Sanctum tokens now expire (30 days, were permanent), a catch-all exception renderer that stops an unexpected 500 leaking a stack trace when `APP_DEBUG` is off, and standard security response headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`) on every response |
-| 22 | Performance | ⏳ Not started | No |
+| 22 | Performance | ✅ Wave 1 done (queued jobs, materialized aggregates still deferred — see note) | Yes — measured first (N+1 queries and missing indexes both checked and confirmed clean, not assumed), then closed the one real, verified gap: the storefront category tree and resolved homepage — the two highest-traffic public reads — are now cached and invalidated on every write that could change them |
 | 23 | Accessibility | 🟡 Baseline in design system | Partial |
 | 24 | Responsive QA | 🟡 Baseline (login/dashboard tested at all breakpoints) | Partial |
 | 25 | Final Testing | 🟡 Backend feature tests + frontend build/lint/typecheck for what exists | Partial |
@@ -1044,20 +1044,90 @@ change, not a config toggle, that deserves its own deliberate look rather
 than riding in on a hardening pass. 4 new backend tests (400 → 404), all
 green, Pint-clean.
 
+**Phase 22 scope note:** measured before touching anything, per this
+phase's own next-steps note from the previous session — same reasoning as
+every other phase's scope note: a fix needs a verified gap behind it, not
+an assumption. Two hypotheses turned out to be non-issues: N+1 queries
+(a differential query-count test — 3 rows vs. 15 rows, same endpoint —
+showed a flat query count on both the admin orders list and the storefront
+products list, once a Spatie permission-cache warm-up call removed a
+confound from the first measurement) and missing indexes (the `orders`
+and `products` migrations already carry composite `[store_id, status]`
+indexes and more; spot-checking the two highest-traffic tables found
+nothing to fix). The one real, concrete gap: `ARCHITECTURE.md` section 8
+claimed settings/navigation/categories/the published homepage were already
+cached and invalidated on write, and that heavy work already ran queued —
+neither was true (`grep` for `Cache::remember`/`ShouldQueue`/`dispatch(`
+across `app/` returned nothing at all). Queuing stays unactionable for the
+same reason Phase 19's real SMS/payment providers do — `QUEUE_CONNECTION=
+database` is configured, but nothing processes the `jobs` table without a
+running worker, which doesn't exist in this environment, so converting
+real work to `ShouldQueue` now would silently stop it running rather than
+defer it. Caching had no such blocker, so that's what shipped: the
+storefront's category tree and resolved homepage (the two highest-traffic
+public reads — the latter re-running up to ~30 block types' worth of
+queries on literally the site's front page, on every single view) are now
+cached, keyed per store on the model itself
+(`Category`/`HomepageBlock::storefrontCacheKey()`) so the admin
+controller that invalidates and the storefront controller that reads
+can never drift apart. Invalidation is a `CategoryObserver`/
+`HomepageBlockObserver` pair (`saved`/`deleted`) for the two models —
+verified first that every mutating action for both goes through a model
+instance (`create()`/`update()`/`delete()`, which fires the events an
+observer needs) rather than a query-builder bulk update, with one
+exception: `HomepageBlockController::reorder()` updates each block by
+`HomepageBlock::where('id', $id)->update(...)`, which never fires model
+events, so that one action invalidates explicitly instead — the kind of
+thing that's only safe to build after actually reading how each write
+path works, not by assuming an observer catches everything. Deliberately
+cut: `Setting`/navigation caching (no controller reads `Setting` on a hot
+path yet, and navigation menus don't exist as a shipped feature — Phase
+12 Wave 2 — so nothing there to cache ahead of a need); real queued jobs
+(see above); materialized/scheduled aggregate tables for Reporting/
+Analytics (still infra to build once real data volume demands it, same
+reasoning those two phases' own scope notes already gave, not something
+this pass changes).
+
+A real bug shipped in the first pass and was only caught by live
+verification against a running `php artisan serve`, not the automated
+suite: both caches initially stored the raw Eloquent Collection/API
+Resource output (`CategoryResource::collection($categories)` and
+`resolveBlockData()`'s `ProductResource::collection(...)` etc.) rather
+than a plain array. That round-trips fine through `artisan tinker`, but
+the moment a real request read it back, PHP's `unserialize()` produced a
+`__PHP_Incomplete_Class` and every hit past the first crashed with a 500
+— Resources and Eloquent Collections carry framework internals (relation-
+loader closures, a request reference) that plain `serialize()` can't
+safely reconstruct. The test suite's `array` cache driver (`phpunit.xml`)
+never actually serializes anything — a cached value just sits in memory
+as the same live PHP object — so all 5 tests above passed while the bug
+shipped. Fixed by caching `json_decode(json_encode(...), true)` of the
+resource output instead — the plain, already-JSON-ready array every
+Resource ultimately produces anyway — in both controllers. Two more tests
+force `config(['cache.default' => 'file'])`, the simplest store that
+actually calls `serialize()`/`unserialize()`, specifically so this class
+of regression can't silently reappear; both were confirmed to fail
+against the reverted (broken) code before being confirmed green against
+the fix, the same red-green discipline the fix itself deserved. 7 new
+backend tests total (404 → 411), all green, Pint-clean.
+
 ## Next Session Should Start With
 
-Phase 21 (Security Hardening) Wave 1 is now done — see its scope note
-above for what shipped (global rate limiting, explicit CORS config,
-Sanctum token expiration, an exception safety net, security headers) and
-what's still deliberately cut (2FA, persistent account lockout, breach-
-checked passwords). **Phase 22 (Performance)** is the next not-yet-started
-numbered phase in the master table (rule 176's own order) and hasn't had
-the same close-reading pass Phase 21 got before starting — that's the
-right first step, not guessing at a scope: read `ARCHITECTURE.md`/
-`DATABASE_DESIGN.md` for any already-flagged N+1/indexing/caching
-concerns the way `API_DESIGN.md` section 8 flagged Phase 21's rate-limit
-gap, and actually measure (e.g. `DB::listen()` or the debugbar/Telescope
-route list under real data volume) rather than optimizing by guess.
+Phase 21 (Security Hardening) and Phase 22 (Performance) Wave 1s are both
+now done — see their scope notes above for what shipped and what's still
+deliberately cut. **Phase 23 (Accessibility)** is the next not-yet-started
+numbered phase in the master table (rule 176's own order) and, like
+Phase 22 before it, hasn't had the same close-reading-plus-measurement
+pass yet — the right first step is the same one that worked twice now:
+read what's already there (`DESIGN_SYSTEM.md` for whatever the "baseline
+in design system" table entry actually refers to — likely the semantic
+HTML/focus-state choices already made in `src/components/ui/*`, not yet
+verified against a real screen reader or keyboard-only pass) before
+assuming a scope, then actually check a handful of real screens with an
+automated tool (e.g. axe-core, already a transitive frontend dependency —
+`frontend/node_modules/axe-core` — per the earlier repo-wide grep this
+session ran while investigating something else entirely) and a manual
+keyboard-only pass, rather than guessing what's missing.
 
 Phase 17 (Customer Dashboard) Wave 1, Phase 19 (Integrations) Wave 1,
 Phase 12 (CMS) Wave 1, the full Phase 13 (Homepage Builder), Phase 14

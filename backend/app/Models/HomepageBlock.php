@@ -38,6 +38,12 @@ class HomepageBlock extends Model
         });
     }
 
+    /** Cache key for the storefront's resolved homepage — shared with HomepageBlockController, which invalidates it. */
+    public static function storefrontCacheKey(int $storeId): string
+    {
+        return "storefront:homepage:{$storeId}";
+    }
+
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
