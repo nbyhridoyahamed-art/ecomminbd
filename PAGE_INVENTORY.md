@@ -38,12 +38,12 @@ their backing functionality — no dead pages).
 | `/purchasing` | ✅ | 7 (redirects to Purchase Orders) |
 | `/purchasing/purchase-orders` | ✅ | 7 (status/supplier filters, total shown per order) |
 | `/purchasing/purchase-orders/new` | ✅ | 7 (supplier/warehouse + line-item builder with unit cost) |
-| `/purchasing/purchase-orders/[id]` | ✅ | 7 (items w/ received-so-far, place/cancel actions, record-receipt form, receipt history, returns summary + request-a-return form — drives real `stock_movements`) |
+| `/purchasing/purchase-orders/[id]` | ✅ | 7 (items w/ received-so-far, record-receipt form, receipt history, returns summary + request-a-return form — drives real `stock_movements`); 7 Wave 2b turned the header into a real workflow view — submit-for-approval/approve/reject (with a reason dialog)/cancel actions gated by status + the new `purchase_orders.approve` permission, a status-history timeline, and a payments list |
 | `/purchasing/purchase-returns` | ✅ | 7 Wave 2a (list, filter by status) |
 | `/purchasing/purchase-returns/[id]` | ✅ | 7 Wave 2a (items, status history, approve/reject/ship-back/credit actions) |
 | `/purchasing/suppliers` | ✅ | 7 (list, search, pagination) |
-| `/purchasing/suppliers/new`, `/purchasing/suppliers/[id]` | ✅ | 7 |
-| `/purchasing` (supplier ledger/payment terms, PO approval workflow, reorder suggestions) | ⏳ | 7 Wave 2 remaining items — no real consumer yet, see `DATABASE_DESIGN.md` |
+| `/purchasing/suppliers/new` | ✅ | 7 |
+| `/purchasing/suppliers/[id]` | ✅ | 7 (edit form, gated on `suppliers.update` — a read-only detail card shows instead for a `suppliers.view`-only user, e.g. Accountant); 7 Wave 2b added a payment-terms field to the form and a always-visible Ledger card (entries table + running balance, "Record payment" gated on the new `suppliers.pay` permission) |
 | `/orders` | ✅ | 8 (redirects to Orders) |
 | `/orders/orders` | ✅ | 8 (status/customer filters, total shown per order); 16 added a Source column (Admin/Storefront badge, once guest checkout existed to actually produce the latter) |
 | `/orders/orders/new` | ✅ | 8 (customer/warehouse/payment method + saved-or-manual shipping address + line-item builder) |
@@ -69,6 +69,7 @@ their backing functionality — no dead pages).
 | `/reports/sales` | ✅ | 18 (date range + warehouse + granularity filters, revenue/orders/AOV stat cards each with a vs.-previous-period trend badge, reused `SalesTrendChart`, by-payment-method and by-courier tables, Export dropdown: CSV/PDF) |
 | `/reports/products` | ✅ | 18 (date range + warehouse filters, units-sold/revenue table ranked by revenue, variant sales rolled up to the parent product, Export dropdown: CSV/PDF) |
 | `/reports/low-stock` | ✅ | 18 (cross-warehouse on-hand/reserved/available vs. threshold, Export dropdown: CSV/PDF) |
+| `/reports/reorder-suggestions` | ✅ | 7 Wave 2b (low-stock products enriched with 30-day sales velocity, a suggested reorder quantity — deficit plus a fixed 14-day lead-time buffer — and the most recent non-cancelled supplier/unit cost, Export dropdown: CSV/PDF) |
 | `/analytics` | ✅ | 20 (redirects to Overview) |
 | `/analytics/overview` | ✅ | 20 (date range + granularity filters, page views/unique sessions/conversion-rate stat cards each with a vs.-previous-period trend badge, a compact secondary row — product views/searches/added-to-cart/checkout-starts, new `TrafficTrendChart`, Export dropdown: CSV/PDF) |
 | `/analytics/products` | ✅ | 20 (date range filter, view-count/added-to-cart/view-to-cart-rate table ranked by views — real storefront behavior, not sales, so a product can rank high here with zero orders, Export: CSV) |
@@ -179,8 +180,9 @@ tab nav) around everything that actually needs a signed-in customer.
 | `POST /api/v1/stock-transfers/{id}/ship`, `.../receive`, `.../cancel` (drives `stock_movements`/`stock_levels`) | ✅ |
 | `GET/POST /api/v1/stock-adjustment-sessions`, `GET .../{id}` | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/suppliers` | ✅ |
+| `GET /api/v1/suppliers/{id}/ledger` (per-receipt debits, credited-return and payment credits, running balance — computed in PHP, not SQL, for MySQL/SQLite portability), `POST .../payments` (gated on `suppliers.pay`, separate from `suppliers.update`) | ✅ 7 Wave 2b |
 | `GET/POST/PUT/DELETE /api/v1/purchase-orders` | ✅ |
-| `POST /api/v1/purchase-orders/{id}/place`, `.../cancel` | ✅ |
+| `POST /api/v1/purchase-orders/{id}/submit-for-approval`, `.../approve`, `.../reject`, `.../cancel` (approve/reject gated on the new `purchase_orders.approve` permission, separate from `update` — see `DATABASE_DESIGN.md`) | ✅ 7 Wave 2b replaced the old single-step `place` action with a real `draft → pending_approval → ordered` workflow |
 | `POST /api/v1/purchase-orders/{id}/receipts` (drives `stock_movements`/`stock_levels`) | ✅ |
 | `GET/POST/PUT/DELETE /api/v1/customers` | ✅ |
 | `POST/PUT/DELETE /api/v1/customers/{id}/addresses(/{address})` | ✅ |
@@ -194,6 +196,7 @@ tab nav) around everything that actually needs a signed-in customer.
 | `POST /api/v1/returns/{id}/approve`, `.../reject`, `.../receive` (drives `stock_movements`/`stock_levels`), `.../refund` | ✅ |
 | `GET /api/v1/dashboard/sales-trend`, `GET /api/v1/dashboard/order-status-breakdown` | ✅ |
 | `GET /api/v1/reports/sales`, `.../products-performance`, `.../low-stock` (each with `/export` and `/export-pdf` twins) | ✅ — this row was stale (Phase 18 shipped these but never flipped it) |
+| `GET /api/v1/reports/reorder-suggestions` (+ `/export`, `/export-pdf` twins; low-stock rows enriched with 30-day sales velocity and the most recent non-cancelled supplier/unit cost) | ✅ 7 Wave 2b |
 | `GET /api/v1/storefront/store` | ✅ |
 | `GET /api/v1/storefront/categories`, `GET .../{slug}` (+ its products, paginated) | ✅ |
 | `GET /api/v1/storefront/brands`, `GET .../{slug}` (+ its products, paginated) | ✅ |

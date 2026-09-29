@@ -19,12 +19,12 @@ class PurchaseOrderController extends Controller
     // relations, including receipts — otherwise a resource built from a
     // partially-loaded model would serialize with `receipts` missing
     // entirely (JsonResource::whenLoaded), and a frontend cache write
-    // from that response (e.g. after place()/cancel()) would silently
+    // from that response (e.g. after approve()/cancel()) would silently
     // drop a field the show() response always includes.
     private const RELATIONS = [
         'warehouse', 'supplier', 'items.product', 'items.productVariant.attributeValues.attribute', 'creator',
         'receipts.items.orderItem.product', 'receipts.items.orderItem.productVariant', 'receipts.receiver',
-        'returns',
+        'returns', 'statusHistory.creator', 'payments.creator',
     ];
 
     public function index(Request $request): JsonResponse
@@ -38,7 +38,7 @@ class PurchaseOrderController extends Controller
             ->when($request->filled('store_id'), fn ($query) => $query->where('store_id', $request->integer('store_id')))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             // "Open" = not yet fully received or cancelled — backs the dashboard's open-PO count.
-            ->when($request->boolean('open'), fn ($query) => $query->whereIn('status', ['draft', 'ordered', 'partially_received']))
+            ->when($request->boolean('open'), fn ($query) => $query->whereIn('status', ['draft', 'pending_approval', 'ordered', 'partially_received']))
             ->when($request->filled('supplier_id'), fn ($query) => $query->where('supplier_id', $request->integer('supplier_id')))
             ->when($request->filled('warehouse_id'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse_id')))
             ->latest()
@@ -131,34 +131,76 @@ class PurchaseOrderController extends Controller
         return ApiResponse::success(message: 'Purchase order deleted successfully.');
     }
 
-    public function place(PurchaseOrder $purchaseOrder): JsonResponse
+    /** draft -> pending_approval. No stock or supplier-facing effect yet — approve() is the moment this actually commits to the supplier. */
+    public function submitForApproval(PurchaseOrder $purchaseOrder): JsonResponse
     {
         $this->authorize('update', $purchaseOrder);
 
         if ($purchaseOrder->status !== 'draft') {
-            return ApiResponse::error('Only draft purchase orders can be placed.', [], 422);
+            return ApiResponse::error('Only draft purchase orders can be submitted for approval.', [], 422);
         }
 
         if ($purchaseOrder->items()->count() === 0) {
-            return ApiResponse::error('Add at least one item before placing this order.', [], 422);
+            return ApiResponse::error('Add at least one item before submitting this order for approval.', [], 422);
         }
 
-        $purchaseOrder->update(['status' => 'ordered']);
+        $this->transition($purchaseOrder, 'pending_approval');
 
-        return ApiResponse::success(new PurchaseOrderResource($purchaseOrder->load(self::RELATIONS)), 'Purchase order placed successfully.');
+        return ApiResponse::success(new PurchaseOrderResource($purchaseOrder->load(self::RELATIONS)), 'Purchase order submitted for approval.');
+    }
+
+    /** pending_approval -> ordered — the real "committed to the supplier" moment, gated behind a permission distinct from create/update so the approver need not be the requester. */
+    public function approve(PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->authorize('approve', $purchaseOrder);
+
+        if ($purchaseOrder->status !== 'pending_approval') {
+            return ApiResponse::error('Only a purchase order pending approval can be approved.', [], 422);
+        }
+
+        $this->transition($purchaseOrder, 'ordered');
+
+        return ApiResponse::success(new PurchaseOrderResource($purchaseOrder->load(self::RELATIONS)), 'Purchase order approved and placed.');
+    }
+
+    /** pending_approval -> draft — reopens the order for editing rather than killing it, since a rejection is usually "fix this and resubmit," not "abandon it" (that's what cancel() is for). */
+    public function reject(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->authorize('approve', $purchaseOrder);
+
+        if ($purchaseOrder->status !== 'pending_approval') {
+            return ApiResponse::error('Only a purchase order pending approval can be rejected.', [], 422);
+        }
+
+        $this->transition($purchaseOrder, 'draft', $request->input('note'));
+
+        return ApiResponse::success(new PurchaseOrderResource($purchaseOrder->load(self::RELATIONS)), 'Purchase order rejected and reopened for editing.');
     }
 
     public function cancel(PurchaseOrder $purchaseOrder): JsonResponse
     {
         $this->authorize('cancel', $purchaseOrder);
 
-        if (! in_array($purchaseOrder->status, ['draft', 'ordered'], true)) {
-            return ApiResponse::error('Only draft or ordered purchase orders can be cancelled.', [], 422);
+        if (! in_array($purchaseOrder->status, ['draft', 'pending_approval', 'ordered'], true)) {
+            return ApiResponse::error('Only a draft, pending-approval, or ordered purchase order can be cancelled.', [], 422);
         }
 
-        $purchaseOrder->update(['status' => 'cancelled']);
+        $this->transition($purchaseOrder, 'cancelled');
 
         return ApiResponse::success(new PurchaseOrderResource($purchaseOrder->load(self::RELATIONS)), 'Purchase order cancelled successfully.');
+    }
+
+    private function transition(PurchaseOrder $purchaseOrder, string $toStatus, ?string $note = null): void
+    {
+        $fromStatus = $purchaseOrder->status;
+        $purchaseOrder->update(['status' => $toStatus]);
+
+        $purchaseOrder->statusHistory()->create([
+            'from_status' => $fromStatus,
+            'to_status' => $toStatus,
+            'note' => $note,
+            'created_by' => request()->user()->id,
+        ]);
     }
 
     /** Replaces a draft order's items wholesale — see PurchaseOrderRequest for why a partial PATCH isn't offered. */

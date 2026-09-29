@@ -240,18 +240,59 @@ Purchasing (Phase 7 Wave 1): full CRUD for `suppliers`
 (`suppliers.view/create/update/delete`, standard Eloquent policy).
 `GET/POST/PUT/DELETE /purchase-orders` + `GET .../{id}` (PUT/DELETE only
 while `status = draft` — items are replaced wholesale, same one-shot
-pattern as `stock-transfers`), `POST .../{id}/place` (draft → ordered,
-locks items), `POST .../{id}/cancel` (draft/ordered → cancelled), and
-`POST .../{id}/receipts` (records a `purchase_receipts` row, rejects
-over-receiving beyond what remains on each line, and — inside the same
-transaction — writes the `purchase_receipt` `stock_movements` type and
-updates `stock_levels`). `GET /purchase-orders` also accepts `open=1` to
-return only `draft`/`ordered`/`partially_received` orders, backing the
-dashboard's "Open purchase orders" KPI. `purchase_orders.*` uses a
-standard policy (`view`/`create`/`update`/`cancel`); `purchase_orders.receive`
-is checked directly in `PurchaseReceiptController`, the same
-direct-`$user->can()` pattern as inventory, since receiving is a
-distinct action from editing a PO's terms.
+pattern as `stock-transfers`), and `POST .../{id}/receipts` (records a
+`purchase_receipts` row, rejects over-receiving beyond what remains on
+each line, and — inside the same transaction — writes the
+`purchase_receipt` `stock_movements` type and updates `stock_levels`).
+`GET /purchase-orders` also accepts `open=1` to return only
+`draft`/`pending_approval`/`ordered`/`partially_received` orders,
+backing the dashboard's "Open purchase orders" KPI. `purchase_orders.*`
+uses a standard policy (`view`/`create`/`update`/`cancel`);
+`purchase_orders.receive` is checked directly in
+`PurchaseReceiptController`, the same direct-`$user->can()` pattern as
+inventory, since receiving is a distinct action from editing a PO's
+terms.
+
+Purchasing approval workflow (Phase 7 Wave 2b): `POST
+.../{id}/submit-for-approval` moves a `draft` to `pending_approval`
+with zero supplier-facing effect (replaces Wave 1's `place()`; items
+lock, same as before). `POST .../{id}/approve` (`pending_approval` →
+`ordered`, the real "committed to the supplier" moment) and `POST
+.../{id}/reject` (`pending_approval` → `draft`, optional `note`) share a
+new `purchase_orders.approve` permission, deliberately distinct from
+`purchase_orders.create`/`update` — the Purchase Manager role does not
+hold it, so approving a PO always requires a different, more senior
+role than the one that submitted it. `POST .../{id}/cancel` now also
+accepts from `pending_approval` in addition to `draft`/`ordered`. `GET
+.../{id}` gained `status_history` (every transition, including the
+pre-existing automatic partially_received/received ones) and `payments`
+(see below).
+
+Supplier ledger (Phase 7 Wave 2b): `GET /suppliers/{id}/ledger`
+(gated on `suppliers.view`, same as the resource itself) returns
+`{currency_code, balance_amount, entries: [{date, type, reference,
+description, debit_amount, credit_amount, running_balance}]}` — a debit
+per `purchase_receipts` row (not the whole PO, which would overstate a
+partially-received order's liability), a credit per `supplier_payments`
+row and per `purchase_returns` row already `credited`. `POST
+/suppliers/{id}/payments` records a payment (`amount`, `method`:
+cash/bank_transfer/bkash/nagad/cheque, optional `purchase_order_id`/
+`reference`/`note`), gated by a new `suppliers.pay` permission
+(Accountant has it, Purchase Manager deliberately doesn't — same
+procurement/disbursement separation as the approval gate above).
+`suppliers.payment_terms` (due_on_receipt/net_15/net_30/net_60) is
+accepted/returned on the existing `SupplierRequest`/`SupplierResource`,
+purely informational.
+
+Reorder suggestions (Phase 7 Wave 2b): `GET
+/reports/reorder-suggestions` (+ `/export`, `/export-pdf`, gated on
+`reports.view` like every other report) returns the same rows
+`GET /reports/low-stock` would, each enriched with `avg_daily_sales`
+(30-day units-sold ÷ 30), `suggested_reorder_quantity` (the threshold
+deficit plus a fixed 14-day lead-time buffer at that velocity — no
+per-supplier lead-time concept exists yet, so a documented constant
+stands in), and `last_supplier`/`last_unit_cost` from the most recent
+non-cancelled purchase-order line for that product.
 
 Purchasing returns (Phase 7 Wave 2a): `POST
 /purchase-orders/{id}/returns` requests a return against a purchase

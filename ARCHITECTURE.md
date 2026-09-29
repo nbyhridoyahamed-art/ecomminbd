@@ -628,9 +628,12 @@ included (Phase 5 Wave 3 — see `DATABASE_DESIGN.md` section 1v), closing
 the one item this section used to list here. Inventory Wave 2 is also now
 fully shipped — a real transfer approval workflow and grouped stocktake
 sessions (Phase 6 Wave 2 — see `DATABASE_DESIGN.md` section 1c) — closing
-the two items this section used to list for it. Purchasing Wave 2's remaining
-items (supplier ledger, PO approval workflow, reorder suggestions —
-no longer blocked on reporting infra, just not yet picked), Orders Wave 2 (a
+the two items this section used to list for it. Purchasing Wave 2 is also
+now fully shipped except multi-currency POs, a deliberate scope boundary
+rather than a deferral — a real PO approval workflow, a supplier ledger,
+and reorder suggestions (Phase 7 Wave 2b — see `DATABASE_DESIGN.md`
+section 1d) — closing the three items this section used to list for it.
+Orders Wave 2 (a
 non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery
 zones/rates, multi-shipment orders — the return-driven stock reversal gap
 this used to list is closed, see above), Returns Wave 2 (exchanges, store

@@ -31,4 +31,9 @@ class SupplierPolicy
     {
         return $user->can('suppliers.delete');
     }
+
+    public function pay(User $user, Supplier $supplier): bool
+    {
+        return $user->can('suppliers.pay');
+    }
 }

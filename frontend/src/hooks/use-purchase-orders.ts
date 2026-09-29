@@ -98,18 +98,50 @@ export function useDeletePurchaseOrder() {
   });
 }
 
-export function usePlacePurchaseOrder(id: number) {
+export function useSubmitPurchaseOrderForApproval(id: number) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.post<PurchaseOrder>(`/purchase-orders/${id}/place`),
+    mutationFn: () => api.post<PurchaseOrder>(`/purchase-orders/${id}/submit-for-approval`),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.setQueryData(["purchase-orders", "detail", id], order);
-      toast.success("Purchase order placed.");
+      toast.success("Purchase order submitted for approval.");
     },
     onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : "Could not place purchase order.");
+      toast.error(error instanceof ApiError ? error.message : "Could not submit purchase order for approval.");
+    },
+  });
+}
+
+export function useApprovePurchaseOrder(id: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.post<PurchaseOrder>(`/purchase-orders/${id}/approve`),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      queryClient.setQueryData(["purchase-orders", "detail", id], order);
+      toast.success("Purchase order approved and placed.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not approve purchase order.");
+    },
+  });
+}
+
+export function useRejectPurchaseOrder(id: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (note?: string) => api.post<PurchaseOrder>(`/purchase-orders/${id}/reject`, { note }),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      queryClient.setQueryData(["purchase-orders", "detail", id], order);
+      toast.success("Purchase order rejected and reopened for editing.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not reject purchase order.");
     },
   });
 }

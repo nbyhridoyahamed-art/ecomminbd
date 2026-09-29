@@ -56,3 +56,15 @@ export interface LowStockReportRow {
   total_available: number;
   low_stock_threshold: number;
 }
+
+export interface ReorderSuggestionRow {
+  product_id: number;
+  name: string;
+  sku: string;
+  available_quantity: number;
+  low_stock_threshold: number;
+  avg_daily_sales: number;
+  suggested_reorder_quantity: number;
+  last_supplier: { id: number; name: string } | null;
+  last_unit_cost: number | null;
+}

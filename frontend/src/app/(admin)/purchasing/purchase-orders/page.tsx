@@ -21,6 +21,7 @@ type BadgeVariant = BadgeProps["variant"];
 
 const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
   draft: "Draft",
+  pending_approval: "Pending approval",
   ordered: "Ordered",
   partially_received: "Partially received",
   received: "Received",
@@ -29,6 +30,7 @@ const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
 
 const STATUS_VARIANTS: Record<PurchaseOrderStatus, BadgeVariant> = {
   draft: "neutral",
+  pending_approval: "warning",
   ordered: "info",
   partially_received: "warning",
   received: "success",

@@ -29,6 +29,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ReportController extends Controller
 {
+    /** No lead-time concept exists anywhere in the app yet (no supplier/product field for it) — a fixed assumption, same "don't build ahead of a real input" call as everywhere else, revisit if a real per-supplier lead time ever gets tracked. */
+    private const REORDER_LEAD_TIME_DAYS = 14;
+
     public function salesReport(Request $request): JsonResponse
     {
         if (! $request->user()->can('reports.view')) {
@@ -335,6 +338,80 @@ class ReportController extends Controller
     }
 
     /**
+     * Every low-stock product (same query as lowStock() above), enriched with
+     * a 30-day sales velocity and its most recent purchase — the two inputs
+     * Phase 6's own note said this report was blocked on until Reporting
+     * (Phase 18) and Analytics (Phase 20) existed to compute them from.
+     * Suggested quantity = enough to clear the threshold deficit, plus
+     * enough to cover REORDER_LEAD_TIME_DAYS of average demand.
+     */
+    public function reorderSuggestions(Request $request): JsonResponse
+    {
+        if (! $request->user()->can('reports.view')) {
+            throw new AuthorizationException;
+        }
+
+        $request->validate(['store_id' => ['required', 'exists:stores,id']]);
+        $perPage = min((int) $request->integer('per_page', 20), 100);
+        $page = max((int) $request->integer('page', 1), 1);
+
+        $rows = $this->reorderSuggestionsRows($request->integer('store_id'));
+
+        return ApiResponse::success(
+            $rows->forPage($page, $perPage)->values(),
+            'Reorder suggestions fetched successfully.',
+            [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $rows->count(),
+                'last_page' => max((int) ceil($rows->count() / $perPage), 1),
+            ],
+        );
+    }
+
+    public function reorderSuggestionsExport(Request $request): StreamedResponse
+    {
+        if (! $request->user()->can('reports.view')) {
+            throw new AuthorizationException;
+        }
+
+        $request->validate(['store_id' => ['required', 'exists:stores,id']]);
+        $rows = $this->reorderSuggestionsRows($request->integer('store_id'));
+
+        return response()->streamDownload(function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['Product', 'SKU', 'Available', 'Threshold', 'Avg Daily Sales', 'Suggested Reorder Qty', 'Last Supplier', 'Last Unit Cost']);
+            foreach ($rows as $row) {
+                fputcsv($handle, [
+                    $row['name'], $row['sku'], $row['available_quantity'], $row['low_stock_threshold'],
+                    $row['avg_daily_sales'], $row['suggested_reorder_quantity'],
+                    $row['last_supplier']['name'] ?? '', $row['last_unit_cost'] ?? '',
+                ]);
+            }
+            fclose($handle);
+        }, 'reorder-suggestions-'.now()->format('Ymd-His').'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    public function reorderSuggestionsExportPdf(Request $request): Response
+    {
+        if (! $request->user()->can('reports.view')) {
+            throw new AuthorizationException;
+        }
+
+        $request->validate(['store_id' => ['required', 'exists:stores,id']]);
+        $storeId = $request->integer('store_id');
+
+        $pdf = Pdf::loadView('reports.reorder-suggestions-pdf', [
+            'storeName' => Store::find($storeId)?->name ?? 'Store',
+            'subtitle' => 'As of '.now()->format('Y-m-d H:i').' · based on the last 30 days of sales',
+            'generatedAt' => now()->format('Y-m-d H:i'),
+            'rows' => $this->reorderSuggestionsRows($storeId),
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('reorder-suggestions-'.now()->format('Ymd-His').'.pdf');
+    }
+
+    /**
      * @return array{store_id: int, date_from: Carbon, date_to: Carbon, warehouse_id: ?int, granularity: string}
      */
     private function resolveFilters(Request $request): array
@@ -517,6 +594,67 @@ class ReportController extends Controller
             ->groupBy('products.id', 'products.name', 'products.sku', 'products.low_stock_threshold')
             ->havingRaw('(COALESCE(SUM(stock_levels.quantity), 0) - COALESCE(SUM(stock_levels.quantity_reserved), 0)) <= products.low_stock_threshold')
             ->orderBy('products.name');
+    }
+
+    /**
+     * @return Collection<int, array{product_id: int, name: string, sku: string, available_quantity: int, low_stock_threshold: int, avg_daily_sales: float, suggested_reorder_quantity: int, last_supplier: ?array{id: int, name: string}, last_unit_cost: ?float}>
+     */
+    private function reorderSuggestionsRows(int $storeId): Collection
+    {
+        $lowStock = $this->lowStockQuery($storeId)->get();
+
+        if ($lowStock->isEmpty()) {
+            return collect();
+        }
+
+        $productIds = $lowStock->pluck('product_id');
+
+        $velocityByProduct = DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereIn('order_items.product_id', $productIds)
+            ->where('orders.store_id', $storeId)
+            ->where('orders.status', '!=', 'cancelled')
+            ->where('orders.created_at', '>=', now()->subDays(30))
+            ->selectRaw('order_items.product_id, SUM(order_items.quantity) as units_sold')
+            ->groupBy('order_items.product_id')
+            ->pluck('units_sold', 'product_id');
+
+        // Most recent non-cancelled PO line per product — ordered desc then
+        // deduplicated in PHP rather than a correlated subquery, the same
+        // portability call foldByGranularity() makes for MySQL vs. SQLite.
+        $lastPurchaseByProduct = DB::table('purchase_order_items')
+            ->join('purchase_orders', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
+            ->join('suppliers', 'suppliers.id', '=', 'purchase_orders.supplier_id')
+            ->whereIn('purchase_order_items.product_id', $productIds)
+            ->where('purchase_orders.store_id', $storeId)
+            ->where('purchase_orders.status', '!=', 'cancelled')
+            ->orderByDesc('purchase_orders.created_at')
+            ->select(
+                'purchase_order_items.product_id', 'suppliers.id as supplier_id', 'suppliers.name as supplier_name',
+                'purchase_order_items.unit_cost_amount', 'purchase_orders.currency_code',
+            )
+            ->get()
+            ->unique('product_id')
+            ->keyBy('product_id');
+
+        return $lowStock->map(function ($row) use ($velocityByProduct, $lastPurchaseByProduct) {
+            $available = (int) $row->total_quantity - (int) $row->total_reserved;
+            $avgDailySales = round((int) ($velocityByProduct[$row->product_id] ?? 0) / 30, 2);
+            $deficit = max((int) $row->low_stock_threshold - $available, 0);
+            $lastPurchase = $lastPurchaseByProduct->get($row->product_id);
+
+            return [
+                'product_id' => $row->product_id,
+                'name' => $row->name,
+                'sku' => $row->sku,
+                'available_quantity' => $available,
+                'low_stock_threshold' => (int) $row->low_stock_threshold,
+                'avg_daily_sales' => $avgDailySales,
+                'suggested_reorder_quantity' => max($deficit + (int) ceil($avgDailySales * self::REORDER_LEAD_TIME_DAYS), 1),
+                'last_supplier' => $lastPurchase ? ['id' => (int) $lastPurchase->supplier_id, 'name' => $lastPurchase->supplier_name] : null,
+                'last_unit_cost' => $lastPurchase ? (new Money((int) $lastPurchase->unit_cost_amount, $lastPurchase->currency_code))->toDecimal() : null,
+            ];
+        });
     }
 
     private function warehouseName(?int $warehouseId): string

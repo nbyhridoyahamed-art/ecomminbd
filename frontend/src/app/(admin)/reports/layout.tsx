@@ -11,6 +11,7 @@ const TABS = [
   { label: "Sales", href: "/reports/sales", permission: "reports.view" },
   { label: "Product Performance", href: "/reports/products", permission: "reports.view" },
   { label: "Low Stock", href: "/reports/low-stock", permission: "reports.view" },
+  { label: "Reorder Suggestions", href: "/reports/reorder-suggestions", permission: "reports.view" },
 ];
 
 export default function ReportsLayout({ children }: { children: React.ReactNode }) {

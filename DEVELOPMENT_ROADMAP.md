@@ -13,7 +13,7 @@ in place and the app still builds/runs.
 | 4 | Store Foundation | ✅ Done (localization data-management UI deferred — see note) | Yes — orgs/stores/users/roles/permissions/settings/currency + full admin UI (General/Users/Roles) |
 | 5 | Catalog | ✅ Full spec done — Wave 1 + Wave 2a + Wave 2b (CSV import/export) + Wave 2c (bundles/combos) + Wave 3 (reviews + media library) — nothing left deferred | Yes — categories (hierarchy), brands, simple + variable + bundle products w/ pricing/SEO/images, attributes + a variant generator, bundle components with derived availability, CSV bulk import/export, verified-purchase customer reviews with staff moderation, a reusable cross-entity media library, full admin UI |
 | 6 | Inventory | ✅ Full spec done — Wave 1 + Wave 2 (transfer approval workflow, stocktake sessions) — nothing left deferred | Yes — stock levels per warehouse, movements ledger, adjustments, a real pending→in_transit→received/cancelled transfer workflow, grouped multi-line stocktake sessions; plus the Warehouses admin UI (a Phase 4 gap this closed) |
-| 7 | Purchasing | ✅ Wave 1 done, now variant-aware, plus Wave 2a (purchase returns) (supplier ledger/PO approval workflow/reorder suggestions still deferred — see note) | Yes — suppliers, purchase orders (draft→ordered→received state machine), receipts that drive real stock movements, purchase returns (requested→approved→shipped_back→credited) |
+| 7 | Purchasing | ✅ Full spec done — Wave 1 + Wave 2a (purchase returns) + Wave 2b (approval workflow, supplier ledger, reorder suggestions) — multi-currency POs deliberately out of scope, see note | Yes — suppliers (with payment terms), purchase orders (draft→pending_approval→ordered→partially_received→received state machine with a real approve/reject gate), receipts that drive real stock movements, purchase returns (requested→approved→shipped_back→credited), a supplier ledger reconciling receipts/payments/return-credits, and a reorder-suggestions report |
 | 8 | Orders | ✅ Wave 1 done, now variant-aware (payments ledger/coupons/returns/order-edit UI deferred — see note) | Yes — customers + saved addresses, orders (pending→processing→shipped→delivered/cancelled state machine) that reserve and then fulfil real stock |
 | 9 | Delivery | ✅ Wave 1 done (delivery zones/rates, multi-shipment orders deferred — see note) | Yes — couriers, shipments (pending pickup→picked up→in transit→delivered/failed/returned state machine, additive on top of Order.ship()/deliver()), COD settlements |
 | 10 | Returns | ✅ Wave 1 done (exchanges/store-credit, cross-return refund reconciliation deferred — see note) | Yes — return requests (requested→approved→rejected\|received→refunded state machine) against a delivered order, real stock-reversal movements on receive, and the Phase 9 gap this closes (returned-to-seller shipments now restock too) |
@@ -359,6 +359,65 @@ same as a ledger to apply it against), a PO approval/sign-off workflow
 (still no multi-user approval concept anywhere in the app), and
 low-stock-driven reorder suggestions (Phase 18/20 reporting infra is now
 built, so this one is no longer *blocked* — just not yet picked).
+
+**Phase 7 Wave 2b scope note:** ships the three remaining Purchasing
+Wave 2 items with a real design apiece — a PO approval workflow, a
+supplier ledger, and reorder suggestions — closing out Purchasing Wave 2
+entirely except multi-currency POs (see below). `POST /purchase-orders`
+still creates a `draft`; `POST .../{id}/submit-for-approval` (replacing
+Wave 1's `place()`) now moves it to a new `pending_approval` status
+with zero supplier-facing effect, the same "draft holds nothing until a
+real event" shape Wave 1 already used for the draft→ordered step itself.
+`POST .../{id}/approve` is the real "committed to the supplier" moment
+— `pending_approval` → `ordered` — gated by a new `purchase_orders.approve`
+permission deliberately distinct from `purchase_orders.create`/`update`,
+resolving the "no multi-user approval concept exists yet" reason Wave
+1's note above gave: Purchase Manager (who creates and submits POs)
+does **not** get this permission, only Administrator/Owner do, so a
+real second-approver gate exists rather than one role rubber-stamping
+its own submissions. `POST .../{id}/reject` (same permission) moves it
+back to `draft` with an optional note — a rejection is "fix this and
+resubmit," not "abandon it" (`cancel`, unchanged in spirit, now also
+reaches from `pending_approval`). A new `purchase_order_status_history`
+table mirrors `stock_transfer_status_history` exactly, and every
+transition — including the pre-existing automatic partially_received/
+received ones `PurchaseReceiptController` sets — now writes a row, the
+same `transition()`-helper pattern `ShipmentController`/
+`StockTransferController` established. The supplier ledger is a new
+`suppliers.payment_terms` column (purely informational: due_on_receipt/
+net_15/net_30/net_60, no automatic due-date math) plus a new
+`supplier_payments` table; `GET /suppliers/{id}/ledger` computes debits
+per `purchase_receipts` row (not the whole PO total, which would
+overstate what's owed on a still-partially_received order) and credits
+from `supplier_payments` plus any `purchase_returns` already `credited`
+(Wave 2a's own credit note, now finally applied against something),
+netting a running balance; `POST .../{id}/payments` records a payment,
+gated by a new `suppliers.pay` permission (Accountant gets it, mirroring
+how Accountant already reconciles `cod_settlements`; Purchase Manager
+deliberately doesn't, keeping procurement and disbursement separate).
+Reorder suggestions (`GET /reports/reorder-suggestions`, CSV/PDF twins
+included) reuses `ReportController`'s existing `lowStockQuery()` as its
+base, per-product-enriched in PHP (same portability call
+`foldByGranularity()` already made) with a 30-day sales-velocity figure
+and the most recent non-cancelled purchase-order line for that product
+(last supplier + last unit cost) — the two inputs this item was
+genuinely blocked on until Phase 18/20 existed to compute them from.
+Suggested quantity = the threshold deficit plus a fixed 14-day
+lead-time buffer at that velocity (no per-supplier lead-time concept
+exists anywhere yet, so a documented constant stands in, the same "don't
+build ahead of a real input" call as elsewhere). Still and permanently
+out of scope, unlike everything above: multi-currency POs — `currency_code`
+on a PO has always been accepted but every store in this app only ever
+uses one (BDT), there is still no exchange-rate concept anywhere, and
+adding real multi-currency support would touch money handling
+throughout the app for a need this app has no evidence of; this is a
+scope boundary, not a "not yet picked" deferral. Live e2e verification
+of this wave also caught a pre-existing gap unrelated to any of the
+above: the **Purchase Manager** role could create and submit purchase
+orders but had never been granted `warehouses.view`, so the "new
+purchase order" form's own receiving-warehouse picker had nothing to
+select from — fixed alongside this wave (see `RoleAndPermissionSeeder`),
+with a regression test.
 
 **Phase 8 scope note:** Wave 1 ships customers (full CRUD) with saved
 addresses (managed inline on the customer edit page, no separate

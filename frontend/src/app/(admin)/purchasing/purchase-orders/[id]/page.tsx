@@ -1,16 +1,18 @@
 "use client";
 
 import { use, useState } from "react";
-import { ArrowLeft, Ban, CheckCircle2 } from "lucide-react";
+import { Ban, CheckCircle2, ArrowLeft, Send, XCircle } from "lucide-react";
 import Link from "next/link";
 
 import { can } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-auth";
 import {
+  useApprovePurchaseOrder,
   useCancelPurchaseOrder,
-  usePlacePurchaseOrder,
+  useRejectPurchaseOrder,
   usePurchaseOrder,
   useRecordPurchaseReceipt,
+  useSubmitPurchaseOrderForApproval,
 } from "@/hooks/use-purchase-orders";
 import { useCreatePurchaseReturn } from "@/hooks/use-purchase-returns";
 import { formatMoney } from "@/lib/money";
@@ -31,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/types/api";
 import type { PurchaseOrderStatus } from "@/types/purchase-order";
 
@@ -38,6 +41,7 @@ type BadgeVariant = BadgeProps["variant"];
 
 const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
   draft: "Draft",
+  pending_approval: "Pending approval",
   ordered: "Ordered",
   partially_received: "Partially received",
   received: "Received",
@@ -46,6 +50,7 @@ const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
 
 const STATUS_VARIANTS: Record<PurchaseOrderStatus, BadgeVariant> = {
   draft: "neutral",
+  pending_approval: "warning",
   ordered: "info",
   partially_received: "warning",
   received: "success",
@@ -74,11 +79,15 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
 
   const { data: currentUser } = useCurrentUser();
   const { data: order, isLoading, isError } = usePurchaseOrder(orderId);
-  const placeOrder = usePlacePurchaseOrder(orderId);
+  const submitForApproval = useSubmitPurchaseOrderForApproval(orderId);
+  const approveOrder = useApprovePurchaseOrder(orderId);
+  const rejectOrder = useRejectPurchaseOrder(orderId);
   const cancelOrder = useCancelPurchaseOrder(orderId);
   const recordReceipt = useRecordPurchaseReceipt(orderId);
   const createReturn = useCreatePurchaseReturn(orderId);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
 
   if (currentUser && !can(currentUser, "purchase_orders.view")) {
     return <PermissionDenied />;
@@ -97,6 +106,7 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
   }
 
   const canUpdate = can(currentUser, "purchase_orders.update");
+  const canApprove = can(currentUser, "purchase_orders.approve");
   const canCancel = can(currentUser, "purchase_orders.cancel");
   const canReceive = can(currentUser, "purchase_orders.receive");
   const canReceiveNow = canReceive && (order.status === "ordered" || order.status === "partially_received");
@@ -123,12 +133,24 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
           </div>
           <div className="flex gap-2">
             {order.status === "draft" && canUpdate ? (
-              <Button size="sm" onClick={() => placeOrder.mutate()} loading={placeOrder.isPending}>
-                <CheckCircle2 />
-                Place order
+              <Button size="sm" onClick={() => submitForApproval.mutate()} loading={submitForApproval.isPending}>
+                <Send />
+                Submit for approval
               </Button>
             ) : null}
-            {(order.status === "draft" || order.status === "ordered") && canCancel ? (
+            {order.status === "pending_approval" && canApprove ? (
+              <>
+                <Button size="sm" onClick={() => approveOrder.mutate()} loading={approveOrder.isPending}>
+                  <CheckCircle2 />
+                  Approve
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setRejectOpen(true)}>
+                  <XCircle />
+                  Reject
+                </Button>
+              </>
+            ) : null}
+            {(order.status === "draft" || order.status === "pending_approval" || order.status === "ordered") && canCancel ? (
               <Button size="sm" variant="outline" onClick={() => setConfirmCancel(true)}>
                 <Ban />
                 Cancel
@@ -202,6 +224,54 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
           </div>
         </CardContent>
       </Card>
+
+      {order.status_history.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Status history</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="space-y-3">
+              {order.status_history.map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between text-sm">
+                  <div>
+                    <Badge variant={STATUS_VARIANTS[entry.to_status]}>{STATUS_LABELS[entry.to_status]}</Badge>
+                    {entry.note ? <span className="ml-2 text-text-secondary">{entry.note}</span> : null}
+                  </div>
+                  <div className="text-right text-text-muted">
+                    <p>{new Date(entry.created_at).toLocaleString()}</p>
+                    {entry.created_by ? <p>{entry.created_by}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {order.payments.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Payments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {order.payments.map((payment) => (
+                <li key={payment.id} className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-text-primary">{formatMoney(payment.amount, payment.currency_code)}</span>
+                    <span className="ml-2 text-text-secondary">
+                      {payment.method}
+                      {payment.reference ? ` — ${payment.reference}` : ""}
+                    </span>
+                  </div>
+                  <span className="text-text-muted">{new Date(payment.created_at).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {canReceiveNow ? (
         <Card>
@@ -291,6 +361,42 @@ export default function PurchaseOrderShowPage({ params }: PageProps<"/purchasing
           </CardContent>
         </Card>
       ) : null}
+
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject this purchase order</DialogTitle>
+            <DialogDescription>
+              It will reopen as a draft so {order.created_by ?? "the requester"} can fix it and resubmit.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            rows={2}
+            placeholder="Reason (optional)"
+            value={rejectNote}
+            onChange={(e) => setRejectNote(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              loading={rejectOrder.isPending}
+              onClick={() =>
+                rejectOrder.mutate(rejectNote || undefined, {
+                  onSuccess: () => {
+                    setRejectOpen(false);
+                    setRejectNote("");
+                  },
+                })
+              }
+            >
+              Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <DialogContent>

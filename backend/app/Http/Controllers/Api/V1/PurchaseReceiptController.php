@@ -70,7 +70,15 @@ class PurchaseReceiptController extends Controller
                     ->whereColumn('quantity_received', '<', 'quantity_ordered')
                     ->doesntExist();
 
-                $purchaseOrder->update(['status' => $allReceived ? 'received' : 'partially_received']);
+                $fromStatus = $purchaseOrder->status;
+                $toStatus = $allReceived ? 'received' : 'partially_received';
+                $purchaseOrder->update(['status' => $toStatus]);
+                $purchaseOrder->statusHistory()->create([
+                    'from_status' => $fromStatus,
+                    'to_status' => $toStatus,
+                    'note' => "Receipt {$receipt->receipt_number}",
+                    'created_by' => $request->user()->id,
+                ]);
 
                 return $receipt;
             });

@@ -31,4 +31,9 @@ class PurchaseOrderPolicy
     {
         return $user->can('purchase_orders.cancel');
     }
+
+    public function approve(User $user, PurchaseOrder $purchaseOrder): bool
+    {
+        return $user->can('purchase_orders.approve');
+    }
 }

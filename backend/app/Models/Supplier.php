@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
-#[Fillable(['store_id', 'name', 'contact_name', 'email', 'phone', 'address', 'status'])]
+#[Fillable(['store_id', 'name', 'contact_name', 'email', 'phone', 'address', 'status', 'payment_terms'])]
 class Supplier extends Model
 {
     use HasFactory, SoftDeletes;
@@ -32,5 +32,10 @@ class Supplier extends Model
     public function purchaseOrders(): HasMany
     {
         return $this->hasMany(PurchaseOrder::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SupplierPayment::class);
     }
 }

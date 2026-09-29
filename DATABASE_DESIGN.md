@@ -264,12 +264,15 @@ adjustment instead live on the product's own Variants tab (see
 `COMPONENT_INVENTORY.md`'s `VariantsManager` entry), a deliberate scope
 line matching how the list was always product-centric even in Wave 1.
 
-## 1d. Purchasing Schema (Phase 7 Wave 1)
+## 1d. Purchasing Schema (Phase 7 Wave 1; approval workflow + supplier
+ledger + reorder suggestions added Phase 7 Wave 2b)
 
 ```
 suppliers
   id, uuid, store_id (FK→stores, cascade), name, contact_name (nullable),
   email (nullable), phone (nullable), address (nullable), status,
+  payment_terms (varchar, nullable: due_on_receipt/net_15/net_30/net_60 —
+    Wave 2b, purely informational, no automatic due-date/overdue math),
   timestamps, deleted_at
   index(store_id, name)
 
@@ -278,8 +281,9 @@ purchase_orders
     cascade — where the goods will be received), supplier_id (FK→suppliers,
     cascade), po_number (e.g. PO-20260927-AB12CD — same date+random-suffix
     scheme as stock_transfers.transfer_number, see section 1c),
-  status (varchar: draft/ordered/partially_received/received/cancelled —
-    see the state machine below), currency_code (char(3), default 'BDT'),
+  status (varchar: draft/pending_approval/ordered/partially_received/
+    received/cancelled — see the state machine below), currency_code
+    (char(3), default 'BDT'),
   notes (nullable), created_by (FK→users, nullOnDelete), timestamps, deleted_at
   unique(store_id, po_number), index(store_id, status)
 
@@ -291,6 +295,12 @@ purchase_order_items
     units — no separate currency_code column; a PO uses one currency,
     stored on the header), timestamps
 
+purchase_order_status_history (Wave 2b — mirrors stock_transfer_status_history)
+  id, purchase_order_id (FK→purchase_orders, cascade),
+  from_status (nullable), to_status,
+  note (nullable), created_by (FK→users, nullOnDelete), timestamps
+  index(purchase_order_id)
+
 purchase_receipts
   id, uuid, store_id (FK→stores, cascade), purchase_order_id
     (FK→purchase_orders, cascade), receipt_number (e.g. GRN-20260927-AB12CD),
@@ -301,20 +311,37 @@ purchase_receipt_items
   id, purchase_receipt_id (FK→purchase_receipts, cascade),
   purchase_order_item_id (FK→purchase_order_items, cascade),
   quantity_received (unsigned int), timestamps
+
+supplier_payments (Wave 2b)
+  id, uuid, store_id (FK→stores, cascade), supplier_id (FK→suppliers, cascade),
+  purchase_order_id (FK→purchase_orders, nullable, nullOnDelete — a payment
+    can settle a supplier's overall balance rather than one specific order),
+  amount_amount (bigint minor units), currency_code (char(3), default 'BDT'),
+  method (varchar: cash/bank_transfer/bkash/nagad/cheque), reference (nullable),
+  note (nullable), created_by (FK→users, nullOnDelete), timestamps
+  index(supplier_id, created_at)
 ```
 
 **Status state machine:** `draft` (items freely editable — a PUT
 replaces them wholesale, same pattern as `stock_transfers`' one-shot
-create) → `ordered` (explicit `place()` action; items locked from
-further edits) → `partially_received` / `received` (set automatically
-by `PurchaseReceiptController` after each receipt, based on whether
-every line's `quantity_received` has reached its `quantity_ordered`).
-`cancelled` is reachable only from `draft` or `ordered` — once any
+create) → `pending_approval` (Wave 2b — explicit `submitForApproval()`
+action, replacing Wave 1's direct `place()`; items locked from further
+edits, same as `ordered` below) → `ordered` (explicit `approve()`
+action, gated by a permission distinct from create/update — see section
+2 — the real "committed to the supplier" moment) → `partially_received`
+/ `received` (set automatically by `PurchaseReceiptController` after
+each receipt, based on whether every line's `quantity_received` has
+reached its `quantity_ordered`). `pending_approval` can also go back to
+`draft` via `reject()` (optional note) rather than forward. `cancelled`
+is reachable from `draft`, `pending_approval`, or `ordered` — once any
 stock has been received against an order, cancelling the order itself
-is still a Wave 2 problem, deferred for the same reason PO approval is
-(see section 2). Purchase returns (section 1m) solve the adjacent but
-distinct need — sending specific already-received quantities back to
-the supplier without touching the order's own status — not this one.
+is still a later problem (see section 2). Purchase returns (section 1m)
+solve the adjacent but distinct need — sending specific already-received
+quantities back to the supplier without touching the order's own status
+— not this one. Every transition, including the two automatic receipt-
+driven ones, now appends a `purchase_order_status_history` row via the
+same private `transition()` helper pattern `ShipmentController`/
+`StockTransferController` established.
 
 Recording a receipt is the first real producer of the `purchase_receipt`
 stock-movement type reserved in section 1c: `PurchaseReceiptController`
@@ -325,6 +352,18 @@ the `purchase_receipt`, inside the same DB transaction (with
 increment and the PO's status recompute — the same locked read/write
 discipline as `stock_transfers`, minus the negative-quantity guard,
 since receiving only ever increases stock.
+
+**Supplier ledger (Wave 2b):** `GET /suppliers/{id}/ledger` answers "how
+much do we currently owe this supplier" without being a general
+accounting module. Debits are recognized per `purchase_receipts` row —
+`SUM(receipt_items.quantity_received × order_item.unit_cost_amount)` —
+not the whole PO total, which would overstate the liability on a still
+`partially_received` order. Credits are `supplier_payments` (cash out)
+and any `purchase_returns` already `credited` (section 1m's credit
+note, finally applied against something real). The response sorts every
+entry by date and folds a running balance in PHP rather than SQL, the
+same "compute it in the app, not a portability-risking query" call
+`ReportController::foldByGranularity()` already made.
 
 ## 1e. Orders Schema (Phase 8 Wave 1)
 
@@ -1370,15 +1409,21 @@ compatible with them.
   returns are also built — see sections 1d/1e/1g. The
   `product_variant_id` item this bullet used to list is no longer
   deferred — see section 1i's "Now variant-aware" note.
-- **Purchasing Wave 2 (partially shipped):** supplier payment
-  terms/ledger and multi-currency POs (accounting-heavy, no consumer
-  yet), a PO approval/sign-off workflow (no multi-user approval concept
-  exists yet), and low-stock-driven reorder suggestions (Phase 18/20
-  reporting infra is now built, so this is no longer blocked — just not
-  yet picked) remain deferred. `suppliers`, `purchase_orders`,
-  `purchase_order_items`, `purchase_receipts`, `purchase_receipt_items`
-  are built — see section 1d; `purchase_returns`, `purchase_return_items`,
-  `purchase_return_status_history` (Wave 2a) are built — see section 1m.
+- **Purchasing (now fully shipped except multi-currency POs, a
+  deliberate scope boundary — see below):** a PO approval workflow
+  (`purchase_order_status_history`), a supplier ledger
+  (`suppliers.payment_terms`, `supplier_payments`), and reorder
+  suggestions are built — see section 1d. Multi-currency POs remain
+  permanently out of scope: `purchase_orders.currency_code` has always
+  been accepted but every store here only ever uses one (BDT), no
+  exchange-rate concept exists anywhere, and this app has no evidence of
+  a real need for it — unlike every other item this bullet used to list,
+  this one isn't "not yet picked," it's a boundary. `suppliers`,
+  `purchase_orders`, `purchase_order_items`, `purchase_receipts`,
+  `purchase_receipt_items` are built — see section 1d; `purchase_returns`,
+  `purchase_return_items`, `purchase_return_status_history` (Wave 2a) are
+  built — see section 1m. This bullet is kept only as a pointer for
+  anyone still holding an older mental model of this section.
 - **Orders Wave 2:** `payments` (a real gateway reconciliation ledger for
   non-COD methods — Wave 1's `orders.payment_status` for `cod` orders is
   now set by the Phase 9 shipment-delivered flow, but `bkash`/`nagad`/

@@ -1,6 +1,25 @@
 import type { ProductVariantSnapshot } from "@/types/product";
 
-export type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled";
+export type PurchaseOrderStatus = "draft" | "pending_approval" | "ordered" | "partially_received" | "received" | "cancelled";
+
+export interface PurchaseOrderStatusHistoryEntry {
+  id: number;
+  from_status: PurchaseOrderStatus | null;
+  to_status: PurchaseOrderStatus;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface PurchaseOrderPayment {
+  id: number;
+  amount: number;
+  currency_code: string;
+  method: string;
+  reference: string | null;
+  created_by: string | null;
+  created_at: string;
+}
 
 export interface PurchaseOrderItem {
   id: number;
@@ -45,6 +64,8 @@ export interface PurchaseOrder {
   total_amount: number;
   receipts: PurchaseReceipt[];
   returns: { id: number; return_number: string; status: string; credit_amount: number | null }[];
+  status_history: PurchaseOrderStatusHistoryEntry[];
+  payments: PurchaseOrderPayment[];
   created_by: string | null;
   created_at: string;
 }

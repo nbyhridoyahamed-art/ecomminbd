@@ -22,6 +22,7 @@ class SupplierRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:20'],
             'address' => ['nullable', 'string'],
             'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'payment_terms' => ['nullable', Rule::in(['due_on_receipt', 'net_15', 'net_30', 'net_60'])],
         ];
     }
 }

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { ApiError } from "@/types/api";
-import type { Supplier } from "@/types/supplier";
+import type { Supplier, SupplierLedger, SupplierPaymentTerms } from "@/types/supplier";
 
 export interface SupplierFormValues {
   store_id: number;
@@ -15,6 +15,7 @@ export interface SupplierFormValues {
   phone?: string | null;
   address?: string | null;
   status?: "active" | "inactive";
+  payment_terms?: SupplierPaymentTerms | null;
 }
 
 export function useSuppliers(storeId: number | null | undefined, page: number, search: string) {
@@ -85,6 +86,38 @@ export function useDeleteSupplier() {
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : "Could not delete supplier.");
+    },
+  });
+}
+
+export function useSupplierLedger(supplierId: number | null | undefined) {
+  return useQuery({
+    queryKey: ["suppliers", "ledger", supplierId],
+    queryFn: () => api.get<SupplierLedger>(`/suppliers/${supplierId}/ledger`),
+    enabled: Boolean(supplierId),
+  });
+}
+
+export interface SupplierPaymentPayload {
+  purchase_order_id?: number | null;
+  amount: string;
+  method: "cash" | "bank_transfer" | "bkash" | "nagad" | "cheque";
+  reference?: string | null;
+  note?: string | null;
+}
+
+export function useRecordSupplierPayment(supplierId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: SupplierPaymentPayload) => api.post(`/suppliers/${supplierId}/payments`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["suppliers", "ledger", supplierId] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      toast.success("Payment recorded.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not record payment.");
     },
   });
 }

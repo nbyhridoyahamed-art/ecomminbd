@@ -28,6 +28,11 @@ class PurchaseOrderFactory extends Factory
         ];
     }
 
+    public function pendingApproval(): static
+    {
+        return $this->state(['status' => 'pending_approval']);
+    }
+
     public function ordered(): static
     {
         return $this->state(['status' => 'ordered']);

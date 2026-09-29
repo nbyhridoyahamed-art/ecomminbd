@@ -166,7 +166,7 @@ class PurchaseOrderTest extends TestCase
         $this->assertDatabaseMissing('purchase_order_items', ['product_id' => $productA->id]);
     }
 
-    public function test_placing_an_order_requires_at_least_one_item_and_locks_it_from_editing(): void
+    public function test_submitting_for_approval_requires_at_least_one_item_and_locks_it_from_editing(): void
     {
         $admin = $this->admin();
         $store = Store::factory()->create();
@@ -175,7 +175,7 @@ class PurchaseOrderTest extends TestCase
 
         $empty = PurchaseOrder::factory()->for($store)->for($warehouse)->for($supplier)->create();
         $this->actingAs($admin, 'sanctum')
-            ->postJson("/api/v1/purchase-orders/{$empty->id}/place")
+            ->postJson("/api/v1/purchase-orders/{$empty->id}/submit-for-approval")
             ->assertStatus(422);
 
         $product = Product::factory()->for($store)->create();
@@ -183,17 +183,19 @@ class PurchaseOrderTest extends TestCase
         $order->items()->create(['product_id' => $product->id, 'quantity_ordered' => 5, 'unit_cost_amount' => 1000]);
 
         $this->actingAs($admin, 'sanctum')
-            ->postJson("/api/v1/purchase-orders/{$order->id}/place")
+            ->postJson("/api/v1/purchase-orders/{$order->id}/submit-for-approval")
             ->assertOk()
-            ->assertJsonPath('data.status', 'ordered')
-            // Regression: place()'s response must include `receipts` (even
+            ->assertJsonPath('data.status', 'pending_approval')
+            // Regression: this response must include `receipts` (even
             // empty) like show() does — a frontend that caches this
             // response in place of a show() response must not lose the
             // field (found via e2e: the show page crashed reading
             // `order.receipts.length` after place()).
-            ->assertJsonPath('data.receipts', []);
+            ->assertJsonPath('data.receipts', [])
+            ->assertJsonPath('data.status_history.0.from_status', 'draft')
+            ->assertJsonPath('data.status_history.0.to_status', 'pending_approval');
 
-        // Now locked: editing an ordered PO is rejected.
+        // Now locked: editing a pending-approval PO is rejected, same as an ordered one.
         $this->actingAs($admin, 'sanctum')
             ->putJson("/api/v1/purchase-orders/{$order->id}", [
                 'store_id' => $store->id,
@@ -206,7 +208,80 @@ class PurchaseOrderTest extends TestCase
             ->assertStatus(422);
     }
 
-    public function test_an_order_can_be_cancelled_from_draft_or_ordered_but_not_after(): void
+    public function test_approving_a_pending_order_places_it_with_the_supplier(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $supplier = Supplier::factory()->for($store)->create();
+        $order = PurchaseOrder::factory()->pendingApproval()->for($store)->for($warehouse)->for($supplier)->create();
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/purchase-orders/{$order->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'ordered')
+            ->assertJsonPath('data.status_history.0.from_status', 'pending_approval')
+            ->assertJsonPath('data.status_history.0.to_status', 'ordered');
+
+        $this->assertDatabaseHas('purchase_order_status_history', [
+            'purchase_order_id' => $order->id,
+            'from_status' => 'pending_approval',
+            'to_status' => 'ordered',
+        ]);
+    }
+
+    public function test_rejecting_a_pending_order_reopens_it_as_draft_with_a_note(): void
+    {
+        $admin = $this->admin();
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $supplier = Supplier::factory()->for($store)->create();
+        $order = PurchaseOrder::factory()->pendingApproval()->for($store)->for($warehouse)->for($supplier)->create();
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/purchase-orders/{$order->id}/reject", ['note' => 'Unit cost looks wrong, please recheck.'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.status_history.0.note', 'Unit cost looks wrong, please recheck.');
+
+        // Reopened as draft, so it's editable again.
+        $product = Product::factory()->for($store)->create();
+        $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/v1/purchase-orders/{$order->id}", [
+                'store_id' => $store->id,
+                'warehouse_id' => $warehouse->id,
+                'supplier_id' => $supplier->id,
+                'items' => [['product_id' => $product->id, 'quantity_ordered' => 3, 'unit_cost' => '5.00']],
+            ])
+            ->assertOk();
+    }
+
+    public function test_only_a_user_with_the_approve_permission_can_approve_or_reject(): void
+    {
+        $store = Store::factory()->create();
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $supplier = Supplier::factory()->for($store)->create();
+        $order = PurchaseOrder::factory()->pendingApproval()->for($store)->for($warehouse)->for($supplier)->create();
+
+        // Purchase Manager can create/submit purchase orders but deliberately
+        // cannot approve its own submission — the real separation-of-duties
+        // gate this workflow exists for (see DEVELOPMENT_ROADMAP.md's Phase
+        // 7 Wave 2 scope note).
+        $purchaser = User::factory()->create();
+        $purchaser->assignRole('Purchase Manager');
+        $this->actingAs($purchaser, 'sanctum')
+            ->postJson("/api/v1/purchase-orders/{$order->id}/approve")
+            ->assertForbidden();
+
+        $administrator = User::factory()->create();
+        $administrator->assignRole('Administrator');
+        $this->actingAs($administrator, 'sanctum')
+            ->postJson("/api/v1/purchase-orders/{$order->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'ordered');
+    }
+
+    public function test_an_order_can_be_cancelled_from_draft_pending_approval_or_ordered_but_not_after(): void
     {
         $admin = $this->admin();
         $store = Store::factory()->create();
@@ -219,6 +294,12 @@ class PurchaseOrderTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'cancelled')
             ->assertJsonPath('data.receipts', []);
+
+        $pendingApproval = PurchaseOrder::factory()->pendingApproval()->for($store)->for($warehouse)->for($supplier)->create();
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/purchase-orders/{$pendingApproval->id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'cancelled');
 
         $received = PurchaseOrder::factory()->for($store)->for($warehouse)->for($supplier)->create(['status' => 'received']);
         $this->actingAs($admin, 'sanctum')
@@ -272,6 +353,22 @@ class PurchaseOrderTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * Regression: Purchase Manager could create/view purchase orders but not
+     * list warehouses, so the "new purchase order" form's receiving-warehouse
+     * picker silently had nothing to select from — found via live e2e
+     * verification, not by inspecting the permission list.
+     */
+    public function test_purchase_manager_can_view_warehouses_to_pick_a_receiving_warehouse(): void
+    {
+        $purchaser = User::factory()->create();
+        $purchaser->assignRole('Purchase Manager');
+
+        $this->actingAs($purchaser, 'sanctum')
+            ->getJson('/api/v1/warehouses')
+            ->assertOk();
+    }
+
     public function test_the_open_filter_excludes_received_and_cancelled_orders(): void
     {
         $admin = $this->admin();
@@ -280,6 +377,7 @@ class PurchaseOrderTest extends TestCase
         $supplier = Supplier::factory()->for($store)->create();
 
         PurchaseOrder::factory()->for($store)->for($warehouse)->for($supplier)->create(['status' => 'draft']);
+        PurchaseOrder::factory()->for($store)->for($warehouse)->for($supplier)->create(['status' => 'pending_approval']);
         PurchaseOrder::factory()->for($store)->for($warehouse)->for($supplier)->create(['status' => 'ordered']);
         PurchaseOrder::factory()->for($store)->for($warehouse)->for($supplier)->create(['status' => 'partially_received']);
         PurchaseOrder::factory()->for($store)->for($warehouse)->for($supplier)->create(['status' => 'received']);
@@ -288,6 +386,6 @@ class PurchaseOrderTest extends TestCase
         $this->actingAs($admin, 'sanctum')
             ->getJson("/api/v1/purchase-orders?store_id={$store->id}&open=1")
             ->assertOk()
-            ->assertJsonPath('meta.total', 3);
+            ->assertJsonPath('meta.total', 4);
     }
 }

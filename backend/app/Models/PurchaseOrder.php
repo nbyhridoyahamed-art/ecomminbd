@@ -57,6 +57,16 @@ class PurchaseOrder extends Model
         return $this->hasMany(PurchaseReturn::class);
     }
 
+    public function statusHistory(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderStatusHistory::class)->orderBy('created_at');
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SupplierPayment::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

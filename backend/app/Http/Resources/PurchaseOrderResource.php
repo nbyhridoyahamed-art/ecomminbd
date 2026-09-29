@@ -62,6 +62,23 @@ class PurchaseOrderResource extends JsonResource
                 'status' => $return->status,
                 'credit_amount' => $return->credit_amount === null ? null : (new Money($return->credit_amount, $this->currency_code))->toDecimal(),
             ])),
+            'status_history' => $this->whenLoaded('statusHistory', fn () => $this->statusHistory->map(fn ($entry) => [
+                'id' => $entry->id,
+                'from_status' => $entry->from_status,
+                'to_status' => $entry->to_status,
+                'note' => $entry->note,
+                'created_by' => $entry->creator?->name,
+                'created_at' => $entry->created_at,
+            ])),
+            'payments' => $this->whenLoaded('payments', fn () => $this->payments->map(fn ($payment) => [
+                'id' => $payment->id,
+                'amount' => (new Money($payment->amount_amount, $payment->currency_code))->toDecimal(),
+                'currency_code' => $payment->currency_code,
+                'method' => $payment->method,
+                'reference' => $payment->reference,
+                'created_by' => $payment->creator?->name,
+                'created_at' => $payment->created_at,
+            ])),
             'created_by' => $this->creator?->name,
             'created_at' => $this->created_at,
         ];

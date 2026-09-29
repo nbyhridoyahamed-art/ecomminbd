@@ -61,6 +61,7 @@ use App\Http\Controllers\Api\V1\Storefront\RedirectController as StorefrontRedir
 use App\Http\Controllers\Api\V1\Storefront\StoreController as StorefrontStoreController;
 use App\Http\Controllers\Api\V1\StoreSeoController;
 use App\Http\Controllers\Api\V1\SupplierController;
+use App\Http\Controllers\Api\V1\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\TestimonialController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -267,9 +268,13 @@ Route::prefix('v1')->group(function () {
         Route::get('stock-adjustment-sessions/{stockAdjustmentSession}', [StockAdjustmentSessionController::class, 'show']);
 
         Route::apiResource('suppliers', SupplierController::class);
+        Route::get('suppliers/{supplier}/ledger', [SupplierPaymentController::class, 'ledger']);
+        Route::post('suppliers/{supplier}/payments', [SupplierPaymentController::class, 'store']);
 
         Route::apiResource('purchase-orders', PurchaseOrderController::class);
-        Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
+        Route::post('purchase-orders/{purchaseOrder}/submit-for-approval', [PurchaseOrderController::class, 'submitForApproval']);
+        Route::post('purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve']);
+        Route::post('purchase-orders/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject']);
         Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
         Route::post('purchase-orders/{purchaseOrder}/receipts', [PurchaseReceiptController::class, 'store']);
         Route::post('purchase-orders/{purchaseOrder}/returns', [PurchaseReturnController::class, 'store']);
@@ -326,6 +331,9 @@ Route::prefix('v1')->group(function () {
         Route::get('reports/low-stock', [ReportController::class, 'lowStock']);
         Route::get('reports/low-stock/export', [ReportController::class, 'lowStockExport']);
         Route::get('reports/low-stock/export-pdf', [ReportController::class, 'lowStockExportPdf']);
+        Route::get('reports/reorder-suggestions', [ReportController::class, 'reorderSuggestions']);
+        Route::get('reports/reorder-suggestions/export', [ReportController::class, 'reorderSuggestionsExport']);
+        Route::get('reports/reorder-suggestions/export-pdf', [ReportController::class, 'reorderSuggestionsExportPdf']);
 
         Route::get('analytics/overview', [AnalyticsController::class, 'overview']);
         Route::get('analytics/overview/export', [AnalyticsController::class, 'overviewExport']);

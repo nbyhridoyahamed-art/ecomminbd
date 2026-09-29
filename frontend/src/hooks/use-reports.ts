@@ -8,6 +8,7 @@ import { ApiError } from "@/types/api";
 import type {
   LowStockReportRow,
   ProductPerformanceRow,
+  ReorderSuggestionRow,
   ReportGranularity,
   SalesReport,
 } from "@/types/report";
@@ -138,6 +139,37 @@ export function useExportLowStockReportPdf() {
       api.download(`/reports/low-stock/export-pdf?store_id=${storeId}`, "low-stock-report.pdf"),
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : "Could not export the low stock report.");
+    },
+  });
+}
+
+export function useReorderSuggestions(storeId: number | null | undefined, page: number) {
+  return useQuery({
+    queryKey: ["reports", "reorder-suggestions", storeId, page],
+    queryFn: () =>
+      api.getWithMeta<ReorderSuggestionRow[]>(
+        `/reports/reorder-suggestions?store_id=${storeId}&page=${page}&per_page=20`,
+      ),
+    enabled: Boolean(storeId),
+  });
+}
+
+export function useExportReorderSuggestions() {
+  return useMutation({
+    mutationFn: ({ storeId }: { storeId: number }) =>
+      api.download(`/reports/reorder-suggestions/export?store_id=${storeId}`, "reorder-suggestions.csv"),
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not export the reorder suggestions report.");
+    },
+  });
+}
+
+export function useExportReorderSuggestionsPdf() {
+  return useMutation({
+    mutationFn: ({ storeId }: { storeId: number }) =>
+      api.download(`/reports/reorder-suggestions/export-pdf?store_id=${storeId}`, "reorder-suggestions.pdf"),
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not export the reorder suggestions report.");
     },
   });
 }

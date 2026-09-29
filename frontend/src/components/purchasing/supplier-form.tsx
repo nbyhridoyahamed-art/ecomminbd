@@ -20,11 +20,19 @@ const supplierSchema = z.object({
   phone: z.string(),
   address: z.string(),
   status: z.enum(["active", "inactive"]),
+  payment_terms: z.enum(["", "due_on_receipt", "net_15", "net_30", "net_60"]),
 });
 
 type FormValues = z.infer<typeof supplierSchema>;
 
 const STATUS_LABELS: Record<string, string> = { active: "Active", inactive: "Inactive" };
+
+const PAYMENT_TERMS_LABELS: Record<string, string> = {
+  due_on_receipt: "Due on receipt",
+  net_15: "Net 15",
+  net_30: "Net 30",
+  net_60: "Net 60",
+};
 
 interface SupplierFormProps {
   storeId: number;
@@ -51,10 +59,12 @@ export function SupplierForm({ storeId, defaultValues, onSubmit, isPending, serv
       phone: defaultValues?.phone ?? "",
       address: defaultValues?.address ?? "",
       status: defaultValues?.status ?? "active",
+      payment_terms: defaultValues?.payment_terms ?? "",
     },
   });
 
   const status = useWatch({ control, name: "status" });
+  const paymentTerms = useWatch({ control, name: "payment_terms" });
 
   const submit = handleSubmit((values) => {
     onSubmit({
@@ -65,6 +75,7 @@ export function SupplierForm({ storeId, defaultValues, onSubmit, isPending, serv
       phone: values.phone || null,
       address: values.address || null,
       status: values.status,
+      payment_terms: values.payment_terms || null,
     });
   });
 
@@ -100,20 +111,41 @@ export function SupplierForm({ storeId, defaultValues, onSubmit, isPending, serv
         </div>
       </div>
 
-      <div className="max-w-48 space-y-1.5">
-        <Label htmlFor="supplier-form-status">Status</Label>
-        <Select
-          value={status}
-          onValueChange={(value) => setValue("status", value as "active" | "inactive", { shouldDirty: true })}
-        >
-          <SelectTrigger id="supplier-form-status">
-            <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="supplier-form-status">Status</Label>
+          <Select
+            value={status}
+            onValueChange={(value) => setValue("status", value as "active" | "inactive", { shouldDirty: true })}
+          >
+            <SelectTrigger id="supplier-form-status">
+              <SelectValue placeholder="Select status">{status ? STATUS_LABELS[status] : undefined}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="supplier-form-payment-terms">Payment terms (optional)</Label>
+          <Select
+            value={paymentTerms}
+            onValueChange={(value) => setValue("payment_terms", value as FormValues["payment_terms"], { shouldDirty: true })}
+          >
+            <SelectTrigger id="supplier-form-payment-terms">
+              <SelectValue placeholder="Not set">
+                {paymentTerms ? PAYMENT_TERMS_LABELS[paymentTerms] : undefined}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="due_on_receipt">Due on receipt</SelectItem>
+              <SelectItem value="net_15">Net 15</SelectItem>
+              <SelectItem value="net_30">Net 30</SelectItem>
+              <SelectItem value="net_60">Net 60</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-1.5">
