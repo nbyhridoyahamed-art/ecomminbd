@@ -33,13 +33,24 @@ export interface OrderStatusHistoryEntry {
   created_at: string;
 }
 
+export interface OrderPayment {
+  id: number;
+  amount: number;
+  currency_code: string;
+  method: PaymentMethod;
+  reference: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface Order {
   id: number;
   uuid: string;
   order_number: string;
   status: OrderStatus;
   payment_method: PaymentMethod;
-  payment_status: "unpaid" | "paid" | "refunded";
+  payment_status: "unpaid" | "partially_paid" | "paid" | "refunded";
   source: "admin" | "storefront";
   currency_code: string;
   notes: string | null;
@@ -50,18 +61,23 @@ export interface Order {
     recipient_name: string;
     phone: string;
     address_line: string;
+    bd_division_id: number | null;
+    bd_district_id: number | null;
+    bd_upazila_id: number | null;
     division: string | null;
     district: string | null;
     upazila: string | null;
   };
   shipping_amount: number;
   discount_amount: number;
+  coupon_code: string | null;
   items: OrderItem[];
   subtotal_amount: number;
   total_amount: number;
   status_history: OrderStatusHistoryEntry[];
   shipment: { id: number; tracking_number: string; status: string; courier_name: string | null } | null;
   returns: { id: number; return_number: string; status: string; refund_amount: number | null }[];
+  payments: OrderPayment[];
   created_by: string | null;
   created_at: string;
 }

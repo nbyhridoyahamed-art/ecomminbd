@@ -45,6 +45,7 @@ const orderSchema = z
     shipping_bd_upazila_id: z.string(),
     shipping_amount: moneyField,
     discount_amount: moneyField,
+    coupon_code: z.string(),
     notes: z.string(),
     items: z
       .array(
@@ -85,6 +86,8 @@ interface OrderFormProps {
   isPending: boolean;
   serverError?: string | null;
   submitLabel: string;
+  /** Pre-fills the form for editing an existing order. Only read once, at mount. */
+  defaultValues?: Partial<FormValues>;
 }
 
 export function OrderForm({
@@ -96,6 +99,7 @@ export function OrderForm({
   isPending,
   serverError,
   submitLabel,
+  defaultValues,
 }: OrderFormProps) {
   const {
     register,
@@ -119,8 +123,10 @@ export function OrderForm({
       shipping_bd_upazila_id: "",
       shipping_amount: "",
       discount_amount: "",
+      coupon_code: "",
       notes: "",
       items: [{ product_id: "", product_variant_id: "", quantity: "", unit_price: "" }],
+      ...defaultValues,
     },
   });
 
@@ -160,6 +166,7 @@ export function OrderForm({
       payment_method: values.payment_method,
       shipping_amount: values.shipping_amount || null,
       discount_amount: values.discount_amount || null,
+      coupon_code: values.coupon_code || null,
       notes: values.notes || null,
       customer_address_id: usingSavedAddress ? Number(values.customer_address_id) : null,
       ...(usingSavedAddress
@@ -496,6 +503,11 @@ export function OrderForm({
           />
           {errors.discount_amount ? <p className="text-xs text-danger">{errors.discount_amount.message}</p> : null}
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="coupon_code">Coupon code (optional, overrides the discount above)</Label>
+        <Input id="coupon_code" {...register("coupon_code")} />
       </div>
 
       <div className="space-y-1.5">

@@ -27,6 +27,9 @@ class OrderRequest extends FormRequest
             'currency_code' => ['nullable', 'string', 'size:3'],
             'shipping_amount' => ['nullable', 'numeric', 'min:0'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            // When present, overrides discount_amount with a server-resolved
+            // coupon discount — see OrderController::resolveDiscount().
+            'coupon_code' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string'],
 
             // Either an existing saved address, or a manually entered one.

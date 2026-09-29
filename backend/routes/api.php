@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\BlogTagController;
 use App\Http\Controllers\Api\V1\BrandController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CodSettlementController;
+use App\Http\Controllers\Api\V1\CouponController;
 use App\Http\Controllers\Api\V1\CourierController;
 use App\Http\Controllers\Api\V1\CurrencyController;
 use App\Http\Controllers\Api\V1\CustomerAddressController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\NewsletterSubscriberController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OrderController;
+use App\Http\Controllers\Api\V1\OrderPaymentController;
 use App\Http\Controllers\Api\V1\PageController;
 use App\Http\Controllers\Api\V1\ProductAttributeController;
 use App\Http\Controllers\Api\V1\ProductComponentController;
@@ -295,6 +297,9 @@ Route::prefix('v1')->group(function () {
         Route::post('orders/{order}/ship', [OrderController::class, 'ship']);
         Route::post('orders/{order}/deliver', [OrderController::class, 'deliver']);
         Route::post('orders/{order}/cancel', [OrderController::class, 'cancel']);
+        Route::post('orders/{order}/payments', [OrderPaymentController::class, 'store']);
+
+        Route::apiResource('coupons', CouponController::class);
 
         Route::apiResource('couriers', CourierController::class);
 

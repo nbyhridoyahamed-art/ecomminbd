@@ -37,8 +37,9 @@ class RoleAndPermissionSeeder extends Seeder
         'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
         'purchase_orders.cancel', 'purchase_orders.receive', 'purchase_orders.approve',
         'purchase_returns.view', 'purchase_returns.create', 'purchase_returns.update',
-        'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
+        'orders.view', 'orders.create', 'orders.update', 'orders.cancel', 'orders.record_payment',
         'customers.view', 'customers.create', 'customers.update', 'customers.delete',
+        'coupons.view', 'coupons.create', 'coupons.update', 'coupons.delete',
 
         // Delivery (enforced today).
         'couriers.view', 'couriers.create', 'couriers.update', 'couriers.delete',
@@ -77,8 +78,9 @@ class RoleAndPermissionSeeder extends Seeder
             'purchase_orders.view', 'purchase_orders.create', 'purchase_orders.update',
             'purchase_orders.cancel', 'purchase_orders.receive', 'purchase_orders.approve',
             'purchase_returns.view', 'purchase_returns.create', 'purchase_returns.update',
-            'orders.view', 'orders.create', 'orders.update', 'orders.cancel',
+            'orders.view', 'orders.create', 'orders.update', 'orders.cancel', 'orders.record_payment',
             'customers.view', 'customers.create', 'customers.update', 'customers.delete', 'reports.view', 'analytics.view',
+            'coupons.view', 'coupons.create', 'coupons.update', 'coupons.delete',
             'couriers.view', 'couriers.create', 'couriers.update', 'couriers.delete',
             'shipments.view', 'shipments.create', 'shipments.update',
             'cod_settlements.view', 'cod_settlements.create',
@@ -114,7 +116,7 @@ class RoleAndPermissionSeeder extends Seeder
             'purchase_returns.view', 'purchase_returns.create', 'purchase_returns.update',
         ],
         'Accountant' => [
-            'orders.view', 'reports.view', 'settings.manage',
+            'orders.view', 'orders.record_payment', 'reports.view', 'settings.manage',
             'couriers.view', 'cod_settlements.view', 'cod_settlements.create',
             'returns.view', 'returns.update',
             'purchase_returns.view', 'purchase_returns.update',
@@ -126,6 +128,7 @@ class RoleAndPermissionSeeder extends Seeder
             'blog.manage', 'reports.view', 'analytics.view', 'builder.view', 'builder.edit',
             'reviews.view', 'reviews.moderate', 'reviews.delete',
             'media.view', 'media.create', 'media.update', 'media.delete',
+            'coupons.view', 'coupons.create', 'coupons.update', 'coupons.delete',
         ],
         'SEO Manager' => [
             'seo.manage', 'pages.manage', 'blog.manage', 'reports.view', 'analytics.view',
@@ -148,7 +151,7 @@ class RoleAndPermissionSeeder extends Seeder
             'stores.view', 'warehouses.view', 'products.view', 'categories.view', 'brands.view', 'attributes.view',
             'inventory.view', 'suppliers.view', 'purchase_orders.view', 'orders.view', 'customers.view', 'reports.view', 'analytics.view',
             'couriers.view', 'shipments.view', 'cod_settlements.view', 'returns.view', 'purchase_returns.view',
-            'reviews.view', 'media.view',
+            'reviews.view', 'media.view', 'coupons.view',
         ],
     ];
 

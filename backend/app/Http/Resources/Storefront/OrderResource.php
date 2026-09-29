@@ -51,6 +51,7 @@ class OrderResource extends JsonResource
             ]),
             'shipping_amount' => (new Money($this->shipping_amount, $this->currency_code))->toDecimal(),
             'discount_amount' => (new Money($this->discount_amount, $this->currency_code))->toDecimal(),
+            'coupon_code' => $this->whenLoaded('couponUsage', fn () => $this->couponUsage?->code),
             'subtotal_amount' => (new Money($subtotalMinor, $this->currency_code))->toDecimal(),
             'total_amount' => (new Money(
                 $subtotalMinor + $this->shipping_amount - $this->discount_amount,

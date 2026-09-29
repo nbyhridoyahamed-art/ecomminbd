@@ -443,6 +443,54 @@ returns/exchanges (needs Phase 10), and a dedicated order-edit-while-
 pending UI (the endpoint exists and is tested, but no page consumes it
 yet — same as purchase-order editing).
 
+**Phase 8 Wave 2 scope note:** closes every item Wave 1 deferred except
+order returns/exchanges, which stayed exactly where they belong — Phase
+10 built real returns, and exchanges/store credit remain that phase's own
+Wave 2 item (see its scope note), not Phase 8's. A new `payments` table is
+the reconciliation producer non-COD methods never had: staff record a
+payment (amount/method/reference/note) against an order via a new
+`orders.record_payment` permission — deliberately separate from
+`orders.update`, owned by Accountant rather than whoever creates the
+order, the same separation-of-duties shape Phase 7 Wave 2b's
+`purchase_orders.approve` established. `payment_status` gains a
+`partially_paid` state, recomputed from `payments.sum('amount_amount')`
+against `Order::totalAmount()` after every new payment — `unpaid` below
+the total, `partially_paid` between, `paid` at or above, and a `refunded`
+order (or a `cancelled` one) refuses further payments outright rather
+than trying to reconcile a state a payment ledger was never meant to
+touch. `coupons`/`coupon_usages` are the real discount-code system
+Wave 1's plain `discount_amount` always lacked: a coupon is
+percentage-or-fixed, with an optional minimum order amount, a total usage
+limit, and a per-customer limit, all enforced by one `CouponResolver`
+support class shared by the admin `OrderController` and the storefront
+`CheckoutController` so the two entry points can't drift on what makes a
+coupon valid — the same "one shared resolver, two producers" shape
+`OrderPlacement` already established for item-syncing and stock
+reservation. A `coupon_code` on order create/update overrides
+`discount_amount` with the resolver's own computed figure; omitting it on
+an edit releases any coupon the order previously had (decrementing
+`used_count`, deleting its `coupon_usages` row) in favor of whatever
+manual `discount_amount` the request sends — the request's own
+`coupon_code` field, present or not, is always the current source of
+truth for which one is in effect. Cancelling an order releases its
+coupon the same way. The order-edit-while-pending UI reuses the existing
+`OrderForm` unchanged in shape: a new optional `defaultValues` prop
+pre-fills every field (including a `coupon_code` input alongside the
+existing `discount_amount` one) from the order being edited, toggled by
+an "Edit order" button on the show page rather than a separate route —
+the same inline-edit-in-place shape Purchase Orders never needed since
+their own items only get set once at creation. One real, if narrow, bug
+surfaced by building this: `OrderResource`'s `shipping` block exposed the
+resolved division/district/upazila *names* but never the underlying ids,
+so nothing could ever pre-fill those cascading Selects for an edit — the
+same id-plus-name pairing `CustomerAddressResource` already got right is
+now added here too. 17 new backend tests (462 → 479), all green,
+Pint-clean, plus a real Playwright walkthrough against a production
+build that caught one further gap the same way: the storefront's own
+order-confirmation page rendered `Subtotal`/`Shipping`/`Total` but never
+`discount_amount`, so a coupon-discounted guest order showed a `Total`
+that silently didn't add up — fixed alongside the rest.
+
 **Phase 9 scope note:** Wave 1 ships couriers (full CRUD) and shipments
 with a real state machine: `pending_pickup` (created by assigning a
 courier + tracking number to an already-`shipped` order — additive on

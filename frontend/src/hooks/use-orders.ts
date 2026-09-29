@@ -22,6 +22,7 @@ export interface OrderFormValues {
   currency_code?: string | null;
   shipping_amount?: string | null;
   discount_amount?: string | null;
+  coupon_code?: string | null;
   notes?: string | null;
   customer_address_id?: number | null;
   shipping_recipient_name?: string;
@@ -127,4 +128,27 @@ export function useDeliverOrder(id: number) {
 
 export function useCancelOrder(id: number) {
   return useOrderAction(id, "cancel", "Order cancelled.");
+}
+
+export interface OrderPaymentPayload {
+  amount: string;
+  method: PaymentMethod;
+  reference?: string | null;
+  note?: string | null;
+}
+
+export function useRecordOrderPayment(orderId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: OrderPaymentPayload) => api.post(`/orders/${orderId}/payments`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders", "detail", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success("Payment recorded.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not record payment.");
+    },
+  });
 }

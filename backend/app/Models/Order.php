@@ -85,8 +85,30 @@ class Order extends Model
         return $this->hasMany(OrderReturn::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class)->orderBy('created_at');
+    }
+
+    public function couponUsage(): HasOne
+    {
+        return $this->hasOne(CouponUsage::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** Sum of every line item's quantity × unit price. Loads items if not already loaded. */
+    public function subtotalAmount(): int
+    {
+        return $this->items->sum(fn (OrderItem $item) => $item->quantity * $item->unit_price_amount);
+    }
+
+    /** Subtotal plus shipping minus discount — never stored, always derived, same rule as purchase_orders.total_amount. */
+    public function totalAmount(): int
+    {
+        return $this->subtotalAmount() + $this->shipping_amount - $this->discount_amount;
     }
 }

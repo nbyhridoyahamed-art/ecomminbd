@@ -343,6 +343,32 @@ warehouse. `GET /stock-levels` now also returns `quantity_reserved`/
 compare against *available* quantity, not raw on-hand — a Phase 8
 change to Phase 6 code, covered by a regression test.
 
+Orders (Phase 8 Wave 2): `POST /orders/{id}/payments` records a non-COD
+payment (`amount`/`method`/`reference`/`note`) against an order, gated on
+a new `orders.record_payment` permission — deliberately separate from
+`orders.update`, the same separation-of-duties shape
+`purchase_orders.approve` established in Phase 7 Wave 2b — and recomputes
+`payment_status` (`unpaid`/`partially_paid`/`paid`) from the sum of that
+order's payments against its total; refuses with a 422 against a
+`cancelled` or already-`refunded` order. `GET/POST/PUT/DELETE /coupons`
+is a standard Eloquent policy resource (`coupons.view/create/update/
+delete`) for managing discount codes (percentage-or-fixed, an optional
+minimum order amount, a total usage limit, and a per-customer limit).
+`POST /orders` and `PUT /orders/{id}` both accept an optional
+`coupon_code` that — when present — overrides `discount_amount` with a
+server-resolved figure (422 on an invalid/expired/exhausted code, the
+same shape as `InsufficientStockException`), recorded against a new
+`coupon_usages` row; omitting it on a `PUT` releases any coupon the order
+previously had in favor of whatever `discount_amount` the request sends.
+`POST /storefront/checkout` accepts the identical `coupon_code` field,
+resolved through the same `CouponResolver` the admin endpoint uses, so a
+coupon's validity can never differ between the two entry points.
+`GET /orders/{id}` (and the storefront's own `GET /storefront/orders/{uuid}`)
+now also return `coupon_code` and a `payments[]` array
+(`id`/`amount`/`currency_code`/`method`/`reference`/`note`/`created_by`/
+`created_at`), the same lightweight-array pattern `OrderResource`
+already uses for `returns[]`.
+
 Delivery (Phase 9 Wave 1): full CRUD for `couriers`
 (`couriers.view/create/update/delete`, standard Eloquent policy,
 soft-deleted). `POST /orders/{id}/shipments` (assigns a courier +

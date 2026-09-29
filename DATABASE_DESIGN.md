@@ -365,7 +365,7 @@ entry by date and folds a running balance in PHP rather than SQL, the
 same "compute it in the app, not a portability-risking query" call
 `ReportController::foldByGranularity()` already made.
 
-## 1e. Orders Schema (Phase 8 Wave 1)
+## 1e. Orders Schema (Phase 8 Wave 1; payments/coupons added Phase 8 Wave 2)
 
 ```
 customers
@@ -392,7 +392,10 @@ orders
   status (varchar: pending/processing/shipped/delivered/cancelled — see
     the state machine below), payment_method (varchar: cod/bkash/nagad/
     rocket/card/bank_transfer), payment_status (varchar, default
-    'unpaid' — Wave 2, see below), currency_code (char(3), default 'BDT'),
+    'unpaid' — unpaid/partially_paid/paid/refunded, recomputed from
+    `payments` below after every new payment; COD's own path to 'paid'
+    is still the Phase 9 shipment-delivered flow, untouched by this),
+    currency_code (char(3), default 'BDT'),
   shipping_amount, discount_amount (bigint minor units, default 0 — real
     order-level inputs, unlike subtotal/total which are never stored,
     see section 3),
@@ -419,6 +422,52 @@ order_status_history
   index(order_id)
   — an append-only audit trail, same ledger style as stock_movements;
     every status transition in OrderController writes one row.
+
+payments (Phase 8 Wave 2)
+  id, uuid, store_id (FK→stores, cascade), order_id (FK→orders, cascade),
+  amount_amount (bigint minor units), currency_code (char(3), default
+    'BDT'), method (varchar — same cod/bkash/nagad/rocket/card/
+    bank_transfer set as orders.payment_method), reference (nullable),
+    note (nullable), created_by (FK→users, nullOnDelete), timestamps
+  index(order_id)
+  — the non-COD reconciliation ledger orders.payment_status recomputes
+    from; an append-only record of what's actually been collected, the
+    same "manual entry, no real gateway" shape as supplier_payments
+    (section 1d) — see ARCHITECTURE.md section 6 for why no
+    PaymentGatewayInterface exists yet.
+
+coupons (Phase 8 Wave 2)
+  id, store_id (FK→stores, cascade), code, description (nullable),
+  discount_type (varchar: percentage/fixed), percentage_value
+    (unsigned smallint, nullable — 1-100, set when discount_type is
+    percentage), fixed_discount_amount (bigint minor units, nullable —
+    set when discount_type is fixed), currency_code (char(3), default
+    'BDT'), minimum_order_amount (bigint minor units, default 0),
+  usage_limit (unsigned int, nullable — null means unlimited),
+  used_count (unsigned int, default 0), per_customer_limit (unsigned
+    int, nullable — null means unlimited), starts_at, expires_at
+    (nullable timestamps), status (varchar: active/inactive), timestamps
+  unique(store_id, code)
+  — two nullable discount-amount columns rather than one dual-meaning
+    one: a percentage isn't money, so overloading a single `value`
+    column across both types would fight `App\Support\Money`'s own
+    minor-unit convention for no real benefit.
+
+coupon_usages (Phase 8 Wave 2)
+  id, coupon_id (FK→coupons, nullOnDelete — not cascade, see below),
+  code (a snapshot of the coupon's code at the time it was used),
+  order_id (FK→orders, cascade), customer_id (FK→customers, cascade),
+  discount_amount (bigint minor units — the actual amount discounted on
+    this specific order, since a percentage coupon's effect varies per
+    order), currency_code (char(3), default 'BDT'), timestamps
+  unique(order_id), index(coupon_id, customer_id)
+  — the per-redemption audit ledger a coupon's own usage_limit/
+    used_count and per_customer_limit are checked against; coupon_id is
+    nullOnDelete (with a denormalized `code` snapshot) rather than
+    cascade specifically so deleting a coupon definition never erases
+    the historical record of what a past order was actually discounted —
+    the same snapshot-survives-the-parent reasoning as
+    order_items.unit_price_amount.
 ```
 
 **Status state machine:** `pending` (stock reserved atomically at
@@ -1424,18 +1473,16 @@ compatible with them.
   `purchase_return_items`, `purchase_return_status_history` (Wave 2a) are
   built — see section 1m. This bullet is kept only as a pointer for
   anyone still holding an older mental model of this section.
-- **Orders Wave 2:** `payments` (a real gateway reconciliation ledger for
-  non-COD methods — Wave 1's `orders.payment_status` for `cod` orders is
-  now set by the Phase 9 shipment-delivered flow, but `bkash`/`nagad`/
-  `rocket`/`card`/`bank_transfer` have no producer yet), `coupons`/
-  `coupon_usages` (no discount-code concept yet — Wave 1's
-  `discount_amount` is a plain manual entry), and an order-edit UI for
-  editing a pending order's items after creation (the `PUT` endpoint
-  exists and is tested — see
-  `API_DESIGN.md` — but no page consumes it yet, matching how
-  purchase-order editing has no dedicated UI either). `customers`,
-  `customer_addresses`, `orders`, `order_items`, `order_status_history`
-  are built — see section 1e.
+- **Orders (now fully shipped, nothing deferred):** a `payments`
+  reconciliation ledger for non-COD methods, `coupons`/`coupon_usages`
+  (a real percentage-or-fixed discount-code system with minimum-order/
+  usage-limit/per-customer-limit enforcement, shared by the admin and
+  storefront checkout entry points via one `CouponResolver`), and an
+  order-edit-while-pending UI reusing the existing `OrderForm` are all
+  built — see section 1e. `customers`, `customer_addresses`, `orders`,
+  `order_items`, `order_status_history` are built too. This bullet is
+  kept only as a pointer for anyone still holding an older mental model
+  of this section; there is no remaining Orders work to pick.
 - **Delivery Wave 2:** `delivery_zones`/`delivery_zone_rates` (no
   automatic shipping-rate-calculation consumer yet — `orders.shipping_amount`
   is still a plain manual entry, same reasoning as Catalog/Purchasing/Orders
@@ -1552,3 +1599,7 @@ PO) is always placed in one currency. Order `subtotal_amount`/
 `cod_settlements.amount_expected`/`amount_received` — all `Money`-backed
 minor-unit columns; a `Shipment` has no `currency_code` of its own and
 instead reads its order's, the same "one currency per header" reasoning.
+Phase 8 Wave 2 added `payments.amount_amount` and, on `coupons`,
+`fixed_discount_amount`/`minimum_order_amount` — all `Money`-backed too;
+`coupons.percentage_value` is deliberately a plain unsigned integer, not
+a `Money` column, since a percentage isn't a currency amount.

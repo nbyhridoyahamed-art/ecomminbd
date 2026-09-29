@@ -35,12 +35,20 @@ class OrderResource extends JsonResource
                 'recipient_name' => $this->shipping_recipient_name,
                 'phone' => $this->shipping_phone,
                 'address_line' => $this->shipping_address_line,
+                // Raw ids alongside the resolved names — the order-edit form
+                // needs these to prefill its cascading division/district/
+                // upazila Selects, the same pair CustomerAddressResource
+                // already exposes for the identical reason.
+                'bd_division_id' => $this->shipping_bd_division_id,
+                'bd_district_id' => $this->shipping_bd_district_id,
+                'bd_upazila_id' => $this->shipping_bd_upazila_id,
                 'division' => $this->whenLoaded('shippingDivision', fn () => $this->shippingDivision?->name_en),
                 'district' => $this->whenLoaded('shippingDistrict', fn () => $this->shippingDistrict?->name_en),
                 'upazila' => $this->whenLoaded('shippingUpazila', fn () => $this->shippingUpazila?->name_en),
             ],
             'shipping_amount' => (new Money($this->shipping_amount, $this->currency_code))->toDecimal(),
             'discount_amount' => (new Money($this->discount_amount, $this->currency_code))->toDecimal(),
+            'coupon_code' => $this->whenLoaded('couponUsage', fn () => $this->couponUsage?->code),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'product_id' => $item->product_id,
@@ -90,6 +98,16 @@ class OrderResource extends JsonResource
                 'return_number' => $return->return_number,
                 'status' => $return->status,
                 'refund_amount' => $return->refund_amount === null ? null : (new Money($return->refund_amount, $this->currency_code))->toDecimal(),
+            ])),
+            'payments' => $this->whenLoaded('payments', fn () => $this->payments->map(fn ($payment) => [
+                'id' => $payment->id,
+                'amount' => (new Money($payment->amount_amount, $payment->currency_code))->toDecimal(),
+                'currency_code' => $payment->currency_code,
+                'method' => $payment->method,
+                'reference' => $payment->reference,
+                'note' => $payment->note,
+                'created_by' => $payment->creator?->name,
+                'created_at' => $payment->created_at,
             ])),
             'created_by' => $this->creator?->name,
             'created_at' => $this->created_at,

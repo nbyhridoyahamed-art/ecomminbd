@@ -33,6 +33,7 @@ const checkoutSchema = z.object({
   shipping_bd_district_id: z.string(),
   shipping_bd_upazila_id: z.string(),
   notes: z.string(),
+  coupon_code: z.string(),
 });
 
 type CheckoutFormValues = z.infer<typeof checkoutSchema>;
@@ -70,6 +71,7 @@ export default function CheckoutPage() {
       shipping_bd_district_id: "",
       shipping_bd_upazila_id: "",
       notes: "",
+      coupon_code: "",
     },
   });
 
@@ -97,6 +99,7 @@ export default function CheckoutPage() {
         shipping_bd_district_id: values.shipping_bd_district_id ? Number(values.shipping_bd_district_id) : undefined,
         shipping_bd_upazila_id: values.shipping_bd_upazila_id ? Number(values.shipping_bd_upazila_id) : undefined,
         notes: values.notes || undefined,
+        coupon_code: values.coupon_code || undefined,
         items: items.map((item) => ({
           product_id: item.productId,
           product_variant_id: item.variantId ?? undefined,
@@ -305,6 +308,10 @@ export default function CheckoutPage() {
               <span>Total</span>
               <span>{formatMoney(subtotal, currencyCode)}</span>
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="coupon_code">Have a coupon?</Label>
+            <Input id="coupon_code" placeholder="Enter code" {...register("coupon_code")} />
           </div>
           <Button type="submit" size="lg" className="w-full" loading={checkout.isPending}>
             Place Order

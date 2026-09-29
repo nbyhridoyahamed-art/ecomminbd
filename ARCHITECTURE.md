@@ -633,11 +633,19 @@ now fully shipped except multi-currency POs, a deliberate scope boundary
 rather than a deferral — a real PO approval workflow, a supplier ledger,
 and reorder suggestions (Phase 7 Wave 2b — see `DATABASE_DESIGN.md`
 section 1d) — closing the three items this section used to list for it.
-Orders Wave 2 (a
-non-COD gateway-payments ledger, coupons), Delivery Wave 2 (delivery
-zones/rates, multi-shipment orders — the return-driven stock reversal gap
-this used to list is closed, see above), Returns Wave 2 (exchanges, store
-credit, cross-return partial-refund reconciliation), Dashboard Wave 2 (a
+Orders is also now fully shipped — a non-COD `payments` reconciliation
+ledger and a real `coupons`/`coupon_usages` discount-code system, the
+latter validated by one shared `App\Support\CouponResolver` both the
+admin `OrderController` and the storefront `CheckoutController` call
+through, the identical "one resolver, two producers" shape
+`App\Support\OrderPlacement` already established for item-syncing (Phase
+16 Wave 1, above) — plus an order-edit-while-pending UI reusing the
+existing `OrderForm` (Phase 8 Wave 2 — see `DATABASE_DESIGN.md` section
+1e) — closing the item this section used to list for it. Delivery Wave 2
+(delivery zones/rates, multi-shipment orders — the return-driven stock
+reversal gap this used to list is closed, see above), Returns Wave 2
+(exchanges, store credit, cross-return partial-refund reconciliation),
+Dashboard Wave 2 (a
 custom date-range picker and per-warehouse/per-courier breakdowns *on the
 dashboard widget itself* — Reports above now covers date-range/
 per-warehouse/payment-method/CSV/low-stock-with-names as its own admin

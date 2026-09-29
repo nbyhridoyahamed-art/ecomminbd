@@ -47,11 +47,12 @@ their backing functionality — no dead pages).
 | `/orders` | ✅ | 8 (redirects to Orders) |
 | `/orders/orders` | ✅ | 8 (status/customer filters, total shown per order); 16 added a Source column (Admin/Storefront badge, once guest checkout existed to actually produce the latter) |
 | `/orders/orders/new` | ✅ | 8 (customer/warehouse/payment method + saved-or-manual shipping address + line-item builder) |
-| `/orders/orders/[id]` | ✅ | 8/9/10/16 (items, shipping address, status badge, Process/Ship/Deliver/Cancel actions gated by status+permission, status history timeline — ship drives real `stock_movements`; courier-assignment + shipment status card from Phase 9; Returns list + "Request a return" form, shown once `delivered`, from Phase 10; Source badge next to the status badge from Phase 16) |
+| `/orders/orders/[id]` | ✅ | 8/9/10/16 (items, shipping address, status badge, Process/Ship/Deliver/Cancel actions gated by status+permission, status history timeline — ship drives real `stock_movements`; courier-assignment + shipment status card from Phase 9; Returns list + "Request a return" form, shown once `delivered`, from Phase 10; Source badge next to the status badge from Phase 16); 8 Wave 2 added a payment-status badge, an "Edit order" toggle (while `pending`) that swaps the read-only view for the same `OrderForm` used on `/orders/orders/new`, pre-filled and reused unchanged, and a Payments card (payment list + "Record payment" dialog, gated on the new `orders.record_payment` permission) |
 | `/orders/customers` | ✅ | 8 (list, search, pagination); 17 added an Account column (Claimed/Guest badge, once customers could actually claim one) |
 | `/orders/customers/new` | ✅ | 8 |
 | `/orders/customers/[id]` | ✅ | 8 (edit customer + inline saved-address manager, no separate address pages); 17 added the same Claimed/Guest badge next to the page title |
-| `/orders` (payments/refunds, order edit-while-pending UI, guest checkout) | ⏳ | 8 Wave 2 — no real consumer yet, see `DATABASE_DESIGN.md` |
+| `/orders/coupons` | ✅ | 8 Wave 2 (list, search by code, status badge, delete confirmation naming past usage if any) |
+| `/orders/coupons/new`, `/orders/coupons/[id]` | ✅ | 8 Wave 2 (code, description, discount type toggle — percentage 1-100 or a fixed amount, minimum order amount, total/per-customer usage limits, starts/expires dates, status) |
 | `/delivery` | ✅ | 9 (redirects to Shipments) |
 | `/delivery/shipments` | ✅ | 9 (status/courier filters) |
 | `/delivery/shipments/[id]` | ✅ | 9 (status card w/ Picked up/In transit/Delivered/Failed/Returned actions, COD capture dialog, order summary, status history timeline) |
@@ -121,8 +122,8 @@ plain Client Components — they were never missing a per-entity `<title>`.
 | `/blog/category/[slug]`, `/blog/tag/[slug]` | ✅ | 14/16/15 — Phase 15 Server Components (paginated archives, mirroring `/category/[slug]`'s shape; BreadcrumbList JSON-LD) |
 | `/pages/[slug]` | ✅ | 12/16/15 — Phase 15 Server Component (title + plain-text content rendered `whitespace-pre-line`, matching the product description convention; draft pages and pages from another store both 404; BreadcrumbList JSON-LD) |
 | `/cart` | ✅ | 16 (line items w/ quantity stepper, subtotal — reused `CartLineItem` also backs the header's cart drawer) |
-| `/checkout` | ✅ | 16 (guest-only: name/phone/email, shipping address w/ live BD division/district/upazila cascade, order summary; payment method is a fixed "Cash on Delivery" label, not a selector — Wave 1 has only the one method, so a picker would be a fake choice) |
-| `/order-confirmation/[uuid]` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had a `/checkout` row but nowhere named where a successful checkout lands; looked up by uuid only, same public-receipt contract as the API route |
+| `/checkout` | ✅ | 16 (guest-only: name/phone/email, shipping address w/ live BD division/district/upazila cascade, order summary; payment method is a fixed "Cash on Delivery" label, not a selector — Wave 1 has only the one method, so a picker would be a fake choice); 8 Wave 2 added an optional "Have a coupon?" code input, applied server-side by the same `CouponResolver` the admin order form uses |
+| `/order-confirmation/[uuid]` | ✅ | 16 — a small, deliberate addition beyond this table's original sketch, which had a `/checkout` row but nowhere named where a successful checkout lands; looked up by uuid only, same public-receipt contract as the API route; 8 Wave 2 added a discount line (shown whenever a coupon was applied) between Shipping and Total |
 | `/sitemap.xml`, `/robots.txt` | ✅ | 15 — Next.js's own native `app/sitemap.ts` (`force-dynamic`, so it reflects the live catalog rather than a stale build-time snapshot)/`app/robots.ts` special files, not a Laravel endpoint (robots.txt must disallow this same app's own admin/account/cart/checkout paths, which the Laravel API has no visibility into) |
 
 ## Customer Account (`frontend/src/app/account/`)
@@ -188,6 +189,8 @@ tab nav) around everything that actually needs a signed-in customer.
 | `POST/PUT/DELETE /api/v1/customers/{id}/addresses(/{address})` | ✅ |
 | `GET/POST/PUT /api/v1/orders`, `GET .../{id}` | ✅ |
 | `POST /api/v1/orders/{id}/process`, `.../ship` (drives `stock_movements`/`stock_levels`), `.../deliver`, `.../cancel` | ✅ |
+| `POST /api/v1/orders/{id}/payments` (gated on `orders.record_payment`, separate from `orders.update` — Accountant, not Order Manager, mirroring Phase 7's `suppliers.pay`) | ✅ 8 Wave 2 |
+| `GET/POST/PUT/DELETE /api/v1/coupons` (code/discount-type/value/minimum-order/usage-limits/date-window CRUD, gated on `coupons.*` — Marketing Manager, not Order Manager) | ✅ 8 Wave 2 |
 | `GET/POST/PUT/DELETE /api/v1/couriers` | ✅ |
 | `POST /api/v1/orders/{id}/shipments`, `GET /api/v1/shipments`, `GET .../{id}` | ✅ |
 | `POST /api/v1/shipments/{id}/picked-up`, `.../in-transit`, `.../delivered` (drives `stock_movements`-adjacent `orders.status`/`payment_status` for COD), `.../failed`, `.../returned` (drives `stock_movements`/`stock_levels` since Phase 10) | ✅ |
@@ -202,7 +205,7 @@ tab nav) around everything that actually needs a signed-in customer.
 | `GET /api/v1/storefront/brands`, `GET .../{slug}` (+ its products, paginated) | ✅ |
 | `GET /api/v1/storefront/products` (search/category/brand/featured/sort, paginated), `GET .../{slug}` (PDP: variants, bundle components + availability) | ✅ |
 | `GET /api/v1/storefront/locations/divisions` `/districts` `/upazilas` (same `LocationController` the admin app uses, reachable without a token — nationwide reference data, nothing store-scoped or sensitive) | ✅ |
-| `POST /api/v1/storefront/checkout` (guest-only, server-priced, auto-selects warehouse — see `DATABASE_DESIGN.md` section 1n), `GET /api/v1/storefront/orders/{uuid}` (receipt lookup by uuid only) | ✅ |
+| `POST /api/v1/storefront/checkout` (guest-only, server-priced, auto-selects warehouse — see `DATABASE_DESIGN.md` section 1n; 8 Wave 2 added an optional `coupon_code`, resolved server-side by the same `CouponResolver` the admin order form uses), `GET /api/v1/storefront/orders/{uuid}` (receipt lookup by uuid only) | ✅ |
 | `POST /api/v1/account/auth/register` (claims an unclaimed guest `customers` row by phone, or creates a fresh one — see `DATABASE_DESIGN.md` section 1o), `POST .../login` | ✅ |
 | `POST /api/v1/account/auth/logout`, `GET .../me` (all three `account/*` groups below are gated by `auth:sanctum` + the new `customer` middleware, never `staff`) | ✅ |
 | `GET /api/v1/account/orders` (own orders only, never a client-supplied customer id), `GET .../{uuid}` (404, not 403, for someone else's) | ✅ |

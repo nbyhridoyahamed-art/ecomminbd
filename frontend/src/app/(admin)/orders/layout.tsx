@@ -11,6 +11,7 @@ const TABS = [
   { label: "Orders", href: "/orders/orders", permission: "orders.view" },
   { label: "Customers", href: "/orders/customers", permission: "customers.view" },
   { label: "Returns", href: "/orders/returns", permission: "returns.view" },
+  { label: "Coupons", href: "/orders/coupons", permission: "coupons.view" },
 ];
 
 export default function OrdersLayout({ children }: { children: React.ReactNode }) {

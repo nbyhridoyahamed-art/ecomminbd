@@ -92,6 +92,12 @@ export default function OrderConfirmationPage({ params }: PageProps<"/order-conf
             <span>Shipping</span>
             <span>{formatMoney(order.shipping_amount, order.currency_code)}</span>
           </div>
+          {order.discount_amount > 0 ? (
+            <div className="flex justify-between text-text-secondary">
+              <span>Discount{order.coupon_code ? ` (${order.coupon_code})` : ""}</span>
+              <span>-{formatMoney(order.discount_amount, order.currency_code)}</span>
+            </div>
+          ) : null}
           <div className="flex justify-between font-semibold text-text-primary">
             <span>Total</span>
             <span>{formatMoney(order.total_amount, order.currency_code)}</span>

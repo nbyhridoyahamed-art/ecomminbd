@@ -137,6 +137,7 @@ export interface StorefrontOrder {
   items: StorefrontOrderItem[];
   shipping_amount: number;
   discount_amount: number;
+  coupon_code: string | null;
   subtotal_amount: number;
   total_amount: number;
   created_at: string;
@@ -245,5 +246,6 @@ export interface CheckoutPayload {
   shipping_bd_district_id?: number;
   shipping_bd_upazila_id?: number;
   notes?: string;
+  coupon_code?: string;
   items: CheckoutItemPayload[];
 }

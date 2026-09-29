@@ -3,6 +3,7 @@
 namespace Tests\Feature\Storefront;
 
 use App\Models\BundleItem;
+use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
@@ -280,5 +281,40 @@ class StorefrontCheckoutTest extends TestCase
         $response = $this->actingAs($admin, 'sanctum')->getJson('/api/v1/orders?store_id='.$store->id)->assertOk();
 
         $response->assertJsonPath('data.0.source', 'storefront');
+    }
+
+    public function test_checkout_applies_a_valid_coupon_code(): void
+    {
+        $store = Store::factory()->create(['status' => 'active']);
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['status' => 'active', 'price_amount' => 100000]);
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+        $coupon = Coupon::factory()->for($store)->create(['code' => 'WELCOME10', 'percentage_value' => 10]);
+
+        $this->postJson('/api/v1/storefront/checkout', $this->guestPayload([
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'coupon_code' => 'welcome10',
+        ]))->assertCreated()
+            ->assertJsonPath('data.subtotal_amount', 1000)
+            ->assertJsonPath('data.discount_amount', 100)
+            ->assertJsonPath('data.total_amount', 900)
+            ->assertJsonPath('data.coupon_code', 'WELCOME10');
+
+        $this->assertSame(1, $coupon->fresh()->used_count);
+    }
+
+    public function test_checkout_rejects_an_invalid_coupon_code_and_creates_no_order(): void
+    {
+        $store = Store::factory()->create(['status' => 'active']);
+        $warehouse = Warehouse::factory()->for($store)->create();
+        $product = Product::factory()->for($store)->create(['status' => 'active']);
+        StockLevel::factory()->for($product)->for($warehouse)->create(['quantity' => 10, 'quantity_reserved' => 0]);
+
+        $this->postJson('/api/v1/storefront/checkout', $this->guestPayload([
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'coupon_code' => 'NOPE',
+        ]))->assertStatus(422);
+
+        $this->assertSame(0, Order::count());
     }
 }

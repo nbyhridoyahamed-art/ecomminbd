@@ -31,4 +31,9 @@ class OrderPolicy
     {
         return $user->can('orders.cancel');
     }
+
+    public function recordPayment(User $user, Order $order): bool
+    {
+        return $user->can('orders.record_payment');
+    }
 }

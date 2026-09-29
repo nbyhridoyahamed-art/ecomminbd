@@ -16,6 +16,8 @@ use App\Notifications\NewOrderPlacedNotification;
 use App\Notifications\OrderPlacedNotification;
 use App\Support\ApiResponse;
 use App\Support\BundleExpander;
+use App\Support\CouponException;
+use App\Support\CouponResolver;
 use App\Support\InsufficientStockException;
 use App\Support\Money;
 use App\Support\OrderPlacement;
@@ -28,7 +30,7 @@ class CheckoutController extends StorefrontController
 {
     private const RELATIONS = [
         'items.product', 'items.productVariant.attributeValues.attribute',
-        'shippingDivision', 'shippingDistrict', 'shippingUpazila',
+        'shippingDivision', 'shippingDistrict', 'shippingUpazila', 'couponUsage',
     ];
 
     public function store(CheckoutRequest $request): JsonResponse
@@ -49,9 +51,13 @@ class CheckoutController extends StorefrontController
         }
 
         $currency = $resolved[0]['product']->currency_code;
+        $subtotalMinor = array_sum(array_map(
+            fn (array $item) => $item['quantity'] * Money::fromDecimal($item['unit_price'], $currency)->amountMinor,
+            $resolved,
+        ));
 
         try {
-            $order = DB::transaction(function () use ($store, $data, $resolved, $warehouse, $currency) {
+            $order = DB::transaction(function () use ($store, $data, $resolved, $warehouse, $currency, $subtotalMinor) {
                 // Reused across repeat guest orders by phone number — never
                 // overwritten with a new name/email on an existing match, so
                 // typing someone else's real phone can't rewrite their record.
@@ -59,6 +65,15 @@ class CheckoutController extends StorefrontController
                     ['store_id' => $store->id, 'phone' => $data['customer_phone']],
                     ['name' => $data['customer_name'], 'email' => $data['customer_email'] ?? null],
                 );
+
+                $coupon = null;
+                $discountMinor = 0;
+
+                if (! empty($data['coupon_code'])) {
+                    $resolvedCoupon = CouponResolver::resolve($store->id, $data['coupon_code'], $subtotalMinor, $customer->id);
+                    $coupon = $resolvedCoupon['coupon'];
+                    $discountMinor = $resolvedCoupon['discount_amount'];
+                }
 
                 $order = Order::create([
                     'store_id' => $store->id,
@@ -70,7 +85,7 @@ class CheckoutController extends StorefrontController
                     'source' => 'storefront',
                     'currency_code' => $currency,
                     'shipping_amount' => 0,
-                    'discount_amount' => 0,
+                    'discount_amount' => $discountMinor,
                     'customer_address_id' => null,
                     'shipping_recipient_name' => $data['shipping_recipient_name'],
                     'shipping_phone' => $data['shipping_phone'],
@@ -81,6 +96,10 @@ class CheckoutController extends StorefrontController
                     'notes' => $data['notes'] ?? null,
                     'created_by' => null,
                 ]);
+
+                if ($coupon) {
+                    CouponResolver::recordUsage($coupon, $order, $discountMinor);
+                }
 
                 $items = array_map(fn (array $item) => [
                     'product_id' => $item['product']->id,
@@ -100,7 +119,7 @@ class CheckoutController extends StorefrontController
 
                 return $order;
             });
-        } catch (InsufficientStockException $exception) {
+        } catch (InsufficientStockException|CouponException $exception) {
             return ApiResponse::error($exception->getMessage(), [], 422);
         }
 
