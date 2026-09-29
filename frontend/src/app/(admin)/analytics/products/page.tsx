@@ -53,6 +53,7 @@ export default function AnalyticsProductsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Input
             type="date"
+            aria-label="From date"
             value={dateRange.from}
             max={dateRange.to}
             onChange={(event) => {
@@ -64,6 +65,7 @@ export default function AnalyticsProductsPage() {
           <span className="text-sm text-text-muted">to</span>
           <Input
             type="date"
+            aria-label="To date"
             value={dateRange.to}
             min={dateRange.from}
             onChange={(event) => {

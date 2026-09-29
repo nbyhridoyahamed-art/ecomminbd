@@ -13,9 +13,9 @@ export function HeroBlock({ settings }: { settings: HeroSettings }) {
     >
       {hasImage ? <div className="absolute inset-0 bg-black/40" /> : null}
       <div className="relative">
-        <p className={`text-page-title font-semibold tablet:text-display ${hasImage ? "text-white" : "text-text-primary"}`}>
+        <h1 className={`text-page-title font-semibold tablet:text-display ${hasImage ? "text-white" : "text-text-primary"}`}>
           {settings.heading}
-        </p>
+        </h1>
         {settings.subheading ? (
           <p className={`mx-auto mt-3 max-w-xl ${hasImage ? "text-white/90" : "text-text-secondary"}`}>{settings.subheading}</p>
         ) : null}

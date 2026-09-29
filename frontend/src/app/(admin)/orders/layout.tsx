@@ -28,7 +28,7 @@ export default function OrdersLayout({ children }: { children: React.ReactNode }
 
       {visibleTabs.length > 0 ? (
         <div className="border-b border-border">
-          <nav className="flex gap-1">
+          <nav aria-label="Order sections" className="flex gap-1">
             {visibleTabs.map((tab) => {
               const isActive = pathname.startsWith(tab.href);
               return (

@@ -51,6 +51,7 @@ export default function AnalyticsFunnelPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Input
           type="date"
+          aria-label="From date"
           value={dateRange.from}
           max={dateRange.to}
           onChange={(event) => setDateRange((prev) => ({ ...prev, from: event.target.value }))}
@@ -59,6 +60,7 @@ export default function AnalyticsFunnelPage() {
         <span className="text-sm text-text-muted">to</span>
         <Input
           type="date"
+          aria-label="To date"
           value={dateRange.to}
           min={dateRange.from}
           onChange={(event) => setDateRange((prev) => ({ ...prev, to: event.target.value }))}

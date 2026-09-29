@@ -15,9 +15,11 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return <div className={cn("flex flex-col gap-1 p-6", className)} {...props} />;
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
+// h2, not h3: every page here puts a Card directly under its own <h1>
+// page title with no section heading in between, so h3 skipped a level.
+function CardTitle({ className, ...props }: React.ComponentProps<"h2">) {
   return (
-    <h3
+    <h2
       className={cn("text-section font-semibold leading-none text-text-primary", className)}
       {...props}
     />

@@ -37,7 +37,7 @@ export default function LoginPage() {
   const serverError = login.error instanceof ApiError ? login.error.message : null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-3 text-center">
           <Logo className="justify-center" iconSize={40} textClassName="text-display font-semibold" />
@@ -83,6 +83,6 @@ export default function LoginPage() {
           </Button>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

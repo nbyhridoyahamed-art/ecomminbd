@@ -28,8 +28,10 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              // /8, not /10: at /10 the tint (#e9effd) only gets text-primary
+              // to 4.48:1 against it — just under WCAG AA's 4.5:1 floor.
               isActive
-                ? "bg-primary/10 text-primary"
+                ? "bg-primary/8 text-primary"
                 : "text-text-secondary hover:bg-border/40 hover:text-text-primary",
             )}
           >

@@ -14,6 +14,12 @@ export interface DataTableColumn<TData> {
   className?: string;
 }
 
+// A column with a visually-blank header (an icon-only actions column, a
+// flag column, ...) still needs a name a screen reader can announce.
+function humanizeColumnId(id: string): string {
+  return id.replace(/[_-]/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
 interface DataTableProps<TData> {
   columns: DataTableColumn<TData>[];
   data: TData[];
@@ -41,7 +47,9 @@ export function DataTable<TData>({
             <tr>
               {columns.map((column) => (
                 <th key={column.id} className="px-4 py-3 font-medium text-text-secondary">
-                  {column.header}
+                  {column.header || (
+                    <span className="sr-only">{humanizeColumnId(column.id)}</span>
+                  )}
                 </th>
               ))}
             </tr>

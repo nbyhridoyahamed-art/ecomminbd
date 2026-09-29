@@ -19,7 +19,11 @@
 
   --color-text-primary: #0f172a;
   --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
+  /* Phase 23: was #94a3b8 (2.56:1 on white — fails WCAG AA's 4.5:1 for
+     normal text). This is as light as a "muted" tier can go and still
+     pass; #64748b (secondary) is only barely above the same floor
+     itself, so there isn't much room left between the two tiers. */
+  --color-text-muted: #677690;
 
   /* Radius */
   --radius-sm: 6px;

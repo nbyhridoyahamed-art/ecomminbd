@@ -16,7 +16,7 @@ export default function SeoLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="space-y-4">
-      <nav className="flex gap-1">
+      <nav aria-label="SEO sections" className="flex gap-1">
         {TABS.map((tab) => {
           const isActive = pathname.startsWith(tab.href);
           return (
